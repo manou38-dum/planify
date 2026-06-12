@@ -1,0 +1,91 @@
+-- ============================================
+-- PLANIFY V1 — Schema Supabase
+-- Coller dans Supabase > SQL Editor > New Query > Run
+-- ============================================
+
+-- 1. EVENTS
+CREATE TABLE events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_name TEXT NOT NULL,
+  event_type TEXT NOT NULL DEFAULT 'BBQ',
+  date TIMESTAMPTZ NOT NULL,
+  location TEXT,
+  nb_participants INTEGER DEFAULT 20,
+  deadline_rsvp TIMESTAMPTZ,
+  organizer_name TEXT NOT NULL,
+  invite_link_id TEXT UNIQUE DEFAULT substr(md5(random()::text), 1, 8),
+  status TEXT DEFAULT 'Actif',
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 2. PARTICIPANTS
+CREATE TABLE participants (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id UUID REFERENCES events(id) ON DELETE CASCADE,
+  participant_name TEXT NOT NULL,
+  email TEXT,
+  phone TEXT,
+  rsvp_status TEXT DEFAULT 'En attente',
+  nb_personnes INTEGER DEFAULT 1,
+  restriction_alimentaire TEXT,
+  commentaire TEXT,
+  date_reponse TIMESTAMPTZ DEFAULT now()
+);
+
+-- 3. ITEMS (apports)
+CREATE TABLE items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id UUID REFERENCES events(id) ON DELETE CASCADE,
+  item_name TEXT NOT NULL,
+  category TEXT DEFAULT 'Nourriture',
+  quantity NUMERIC,
+  unit TEXT,
+  estimated_price NUMERIC,
+  assigned_to TEXT,
+  assigned_participant_id UUID REFERENCES participants(id),
+  status TEXT DEFAULT 'Disponible',
+  ai_generated BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 4. SLOTS (créneaux récurrents)
+CREATE TABLE slots (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id UUID REFERENCES events(id) ON DELETE CASCADE,
+  slot_name TEXT NOT NULL,
+  slot_date TIMESTAMPTZ NOT NULL,
+  duration_minutes INTEGER DEFAULT 60,
+  max_participants INTEGER DEFAULT 4,
+  current_count INTEGER DEFAULT 0,
+  status TEXT DEFAULT 'Disponible'
+);
+
+-- INDEX pour performance
+CREATE INDEX idx_participants_event ON participants(event_id);
+CREATE INDEX idx_items_event ON items(event_id);
+CREATE INDEX idx_items_status ON items(status);
+CREATE INDEX idx_slots_event ON slots(event_id);
+CREATE INDEX idx_events_invite ON events(invite_link_id);
+
+-- ACTIVER Row Level Security (mais tout public pour V1)
+ALTER TABLE events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE participants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE slots ENABLE ROW LEVEL SECURITY;
+
+-- Policies : tout public pour la V1 (on ajoutera l'auth plus tard)
+CREATE POLICY "Public read events" ON events FOR SELECT USING (true);
+CREATE POLICY "Public insert events" ON events FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public update events" ON events FOR UPDATE USING (true);
+
+CREATE POLICY "Public read participants" ON participants FOR SELECT USING (true);
+CREATE POLICY "Public insert participants" ON participants FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public update participants" ON participants FOR UPDATE USING (true);
+
+CREATE POLICY "Public read items" ON items FOR SELECT USING (true);
+CREATE POLICY "Public insert items" ON items FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public update items" ON items FOR UPDATE USING (true);
+
+CREATE POLICY "Public read slots" ON slots FOR SELECT USING (true);
+CREATE POLICY "Public insert slots" ON slots FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public update slots" ON slots FOR UPDATE USING (true);
