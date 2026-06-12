@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { getSupabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
 const EVENT_TYPES = [
@@ -36,6 +36,7 @@ export default function CreateEvent() {
     setLoading(true)
 
     try {
+      const supabase = getSupabase()
       // 1. Créer l'événement
       const { data: event, error } = await supabase
         .from('events')

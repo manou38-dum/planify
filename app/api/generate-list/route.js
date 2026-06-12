@@ -85,7 +85,8 @@ export async function POST(request) {
       }
     })
 
-    const { error } = await getSupabase
+    const supabase = getSupabase()
+    const { error } = await supabase
       .from('items')
       .insert(itemsToInsert)
 
