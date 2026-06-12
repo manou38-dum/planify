@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
+import { getSupabase } from '@/lib/supabase'
 import Link from 'next/link'
 
 export default function Home() {
@@ -12,6 +12,7 @@ export default function Home() {
   }, [])
 
   async function loadEvents() {
+    const supabase = getSupabase()
     const { data } = await supabase
       .from('events')
       .select('*')

@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
+import { getSupabase } from '@/lib/supabase'
 import { useParams } from 'next/navigation'
 
 export default function InvitePage() {
@@ -23,6 +23,7 @@ export default function InvitePage() {
   }, [linkId])
 
   async function loadEvent() {
+    const supabase = getSupabase()
     // Trouver l'événement via le lien d'invitation
     const { data: evt } = await supabase
       .from('events')
@@ -52,6 +53,7 @@ export default function InvitePage() {
   }
 
   async function handleSubmit(e) {
+    const supabase = getSupabase()
     e.preventDefault()
     if (!guestName || !rsvp) return
     setSubmitting(true)

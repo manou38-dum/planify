@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
+import { getSupabase } from '@/lib/supabase'
 import { useParams, useRouter } from 'next/navigation'
 
 export default function EventDashboard() {
@@ -17,6 +17,7 @@ export default function EventDashboard() {
   }, [id])
 
   async function loadAll() {
+    const supabase = getSupabase()
     const [evtRes, partRes, itemRes] = await Promise.all([
       supabase.from('events').select('*').eq('id', id).single(),
       supabase.from('participants').select('*').eq('event_id', id),
