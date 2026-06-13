@@ -98,7 +98,7 @@ export default function EventDashboard() {
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-5 pt-5 pb-4">
           <div className="flex justify-between items-start">
-            <h1 className="text-xl font-bold text-slate-900 leading-tight">{event.event_name}</h1>
+            <h1 className="text-2xl font-extrabold text-slate-900 leading-tight tracking-tight">{event.event_name}</h1>
             <span className="bg-emerald-500 text-white text-xs px-3 py-1 rounded-full font-semibold shadow-sm">
               {event.status}
             </span>
@@ -155,13 +155,13 @@ export default function EventDashboard() {
 
         {/* Barre orange "Manque" */}
         {disponibles.length > 0 && (
-          <div className="mx-4 my-3 bg-orange-500 text-white rounded-xl px-4 py-3">
+          <div className="mx-4 my-3 bg-gradient-to-r from-amber-400 to-orange-400 text-white rounded-xl px-4 py-3">
             <div className="flex items-center justify-between">
               <div className="flex-1 min-w-0">
                 <p className="font-bold text-sm">
                   Manque : {missingNames.slice(0, 3).join(', ')}{missingNames.length > 3 ? '...' : ''}
                 </p>
-                <p className="text-orange-100 text-xs mt-0.5">
+                <p className="text-amber-100 text-xs mt-0.5">
                   {disponibles.length} articles - {totalManquant.toFixed(0)} € a couvrir
                 </p>
               </div>
@@ -174,12 +174,12 @@ export default function EventDashboard() {
             </div>
 
             {showAllMissing && (
-              <div className="mt-3 pt-3 border-t border-orange-400 space-y-1.5">
+              <div className="mt-3 pt-3 border-t border-amber-300/50 space-y-1.5">
                 {disponibles.map((item) => (
                   <div key={item.id} className="flex justify-between items-center text-sm">
                     <span>
                       {item.item_name}{' '}
-                      <span className="text-orange-200 text-xs">{item.quantity} {item.unit}</span>
+                      <span className="text-amber-100 text-xs">{item.quantity} {item.unit}</span>
                     </span>
                     <span className="font-semibold">{item.estimated_price} €</span>
                   </div>
