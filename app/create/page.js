@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { getSupabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
@@ -92,11 +92,47 @@ export default function CreateEvent() {
   })
   const [eventOptions, setEventOptions] = useState({})
   const [eventDescription, setEventDescription] = useState('')
+  const [listening, setListening] = useState(false)
+  const [speechSupported, setSpeechSupported] = useState(false)
+  const recognitionRef = useRef(null)
 
   const [generatedLists, setGeneratedLists] = useState([])
   const [planning, setPlanning] = useState([])
   const [menuResume, setMenuResume] = useState('')
   const [activeTab, setActiveTab] = useState(0)
+
+  // Détection du support Web Speech (côté client uniquement)
+  useEffect(() => {
+    const SR = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition)
+    setSpeechSupported(!!SR)
+  }, [])
+
+  function toggleDictation() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SR) return
+    if (listening && recognitionRef.current) {
+      recognitionRef.current.stop()
+      return
+    }
+    const rec = new SR()
+    rec.lang = 'fr-FR'
+    rec.continuous = false
+    rec.interimResults = true
+    rec.onresult = (e) => {
+      let finalText = ''
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) finalText += e.results[i][0].transcript
+      }
+      if (finalText.trim()) {
+        setEventDescription(prev => (prev ? prev.trimEnd() + ' ' : '') + finalText.trim())
+      }
+    }
+    rec.onend = () => setListening(false)
+    rec.onerror = () => setListening(false)
+    recognitionRef.current = rec
+    setListening(true)
+    rec.start()
+  }
 
   function updateForm(field, value) {
     setForm(prev => ({ ...prev, [field]: value }))
@@ -129,6 +165,7 @@ export default function CreateEvent() {
           event_options: eventOptions,
           location: form.location,
           description: eventDescription,
+          date: form.date,
         }),
       })
       const data = await res.json()
@@ -162,6 +199,16 @@ export default function CreateEvent() {
   }
   function deleteSlot(slotIdx) {
     setPlanning(prev => prev.filter((_, i) => i !== slotIdx))
+  }
+
+  // Liste "Matériel & Logistique" → comportement inversé (coché par défaut, on décoche)
+  function isMaterielList(list) {
+    return /mat[ée]riel|logistique/i.test(list?.list_name || '')
+  }
+  function toggleIncluded(listIdx, itemIdx) {
+    setGeneratedLists(prev => prev.map((l, li) =>
+      li !== listIdx ? l : { ...l, items: l.items.map((it, ii) => ii !== itemIdx ? it : { ...it, included: it.included === false }) }
+    ))
   }
 
   // ---- Étape 3 : création réelle ----
@@ -205,7 +252,7 @@ export default function CreateEvent() {
         if (lErr) throw lErr
 
         const itemsToInsert = (L.items || [])
-          .filter(it => (it.item_name || '').trim())
+          .filter(it => (it.item_name || '').trim() && it.included !== false)
           .map(it => ({
             event_id: event.id,
             list_id: list.id,
@@ -223,16 +270,28 @@ export default function CreateEvent() {
         }
       }
 
-      // 3. Planning → slots (dates calculées depuis event.date + offset_hours)
+      // 3. Planning → slots (heure absolue start_time "HH:MM" le jour de l'événement)
       if (planning.length > 0) {
-        const base = new Date(form.date).getTime()
-        const slotsToInsert = planning.map(p => ({
-          event_id: event.id,
-          slot_name: p.slot_name || 'Créneau',
-          slot_date: new Date(base + (Number(p.offset_hours) || 0) * 3600 * 1000).toISOString(),
-          duration_minutes: p.duration_minutes || 60,
-          max_participants: p.max_participants || 4,
-        }))
+        const dayPart = (form.date || '').slice(0, 10)
+        const slotsToInsert = planning.map(p => {
+          let slotDate
+          if (p.start_time && dayPart) {
+            slotDate = new Date(`${dayPart}T${p.start_time}`).toISOString()
+          } else if (form.date) {
+            // Repli : ancien format offset_hours, sinon heure de début de l'événement
+            const base = new Date(form.date).getTime()
+            slotDate = new Date(base + (Number(p.offset_hours) || 0) * 3600 * 1000).toISOString()
+          } else {
+            slotDate = new Date().toISOString()
+          }
+          return {
+            event_id: event.id,
+            slot_name: p.slot_name || 'Créneau',
+            slot_date: slotDate,
+            duration_minutes: p.duration_minutes || 60,
+            max_participants: p.max_participants || 4,
+          }
+        })
         const { error: sErr } = await supabase.from('slots').insert(slotsToInsert)
         if (sErr) throw sErr
       }
@@ -318,7 +377,17 @@ export default function CreateEvent() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Description de l'événement</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm font-medium text-slate-700">Description de l'événement</label>
+                {speechSupported && (
+                  <button type="button" onClick={toggleDictation}
+                    className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full transition-colors ${
+                      listening ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}>
+                    🎤 {listening ? 'Écoute...' : 'Dicter'}
+                  </button>
+                )}
+              </div>
               <textarea value={eventDescription} onChange={(e) => setEventDescription(e.target.value)} rows={3}
                 placeholder="Décris ton événement : ambiance, thème, ce que tu prévois... L'IA s'en servira pour personnaliser les listes."
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none resize-none text-slate-900 text-sm" />
@@ -443,33 +512,49 @@ export default function CreateEvent() {
           )}
 
           {/* Contenu : liste d'items */}
-          {typeof activeTab === 'number' && generatedLists[activeTab] && (
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
-              {generatedLists[activeTab].description && (
-                <p className="text-xs text-slate-400 mb-3">{generatedLists[activeTab].description}</p>
-              )}
-              <div className="space-y-2">
-                {(generatedLists[activeTab].items || []).map((it, ii) => (
-                  <div key={ii} className="flex items-center gap-2">
-                    <input value={it.item_name} onChange={(e) => updateItem(activeTab, ii, 'item_name', e.target.value)}
-                      placeholder="Article"
-                      className="flex-1 min-w-0 px-2 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm" />
-                    <input type="number" value={it.quantity ?? ''} onChange={(e) => updateItem(activeTab, ii, 'quantity', e.target.value === '' ? null : Number(e.target.value))}
-                      className="w-14 px-2 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm text-center" />
-                    <input value={it.unit || ''} onChange={(e) => updateItem(activeTab, ii, 'unit', e.target.value)}
-                      placeholder="u."
-                      className="w-14 px-2 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm" />
-                    <button onClick={() => deleteItem(activeTab, ii)}
-                      className="shrink-0 w-8 h-8 rounded-lg text-red-400 hover:bg-red-50 transition-colors">✕</button>
-                  </div>
-                ))}
+          {typeof activeTab === 'number' && generatedLists[activeTab] && (() => {
+            const materiel = isMaterielList(generatedLists[activeTab])
+            return (
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+                {materiel ? (
+                  <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2 mb-3">
+                    Décoche ce que tu fournis toi-même ou qui n'est pas nécessaire
+                  </p>
+                ) : generatedLists[activeTab].description && (
+                  <p className="text-xs text-slate-400 mb-3">{generatedLists[activeTab].description}</p>
+                )}
+                <div className="space-y-2">
+                  {(generatedLists[activeTab].items || []).map((it, ii) => {
+                    const included = it.included !== false
+                    return (
+                      <div key={ii} className={`flex items-center gap-2 ${materiel && !included ? 'opacity-40' : ''}`}>
+                        {materiel && (
+                          <input type="checkbox" checked={included} onChange={() => toggleIncluded(activeTab, ii)}
+                            className="shrink-0 w-5 h-5 accent-emerald-500" />
+                        )}
+                        <input value={it.item_name} onChange={(e) => updateItem(activeTab, ii, 'item_name', e.target.value)}
+                          placeholder="Article"
+                          className="flex-1 min-w-0 px-2 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm" />
+                        <input type="number" value={it.quantity ?? ''} onChange={(e) => updateItem(activeTab, ii, 'quantity', e.target.value === '' ? null : Number(e.target.value))}
+                          className="w-14 px-2 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm text-center" />
+                        <input value={it.unit || ''} onChange={(e) => updateItem(activeTab, ii, 'unit', e.target.value)}
+                          placeholder="u."
+                          className="w-14 px-2 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm" />
+                        {!materiel && (
+                          <button onClick={() => deleteItem(activeTab, ii)}
+                            className="shrink-0 w-8 h-8 rounded-lg text-red-400 hover:bg-red-50 transition-colors">✕</button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+                <button onClick={() => addItem(activeTab)}
+                  className="mt-3 w-full py-2 rounded-lg border-2 border-dashed border-slate-200 text-slate-400 text-sm hover:border-blue-300 hover:text-blue-500 transition-colors">
+                  + Ajouter un article
+                </button>
               </div>
-              <button onClick={() => addItem(activeTab)}
-                className="mt-3 w-full py-2 rounded-lg border-2 border-dashed border-slate-200 text-slate-400 text-sm hover:border-blue-300 hover:text-blue-500 transition-colors">
-                + Ajouter un article
-              </button>
-            </div>
-          )}
+            )
+          })()}
 
           {/* Contenu : planning */}
           {activeTab === 'planning' && (
@@ -480,7 +565,7 @@ export default function CreateEvent() {
                     <p className="text-sm font-medium text-slate-700">{p.slot_name}</p>
                     {p.description && <p className="text-xs text-slate-400">{p.description}</p>}
                     <p className="text-xs text-slate-400 mt-0.5">
-                      {p.duration_minutes || 60} min · {p.max_participants || 4} pers. · {Number(p.offset_hours) >= 0 ? '+' : ''}{p.offset_hours || 0}h
+                      {p.start_time ? `🕒 ${p.start_time}` : (Number(p.offset_hours) >= 0 ? '+' : '') + (p.offset_hours || 0) + 'h'} · {p.duration_minutes || 60} min · {p.max_participants || 4} pers.
                     </p>
                   </div>
                   <button onClick={() => deleteSlot(i)} className="shrink-0 w-8 h-8 rounded-lg text-red-400 hover:bg-red-50 transition-colors">✕</button>

@@ -41,9 +41,15 @@ STRUCTURE DES LISTES PAR TYPE :
   Ajoute UNE liste "apport" "Décoration" SEULEMENT si l'organisateur a coché "decoration" dans les options.
   Ajoute UNE liste "cadeau" SEULEMENT si "liste_cadeaux" est coché (adapte à l'âge et aux centres d'intérêt).
 
-RÈGLES DE PLANNING (behavior = "planning") :
+RÈGLES DE PLANNING :
 - Générer un planning UNIQUEMENT si l'organisateur a coché "aide montage/démontage" ou "aide logistique"
-- Créneaux types : Installation (H-2), Accueil (H-0.5), Service (pendant), Rangement (fin+0.5)
+- Le planning doit être calculé en fonction de l'heure de début de l'événement. Par exemple si l'événement commence à 15h00 :
+  - Installation : 13h00 (H-2)
+  - Accueil : 14h30 (H-0.5)
+  - Service : 15h00 à fin
+  - Rangement : fin + 30min
+- Les heures dans le JSON doivent être des heures ABSOLUES (pas des offsets), dans un champ "start_time" au format "HH:MM".
+- Le champ offset_hours est supprimé, remplacé par start_time.
 - Chaque créneau : max_participants = nb_participants / 5 (arrondi sup, min 2)
 
 CONTRAINTES ALIMENTAIRES :
@@ -66,7 +72,7 @@ FORMAT DE RÉPONSE — JSON strict, pas de markdown :
     }
   ],
   "planning": [
-    {"slot_name": "Installation tables et barnums", "description": "Montage des tables, chaises, barnums", "duration_minutes": 90, "max_participants": 4, "offset_hours": -2}
+    {"slot_name": "Installation", "description": "Montage des tables, chaises, barnums", "start_time": "13:00", "duration_minutes": 90, "max_participants": 4}
   ]
 }
 
@@ -90,7 +96,8 @@ function extractJson(text) {
 
 export async function POST(request) {
   try {
-    const { event_type, event_name, nb_participants, event_options, location, description } = await request.json()
+    const { event_type, event_name, nb_participants, event_options, location, description, date } = await request.json()
+    const heureDebut = typeof date === 'string' && date.length >= 16 ? date.slice(11, 16) : null
 
     const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) {
@@ -105,6 +112,7 @@ export async function POST(request) {
       `Participants : ${nb_participants}`,
       `Options : ${JSON.stringify(event_options || {})}`,
       `Lieu : ${location || 'Non précisé'}`,
+      `Heure de début : ${heureDebut || 'Non précisée'}`,
       `Description : ${description || 'Non précisée'}`,
     ].join('\n')
 

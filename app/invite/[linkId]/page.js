@@ -16,7 +16,7 @@ export default function InvitePage() {
   const [nbPersonnes, setNbPersonnes] = useState(1)
   const [restriction, setRestriction] = useState('')
   const [commentaire, setCommentaire] = useState('')
-  const [accompagnants, setAccompagnants] = useState('')
+  const [companionNames, setCompanionNames] = useState([])
   const [selectedItems, setSelectedItems] = useState({})
   const [selectedItemDetails, setSelectedItemDetails] = useState([])
   const [existingParticipant, setExistingParticipant] = useState(null)
@@ -24,6 +24,20 @@ export default function InvitePage() {
   useEffect(() => {
     loadEvent()
   }, [linkId])
+
+  // Redimensionne le tableau des accompagnants quand le nombre de personnes change
+  useEffect(() => {
+    const n = Math.max(0, nbPersonnes - 1)
+    setCompanionNames(prev => {
+      const next = prev.slice(0, n)
+      while (next.length < n) next.push('')
+      return next
+    })
+  }, [nbPersonnes])
+
+  function updateCompanion(idx, value) {
+    setCompanionNames(prev => prev.map((c, i) => (i === idx ? value : c)))
+  }
 
   // Vérifie (avec debounce) si le prénom correspond à une réponse déjà enregistrée
   useEffect(() => {
@@ -55,14 +69,18 @@ export default function InvitePage() {
     setRsvp(match.rsvp_status)
     setNbPersonnes(match.nb_personnes || 1)
     setRestriction(match.restriction_alimentaire || '')
-    // Sépare un éventuel préfixe "Accompagnants: ... | commentaire"
+    // Le commentaire peut être un JSON { accompagnants:[], commentaire:"" } ou du texte brut
     const rawComment = match.commentaire || ''
-    const accMatch = rawComment.match(/^Accompagnants:\s*([^|]*?)\s*(?:\|\s*([\s\S]*))?$/)
-    if (accMatch) {
-      setAccompagnants((accMatch[1] || '').trim())
-      setCommentaire((accMatch[2] || '').trim())
+    let parsed = null
+    try {
+      const p = JSON.parse(rawComment)
+      if (p && Array.isArray(p.accompagnants)) parsed = p
+    } catch { /* texte brut */ }
+    if (parsed) {
+      setCompanionNames(parsed.accompagnants)
+      setCommentaire(parsed.commentaire || '')
     } else {
-      setAccompagnants('')
+      setCompanionNames([])
       setCommentaire(rawComment)
     }
 
@@ -122,9 +140,11 @@ export default function InvitePage() {
     if (!guestName || !rsvp) return
     setSubmitting(true)
 
-    // Construit le commentaire final avec un éventuel préfixe accompagnants
-    const accTxt = (nbPersonnes > 1 && accompagnants.trim()) ? `Accompagnants: ${accompagnants.trim()}` : ''
-    const finalCommentaire = [accTxt, commentaire.trim()].filter(Boolean).join(' | ') || null
+    // Commentaire final : JSON {accompagnants, commentaire} s'il y a des accompagnants, sinon texte brut
+    const comps = (nbPersonnes > 1 ? companionNames : []).map(s => s.trim()).filter(Boolean)
+    const finalCommentaire = comps.length > 0
+      ? JSON.stringify({ accompagnants: comps, commentaire: commentaire.trim() })
+      : (commentaire.trim() || null)
 
     try {
       // 1. Créer OU mettre à jour le participant
@@ -450,11 +470,15 @@ export default function InvitePage() {
                 </div>
 
                 {nbPersonnes > 1 && (
-                  <div className="mt-3">
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Prénoms de tes accompagnants</label>
-                    <input type="text" value={accompagnants} onChange={(e) => setAccompagnants(e.target.value)}
-                      placeholder="Digo, Marci"
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm" />
+                  <div className="mt-3 space-y-2">
+                    {companionNames.map((name, i) => (
+                      <div key={i}>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">Prénom accompagnant {i + 1}</label>
+                        <input type="text" value={name} onChange={(e) => updateCompanion(i, e.target.value)}
+                          placeholder="Prénom"
+                          className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm" />
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
