@@ -1,98 +1,101 @@
-import { createClient } from '@supabase/supabase-js'
+import Anthropic from '@anthropic-ai/sdk'
 
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  )
+// L'IA peut prendre plusieurs secondes : on laisse de la marge côté serveur
+export const maxDuration = 60
+
+const SYSTEM_PROMPT = `Tu es un assistant expert en organisation d'événements. Génère les listes nécessaires pour cet événement.
+
+Réponds UNIQUEMENT avec un JSON valide, sans markdown, sans backticks, avec cette structure :
+{
+  "lists": [
+    {
+      "behavior": "apport",
+      "list_name": "Courses",
+      "icon": "🛒",
+      "description": "Ce qu'il faut acheter ou apporter",
+      "items": [
+        {"item_name": "...", "category": "Nourriture", "quantity": 2, "unit": "kg", "estimated_price": 15}
+      ]
+    },
+    {
+      "behavior": "checklist",
+      "list_name": "Matériel obligatoire",
+      "icon": "📋",
+      "description": "Chaque participant doit vérifier qu'il a tout",
+      "items": [
+        {"item_name": "Chaussures de rando", "category": "Équipement", "quantity": 1, "unit": "paire", "estimated_price": 0}
+      ]
+    },
+    {
+      "behavior": "cadeau",
+      "list_name": "Idées cadeaux",
+      "icon": "🎁",
+      "description": "Réserve un cadeau (les autres ne verront pas lequel)",
+      "items": []
+    }
+  ],
+  "planning": [
+    {"slot_name": "Installation", "description": "Montage tables et barnums", "duration_minutes": 60, "max_participants": 4, "offset_hours": -2},
+    {"slot_name": "Rangement", "description": "Démontage et nettoyage", "duration_minutes": 60, "max_participants": 4, "offset_hours": 4}
+  ]
 }
 
-const LISTS_BY_TYPE = {
-  BBQ: [
-    { item_name: 'Merguez', category: 'Nourriture', per_person: 0.1, unit: 'kg', price_per_unit: 7 },
-    { item_name: 'Saucisses', category: 'Nourriture', per_person: 0.1, unit: 'kg', price_per_unit: 6 },
-    { item_name: 'Brochettes de poulet', category: 'Nourriture', per_person: 0.08, unit: 'kg', price_per_unit: 9 },
-    { item_name: 'Pains à burger', category: 'Nourriture', per_person: 1.2, unit: 'pièces', price_per_unit: 0.25 },
-    { item_name: 'Salade composée', category: 'Nourriture', per_person: 0.15, unit: 'pièces', price_per_unit: 3 },
-    { item_name: 'Chips (grands paquets)', category: 'Nourriture', per_person: 0.15, unit: 'paquets', price_per_unit: 2.5 },
-    { item_name: 'Pack de bières (24)', category: 'Boissons', per_person: 0.08, unit: 'packs', price_per_unit: 12 },
-    { item_name: 'Rosé', category: 'Boissons', per_person: 0.15, unit: 'bouteilles', price_per_unit: 5 },
-    { item_name: 'Sodas / jus de fruits', category: 'Boissons', per_person: 0.2, unit: 'bouteilles', price_per_unit: 2 },
-    { item_name: 'Charbon de bois (5kg)', category: 'Matériel', per_person: 0, unit: 'sac', price_per_unit: 7.5, fixed: 1 },
-    { item_name: 'Glaces (bacs)', category: 'Nourriture', per_person: 0.1, unit: 'bacs', price_per_unit: 4 },
-    { item_name: 'Serviettes + assiettes', category: 'Matériel', per_person: 0, unit: 'lot', price_per_unit: 8, fixed: 1 },
-  ],
-  Anniversaire: [
-    { item_name: 'Gâteau d\'anniversaire', category: 'Nourriture', per_person: 0, unit: 'pièce', price_per_unit: 35, fixed: 1 },
-    { item_name: 'Champagne / Prosecco', category: 'Boissons', per_person: 0.2, unit: 'bouteilles', price_per_unit: 7 },
-    { item_name: 'Jus de fruits', category: 'Boissons', per_person: 0.2, unit: 'bouteilles', price_per_unit: 2.5 },
-    { item_name: 'Chips et apéritifs', category: 'Nourriture', per_person: 0.2, unit: 'paquets', price_per_unit: 2.5 },
-    { item_name: 'Petits fours / verrines', category: 'Nourriture', per_person: 3, unit: 'pièces', price_per_unit: 0.3 },
-    { item_name: 'Bougies anniversaire', category: 'Décoration', per_person: 0, unit: 'lot', price_per_unit: 3.5, fixed: 1 },
-    { item_name: 'Assiettes + couverts', category: 'Matériel', per_person: 1.2, unit: 'sets', price_per_unit: 0.3 },
-    { item_name: 'Gobelets', category: 'Matériel', per_person: 2, unit: 'pièces', price_per_unit: 0.1 },
-    { item_name: 'Serviettes', category: 'Matériel', per_person: 0, unit: 'paquets', price_per_unit: 3, fixed: 2 },
-    { item_name: 'Ballons déco', category: 'Décoration', per_person: 0, unit: 'lot', price_per_unit: 6, fixed: 1 },
-  ],
-  Tournoi: [
-    { item_name: 'Eau minérale (1.5L)', category: 'Boissons', per_person: 1, unit: 'bouteilles', price_per_unit: 0.7 },
-    { item_name: 'Sodas / Energy drinks', category: 'Boissons', per_person: 0.15, unit: 'packs', price_per_unit: 4 },
-    { item_name: 'Sandwichs / Wraps', category: 'Nourriture', per_person: 1.2, unit: 'pièces', price_per_unit: 1.5 },
-    { item_name: 'Barres énergétiques', category: 'Nourriture', per_person: 1.5, unit: 'pièces', price_per_unit: 0.6 },
-    { item_name: 'Bananes', category: 'Nourriture', per_person: 0.1, unit: 'kg', price_per_unit: 1.8 },
-    { item_name: 'Bières (post-match)', category: 'Boissons', per_person: 0.08, unit: 'packs 24', price_per_unit: 11 },
-    { item_name: 'Chips / snacks', category: 'Nourriture', per_person: 0.2, unit: 'paquets', price_per_unit: 2 },
-    { item_name: 'Gobelets', category: 'Matériel', per_person: 2.5, unit: 'pièces', price_per_unit: 0.08 },
-    { item_name: 'Sacs poubelle', category: 'Matériel', per_person: 0, unit: 'pièces', price_per_unit: 0.5, fixed: 5 },
-    { item_name: 'Glaçons (sac 5kg)', category: 'Matériel', per_person: 0, unit: 'sacs', price_per_unit: 2.5, fixed: 3 },
-  ],
-  Mariage: [
-    { item_name: 'Champagne', category: 'Boissons', per_person: 0.25, unit: 'bouteilles', price_per_unit: 12 },
-    { item_name: 'Vin blanc', category: 'Boissons', per_person: 0.15, unit: 'bouteilles', price_per_unit: 6 },
-    { item_name: 'Vin rouge', category: 'Boissons', per_person: 0.15, unit: 'bouteilles', price_per_unit: 6 },
-    { item_name: 'Jus / sodas', category: 'Boissons', per_person: 0.3, unit: 'bouteilles', price_per_unit: 2 },
-    { item_name: 'Amuse-bouches', category: 'Nourriture', per_person: 5, unit: 'pièces', price_per_unit: 0.5 },
-    { item_name: 'Pièce montée / dessert', category: 'Nourriture', per_person: 0, unit: 'pièce', price_per_unit: 80, fixed: 1 },
-    { item_name: 'Dragées', category: 'Décoration', per_person: 1, unit: 'portions', price_per_unit: 1.5 },
-    { item_name: 'Décoration table', category: 'Décoration', per_person: 0, unit: 'lot', price_per_unit: 30, fixed: 1 },
-    { item_name: 'Bougies', category: 'Décoration', per_person: 0, unit: 'lot', price_per_unit: 15, fixed: 1 },
-  ],
+Adapte les listes au type d'événement :
+- BBQ : liste apport (viandes, boissons, accompagnements, matériel BBQ). Si halal, adapter. Si sans alcool, pas d'alcool. Si aide montage, ajouter planning.
+- Anniversaire : liste apport (nourriture, boissons, déco). Si liste cadeaux, ajouter une liste behavior=cadeau adaptée à l'âge et centres d'intérêt.
+- Randonnée : liste apport (pique-nique). Checklist matériel obligatoire (chaussures, eau 1.5L, crème solaire, couverture survie, sifflet, lampe frontale). Checklist vêtements.
+- Mariage : listes apport (apéro, plat, dessert, déco). Si cadeaux, liste cadeau. Si aide logistique, planning.
+- Soirée : liste apport (boissons, snacks, sono). Si aide, planning.
+- Match : liste apport (boissons, snacks post-match, matériel sportif).
+- Autre : génère les listes les plus pertinentes selon la description.
+
+Le planning n'est généré que si l'événement le justifie (aide montage, logistique, etc).
+Les prix estimés doivent être réalistes pour la France.
+Adapte les quantités au nombre de participants.`
+
+function extractJson(text) {
+  let raw = (text || '').trim()
+  // Retire d'éventuels fences markdown
+  raw = raw.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim()
+  const start = raw.indexOf('{')
+  const end = raw.lastIndexOf('}')
+  if (start !== -1 && end !== -1) raw = raw.slice(start, end + 1)
+  return JSON.parse(raw)
 }
 
 export async function POST(request) {
   try {
-    const { event_id, event_type, nb_participants } = await request.json()
+    const { event_type, event_name, nb_participants, event_options, location } = await request.json()
 
-    // Utiliser les templates de liste par type (V1 sans appel IA pour simplifier)
-    const template = LISTS_BY_TYPE[event_type] || LISTS_BY_TYPE['BBQ']
-    const n = nb_participants || 20
+    const apiKey = process.env.ANTHROPIC_API_KEY
+    if (!apiKey) {
+      return Response.json({ error: 'ANTHROPIC_API_KEY manquante côté serveur' }, { status: 500 })
+    }
 
-    const itemsToInsert = template.map(item => {
-      const quantity = item.fixed
-        ? item.fixed
-        : Math.ceil(item.per_person * n)
-      const price = Math.round(quantity * item.price_per_unit * 100) / 100
+    const anthropic = new Anthropic({ apiKey })
 
-      return {
-        event_id,
-        item_name: item.item_name,
-        category: item.category,
-        quantity,
-        unit: item.unit,
-        estimated_price: price,
-        status: 'Disponible',
-        ai_generated: true,
-      }
+    const userContent = [
+      `Type : ${event_type}`,
+      `Nom : ${event_name}`,
+      `Participants : ${nb_participants}`,
+      `Options : ${JSON.stringify(event_options || {})}`,
+      `Lieu : ${location || 'Non précisé'}`,
+    ].join('\n')
+
+    const message = await anthropic.messages.create({
+      model: 'claude-opus-4-8',
+      max_tokens: 16000,
+      system: SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: userContent }],
     })
 
-    const supabase = getSupabase()
-    const { error } = await supabase
-      .from('items')
-      .insert(itemsToInsert)
+    const textBlock = message.content.find(b => b.type === 'text')
+    const data = extractJson(textBlock ? textBlock.text : '')
 
-    if (error) throw error
-
-    return Response.json({ success: true, items_count: itemsToInsert.length })
+    return Response.json({
+      lists: Array.isArray(data.lists) ? data.lists : [],
+      planning: Array.isArray(data.planning) ? data.planning : [],
+    })
   } catch (err) {
     return Response.json({ error: err.message }, { status: 500 })
   }
