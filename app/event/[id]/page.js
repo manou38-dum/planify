@@ -487,7 +487,7 @@ export default function EventDashboard() {
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
           <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100">
             <h3 className="text-sm font-bold text-slate-800">Participants</h3>
-            <span className="text-xs text-slate-400">{participants.length} reponses</span>
+            <span className="text-xs text-slate-400">{totalPersonnes} personnes ({participants.length} reponses)</span>
           </div>
           <div className="divide-y divide-slate-50">
             {(showAllParticipants ? participants : participants.slice(0, 5)).map((p) => (
@@ -501,10 +501,10 @@ export default function EventDashboard() {
                     {(p.participant_name || '?').charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-700 truncate">
-                      {p.participant_name}
+                    <p className="text-sm font-medium text-slate-700 truncate flex items-center gap-1.5">
+                      <span className="truncate">{p.participant_name}</span>
                       {p.nb_personnes > 1 && (
-                        <span className="text-slate-400 font-normal"> (+{p.nb_personnes - 1})</span>
+                        <span className="bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full text-xs font-semibold shrink-0">+ {p.nb_personnes - 1}</span>
                       )}
                     </p>
                     {p.restriction_alimentaire && (
@@ -524,6 +524,10 @@ export default function EventDashboard() {
                 </span>
               </div>
             ))}
+          </div>
+          <div className="bg-slate-50 px-5 py-3 border-t border-slate-100 flex items-center justify-between">
+            <span className="text-sm font-medium text-slate-600">Total</span>
+            <span className="text-sm font-bold text-slate-800">{totalPersonnes} personnes confirmees</span>
           </div>
           {participants.length > 5 && (
             <button
