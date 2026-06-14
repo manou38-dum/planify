@@ -117,6 +117,10 @@ export default function CreateEvent() {
   const [listening, setListening] = useState(false)
   const [speechSupported, setSpeechSupported] = useState(false)
   const recognitionRef = useRef(null)
+  const fileInputRef = useRef(null)
+
+  const [photoUrl, setPhotoUrl] = useState('')
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
 
   const [generatedLists, setGeneratedLists] = useState([])
   const [planning, setPlanning] = useState([])
@@ -172,6 +176,38 @@ export default function CreateEvent() {
 
   function toggleList(key) {
     setSelectedLists(prev => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  // ---- Upload photo de l'événement (bucket public event-photos) ----
+  async function handlePhotoChange(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) {
+      alert('La photo est trop lourde (maximum 5 Mo).')
+      e.target.value = ''
+      return
+    }
+    setUploadingPhoto(true)
+    try {
+      const supabase = getSupabase()
+      const cleanName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+      const path = `${Date.now()}-${cleanName}`
+      const { error: upErr } = await supabase.storage
+        .from('event-photos')
+        .upload(path, file, { cacheControl: '3600', upsert: false })
+      if (upErr) throw upErr
+      const { data } = supabase.storage.from('event-photos').getPublicUrl(path)
+      setPhotoUrl(data.publicUrl)
+    } catch (err) {
+      alert('Erreur lors de l\'envoi de la photo: ' + err.message)
+    }
+    setUploadingPhoto(false)
+    e.target.value = ''
+  }
+
+  function removePhoto() {
+    setPhotoUrl('')
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   // ---- Étape 2 → 3 : génération IA ----
@@ -256,6 +292,7 @@ export default function CreateEvent() {
           nb_participants: form.nb_participants,
           organizer_name: form.organizer_name,
           deadline_rsvp: form.deadline_rsvp || null,
+          photo_url: photoUrl || null,
           event_options: { ...eventOptions, selected_lists: selectedLists, ...(menuResume ? { menu_resume: menuResume } : {}) },
         })
         .select()
@@ -439,6 +476,38 @@ export default function CreateEvent() {
               <input type="text" value={form.location} onChange={(e) => updateForm('location', e.target.value)}
                 placeholder="Adresse ou lien Google Maps"
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none text-slate-900" />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Photo de l'événement (optionnel)</label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handlePhotoChange}
+                className="hidden"
+              />
+              {photoUrl ? (
+                <div className="relative rounded-xl overflow-hidden border border-slate-200">
+                  <img src={photoUrl} alt="Aperçu" className="w-full h-44 object-cover" />
+                  <button type="button" onClick={removePhoto}
+                    className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white text-xs font-medium px-3 py-1.5 rounded-full transition-colors">
+                    ✕ Retirer la photo
+                  </button>
+                </div>
+              ) : (
+                <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploadingPhoto}
+                  className="w-full flex flex-col items-center justify-center gap-1 py-6 rounded-xl border-2 border-dashed border-slate-200 text-slate-400 hover:border-blue-300 hover:text-blue-500 transition-colors disabled:opacity-60">
+                  {uploadingPhoto ? (
+                    <span className="text-sm">⏳ Envoi de la photo...</span>
+                  ) : (
+                    <>
+                      <span className="text-2xl">🖼️</span>
+                      <span className="text-sm font-medium">Ajouter une photo</span>
+                    </>
+                  )}
+                </button>
+              )}
             </div>
 
             <div>

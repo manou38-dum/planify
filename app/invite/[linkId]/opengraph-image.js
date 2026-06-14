@@ -41,6 +41,20 @@ function formatDateFr(date) {
   }
 }
 
+// Vérifie que la photo est chargeable, sinon on retombe sur le dégradé
+async function loadPhoto(url) {
+  if (!url) return null
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return null
+    const type = res.headers.get('content-type') || ''
+    if (!type.startsWith('image/')) return null
+    return url
+  } catch {
+    return null
+  }
+}
+
 export default async function Image({ params }) {
   const event = await fetchEvent(params.linkId)
 
@@ -49,6 +63,7 @@ export default async function Image({ params }) {
   const dateStr = event ? formatDateFr(event.date) : ''
   const location = event && event.location ? event.location : ''
   const organizer = event ? event.organizer_name : ''
+  const photoUrl = event ? await loadPhoto(event.photo_url) : null
 
   return new ImageResponse(
     (
@@ -66,11 +81,28 @@ export default async function Image({ params }) {
           padding: '70px',
         }}
       >
-        {/* Formes décoratives en arrière-plan */}
-        <div style={{ position: 'absolute', top: -120, left: -120, width: 360, height: 360, borderRadius: '50%', background: 'rgba(255,255,255,0.12)', display: 'flex' }} />
-        <div style={{ position: 'absolute', bottom: -160, right: -100, width: 440, height: 440, borderRadius: '50%', background: 'rgba(255,255,255,0.10)', display: 'flex' }} />
-        <div style={{ position: 'absolute', top: 80, right: 120, width: 140, height: 140, borderRadius: '50%', background: 'rgba(255,255,255,0.10)', display: 'flex' }} />
-        <div style={{ position: 'absolute', bottom: 120, left: 90, width: 90, height: 90, borderRadius: '50%', background: 'rgba(255,255,255,0.14)', display: 'flex' }} />
+        {/* Photo de fond + overlay sombre (si fournie) */}
+        {photoUrl && (
+          <>
+            <img
+              src={photoUrl}
+              width={1200}
+              height={630}
+              style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', display: 'flex' }} />
+          </>
+        )}
+
+        {/* Formes décoratives en arrière-plan (uniquement sans photo) */}
+        {!photoUrl && (
+          <>
+            <div style={{ position: 'absolute', top: -120, left: -120, width: 360, height: 360, borderRadius: '50%', background: 'rgba(255,255,255,0.12)', display: 'flex' }} />
+            <div style={{ position: 'absolute', bottom: -160, right: -100, width: 440, height: 440, borderRadius: '50%', background: 'rgba(255,255,255,0.10)', display: 'flex' }} />
+            <div style={{ position: 'absolute', top: 80, right: 120, width: 140, height: 140, borderRadius: '50%', background: 'rgba(255,255,255,0.10)', display: 'flex' }} />
+            <div style={{ position: 'absolute', bottom: 120, left: 90, width: 90, height: 90, borderRadius: '50%', background: 'rgba(255,255,255,0.14)', display: 'flex' }} />
+          </>
+        )}
 
         {/* Bandeau "TU ES INVITÉ(E)" */}
         <div

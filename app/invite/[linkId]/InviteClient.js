@@ -374,8 +374,14 @@ export default function InviteClient({ linkId }) {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header événement */}
-      <div className="bg-gradient-to-b from-blue-500 to-blue-600 text-white px-4 pt-10 pb-8">
-        <div className="max-w-lg mx-auto">
+      <div className="relative bg-gradient-to-b from-blue-500 to-blue-600 text-white px-4 pt-10 pb-8 overflow-hidden">
+        {event.photo_url && (
+          <>
+            <img src={event.photo_url} alt="" className="absolute inset-0 w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-b from-blue-900/70 to-blue-950/80" />
+          </>
+        )}
+        <div className="relative max-w-lg mx-auto">
           <p className="text-blue-200 text-sm mb-1">Tu es invité(e) par {event.organizer_name}</p>
           <h1 className="text-2xl font-bold mb-3">{event.event_name}</h1>
           <div className="space-y-1.5">
