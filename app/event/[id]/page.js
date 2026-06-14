@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { getSupabase } from '@/lib/supabase'
 import { useParams, useRouter } from 'next/navigation'
+import { QRCodeSVG } from 'qrcode.react'
 
 // Le commentaire peut être un JSON { accompagnants:[], commentaire:"" } ou du texte brut
 function parseCommentaire(raw) {
@@ -27,7 +28,7 @@ export default function EventDashboard() {
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
   const [showQR, setShowQR] = useState(false)
-  const [qrError, setQrError] = useState(false)
+  const [shareNotice, setShareNotice] = useState('')
   const [showAllMissing, setShowAllMissing] = useState(false)
   const [showAllParticipants, setShowAllParticipants] = useState(false)
 
@@ -166,17 +167,36 @@ export default function EventDashboard() {
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
   }
 
+  // Sur desktop, sms:/mailto: peuvent ne rien faire. Si la page n'a pas perdu
+  // le focus 1s après, on copie le texte d'invitation dans le presse-papier.
+  function openWithFallback(url, text) {
+    let left = false
+    const onHide = () => { left = true }
+    document.addEventListener('visibilitychange', onHide)
+    window.addEventListener('blur', onHide)
+    window.location.href = url
+    setTimeout(() => {
+      document.removeEventListener('visibilitychange', onHide)
+      window.removeEventListener('blur', onHide)
+      if (!left && !document.hidden) {
+        navigator.clipboard?.writeText(text)
+        setShareNotice('Sur ordinateur ? Le texte a été copié, colle-le dans ton SMS ou email.')
+        setTimeout(() => setShareNotice(''), 6000)
+      }
+    }, 1000)
+  }
+
   function shareSMS() {
     if (!event) return
     const { text } = buildInvitation()
-    window.location.href = `sms:?&body=${encodeURIComponent(text)}`
+    openWithFallback(`sms:?&body=${encodeURIComponent(text)}`, text)
   }
 
   function shareEmail() {
     if (!event) return
     const { text } = buildInvitation()
     const subject = `Invitation ${event.event_name}`
-    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`
+    openWithFallback(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`, text)
   }
 
   if (loading) {
@@ -537,7 +557,7 @@ export default function EventDashboard() {
           Email
         </button>
         <button
-          onClick={() => { setQrError(false); setShowQR(true) }}
+          onClick={() => setShowQR(true)}
           className="flex flex-col items-center gap-1 bg-white border border-slate-200 hover:border-blue-300 hover:bg-blue-50 text-slate-700 font-medium py-3 rounded-xl transition-all text-xs"
         >
           <span className="text-lg">🔲</span>
@@ -545,35 +565,35 @@ export default function EventDashboard() {
         </button>
       </div>
 
+      {shareNotice && (
+        <p className="text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 mt-2 text-center">
+          {shareNotice}
+        </p>
+      )}
+
       {/* === MODAL QR CODE === */}
       {showQR && event && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4" onClick={() => setShowQR(false)}>
           <div className="bg-white rounded-2xl p-6 max-w-xs w-full text-center" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-bold text-slate-800 mb-1">Scanne pour rejoindre l'événement</h3>
             <p className="text-xs text-slate-400 mb-4">{event.event_name}</p>
-            {qrError ? (
-              <div className="mb-2">
-                <p className="text-sm text-slate-500 mb-2">QR indisponible. Voici le lien d'invitation :</p>
-                <p className="text-xs text-slate-700 break-all bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 mb-3">
-                  {`${window.location.origin}/invite/${event.invite_link_id}`}
-                </p>
-                <button
-                  onClick={copyInviteLink}
-                  className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm"
-                >
-                  {copied ? 'Copié !' : 'Copier le lien'}
-                </button>
-              </div>
-            ) : (
-              <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(`${window.location.origin}/invite/${event.invite_link_id}`)}`}
-                alt="QR code d'invitation"
-                className="mx-auto rounded-lg border border-slate-100"
-                width={250}
-                height={250}
-                onError={() => setQrError(true)}
+            <div className="inline-block bg-white p-4 rounded-lg border border-slate-100 mx-auto">
+              <QRCodeSVG
+                value={`${window.location.origin}/invite/${event.invite_link_id}`}
+                size={220}
+                level="H"
+                bgColor="#ffffff"
               />
-            )}
+            </div>
+            <p className="text-xs text-slate-700 break-all bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 mt-3 mb-2">
+              {`${window.location.origin}/invite/${event.invite_link_id}`}
+            </p>
+            <button
+              onClick={copyInviteLink}
+              className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm"
+            >
+              {copied ? 'Copié !' : 'Copier le lien'}
+            </button>
             <button
               onClick={() => setShowQR(false)}
               className="mt-4 w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 rounded-xl transition-colors text-sm"
