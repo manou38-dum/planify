@@ -105,7 +105,17 @@ export default function EventDashboard() {
       weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
     })
     const items_pris = reserves.map(i => `  ✅ ${i.item_name} (${i.assigned_to})`).join('\n')
-    const items_manque = disponibles.slice(0, 5).map(i => `  ▫️ ${i.item_name} (${i.quantity} ${i.unit})`).join('\n')
+
+    // Résumé du menu : champ menu_resume si dispo, sinon les 5 premiers items
+    const menuResume = event.event_options?.menu_resume
+    let menuLine = null
+    if (menuResume) {
+      menuLine = `🍽 Au menu : ${menuResume}`
+    } else if (items.length > 0) {
+      const noms = items.slice(0, 5).map(i => i.item_name)
+      menuLine = `🍽 Au menu : ${noms.join(', ')}${items.length > 5 ? '...' : ''}`
+    }
+
     const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location || '')}`
     const deadlineStr = event.deadline_rsvp
       ? new Date(event.deadline_rsvp).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
@@ -125,12 +135,11 @@ export default function EventDashboard() {
     ]
     if (deadlineStr) lines.push(`⏰ Reponds avant le ${deadlineStr}`)
 
+    if (menuLine) {
+      lines.push(``, menuLine)
+    }
     if (reserves.length > 0) {
       lines.push(``, `✅ *Deja pris en charge :*`, items_pris)
-    }
-    if (disponibles.length > 0) {
-      lines.push(``, `🛒 *Il manque encore :*`, items_manque)
-      if (disponibles.length > 5) lines.push(`  ...et ${disponibles.length - 5} autres`)
     }
 
     lines.push(``, `👉 Confirme ta venue et choisis ce que tu apportes :`, url)

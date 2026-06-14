@@ -20,6 +20,7 @@ const OPTIONS_BY_TYPE = {
       { key: 'halal', label: 'Halal' },
       { key: 'vegetarien', label: 'Végétarien' },
       { key: 'sans_alcool', label: 'Sans alcool' },
+      { key: 'desserts', label: 'Prévoir les desserts' },
       { key: 'aide_montage', label: "Besoin d'aide montage/démontage" },
     ],
   },
@@ -29,7 +30,14 @@ const OPTIONS_BY_TYPE = {
       { key: 'age', label: 'Âge', placeholder: '30 ans' },
       { key: 'centres_interet', label: "Centres d'intérêt", placeholder: 'Cuisine, voyages...' },
     ],
-    checks: [{ key: 'liste_cadeaux', label: 'Proposer liste cadeaux' }],
+    checks: [
+      { key: 'liste_cadeaux', label: 'Proposer liste cadeaux' },
+      { key: 'decoration', label: 'Décoration (ballons, guirlandes, banderole)' },
+      { key: 'theme', label: 'Thème spécial' },
+    ],
+    conditionals: [
+      { showIf: 'theme', key: 'theme_detail', label: 'Thème', placeholder: 'Princesse, Super-héros, Années 80...' },
+    ],
   },
   'Mariage': {
     fields: [{ key: 'prenoms_maries', label: 'Prénoms des mariés', placeholder: 'Marie & Thomas' }],
@@ -83,9 +91,11 @@ export default function CreateEvent() {
     deadline_rsvp: '',
   })
   const [eventOptions, setEventOptions] = useState({})
+  const [eventDescription, setEventDescription] = useState('')
 
   const [generatedLists, setGeneratedLists] = useState([])
   const [planning, setPlanning] = useState([])
+  const [menuResume, setMenuResume] = useState('')
   const [activeTab, setActiveTab] = useState(0)
 
   function updateForm(field, value) {
@@ -118,12 +128,14 @@ export default function CreateEvent() {
           nb_participants: form.nb_participants,
           event_options: eventOptions,
           location: form.location,
+          description: eventDescription,
         }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Génération impossible')
       setGeneratedLists(data.lists || [])
       setPlanning(data.planning || [])
+      setMenuResume(data.menu_resume || '')
       setActiveTab(0)
       setStep(3)
     } catch (err) {
@@ -169,7 +181,7 @@ export default function CreateEvent() {
           nb_participants: form.nb_participants,
           organizer_name: form.organizer_name,
           deadline_rsvp: form.deadline_rsvp || null,
-          event_options: eventOptions,
+          event_options: { ...eventOptions, ...(menuResume ? { menu_resume: menuResume } : {}) },
         })
         .select()
         .single()
@@ -306,6 +318,13 @@ export default function CreateEvent() {
             </div>
 
             <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Description de l'événement</label>
+              <textarea value={eventDescription} onChange={(e) => setEventDescription(e.target.value)} rows={3}
+                placeholder="Décris ton événement : ambiance, thème, ce que tu prévois... L'IA s'en servira pour personnaliser les listes."
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none resize-none text-slate-900 text-sm" />
+            </div>
+
+            <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Ton prénom</label>
               <input type="text" value={form.organizer_name} onChange={(e) => updateForm('organizer_name', e.target.value)}
                 placeholder="Thomas"
@@ -364,6 +383,16 @@ export default function CreateEvent() {
                       className="w-4 h-4 accent-blue-500" />
                     <span className="text-sm text-slate-700">{c.label}</span>
                   </label>
+                ))}
+
+                {opts.conditionals?.map((c) => (
+                  eventOptions[c.showIf] ? (
+                    <div key={c.key} className="mt-2 ml-6">
+                      <input type="text" value={eventOptions[c.key] || ''} placeholder={c.placeholder || c.label}
+                        onChange={(e) => updateOption(c.key, e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm bg-white" />
+                    </div>
+                  ) : null
                 ))}
 
                 {opts.textarea && (

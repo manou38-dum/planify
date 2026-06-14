@@ -30,6 +30,17 @@ RÈGLES DE CATÉGORISATION — les listes doivent être dans cet ordre :
 4. Puis les listes "checklist" si applicable
 5. Puis les listes "cadeau" si applicable
 
+STRUCTURE DES LISTES PAR TYPE :
+- BBQ : UNE SEULE liste "apport" appelée "Menu BBQ" avec des SECTIONS via le champ category :
+  * category "Viandes" (2-3 viandes max)
+  * category "Accompagnements" (salade, pain, sauces type ketchup/moutarde)
+  * category "Desserts" (1-2 desserts — uniquement si les desserts sont demandés)
+  * category "Boissons" (soft, eau, jus ; alcool seulement si autorisé)
+  Puis une liste "apport" SÉPARÉE "Matériel & Logistique" (barbecue, tables, chaises, assiettes, couverts, glacière — PAS les sauces).
+- Anniversaire : UNE liste "apport" "Buffet anniversaire" avec les category Salé, Sucré, Boissons (fusionner goûter/dessert/boisson).
+  Ajoute UNE liste "apport" "Décoration" SEULEMENT si l'organisateur a coché "decoration" dans les options.
+  Ajoute UNE liste "cadeau" SEULEMENT si "liste_cadeaux" est coché (adapte à l'âge et aux centres d'intérêt).
+
 RÈGLES DE PLANNING (behavior = "planning") :
 - Générer un planning UNIQUEMENT si l'organisateur a coché "aide montage/démontage" ou "aide logistique"
 - Créneaux types : Installation (H-2), Accueil (H-0.5), Service (pendant), Rangement (fin+0.5)
@@ -42,6 +53,7 @@ CONTRAINTES ALIMENTAIRES :
 
 FORMAT DE RÉPONSE — JSON strict, pas de markdown :
 {
+  "menu_resume": "BBQ halal : merguez, poulet mariné, salade, tarte aux pommes",
   "lists": [
     {
       "behavior": "apport",
@@ -60,9 +72,11 @@ FORMAT DE RÉPONSE — JSON strict, pas de markdown :
 
 IMPORTANT :
 - Le champ "planning" doit être un tableau vide [] si pas d'aide demandée
+- Le champ "menu_resume" est une string COURTE (1 ligne) décrivant le menu, réutilisée dans l'invitation WhatsApp (ex: "BBQ halal : merguez, poulet, salade, tarte aux pommes")
 - Les prix sont en euros, réalistes pour la France (supermarché, pas premium)
 - Chaque item doit mentionner la quantité totale arrondie pour {nb_participants} personnes
-- Le nom de la première liste doit refléter le menu (ex: "Menu BBQ", "Buffet anniversaire") pour qu'on puisse l'afficher dans l'invitation`
+- Le nom de la première liste doit refléter le menu (ex: "Menu BBQ", "Buffet anniversaire") pour qu'on puisse l'afficher dans l'invitation
+- Si l'organisateur a fourni une description de l'événement, sers-t'en pour personnaliser les listes (ambiance, thème, plats spécifiques)`
 
 function extractJson(text) {
   let raw = (text || '').trim()
@@ -76,7 +90,7 @@ function extractJson(text) {
 
 export async function POST(request) {
   try {
-    const { event_type, event_name, nb_participants, event_options, location } = await request.json()
+    const { event_type, event_name, nb_participants, event_options, location, description } = await request.json()
 
     const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) {
@@ -91,6 +105,7 @@ export async function POST(request) {
       `Participants : ${nb_participants}`,
       `Options : ${JSON.stringify(event_options || {})}`,
       `Lieu : ${location || 'Non précisé'}`,
+      `Description : ${description || 'Non précisée'}`,
     ].join('\n')
 
     const message = await anthropic.messages.create({
@@ -104,6 +119,7 @@ export async function POST(request) {
     const data = extractJson(textBlock ? textBlock.text : '')
 
     return Response.json({
+      menu_resume: typeof data.menu_resume === 'string' ? data.menu_resume : '',
       lists: Array.isArray(data.lists) ? data.lists : [],
       planning: Array.isArray(data.planning) ? data.planning : [],
     })

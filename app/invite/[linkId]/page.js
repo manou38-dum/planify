@@ -16,6 +16,7 @@ export default function InvitePage() {
   const [nbPersonnes, setNbPersonnes] = useState(1)
   const [restriction, setRestriction] = useState('')
   const [commentaire, setCommentaire] = useState('')
+  const [accompagnants, setAccompagnants] = useState('')
   const [selectedItems, setSelectedItems] = useState({})
   const [selectedItemDetails, setSelectedItemDetails] = useState([])
   const [existingParticipant, setExistingParticipant] = useState(null)
@@ -54,7 +55,16 @@ export default function InvitePage() {
     setRsvp(match.rsvp_status)
     setNbPersonnes(match.nb_personnes || 1)
     setRestriction(match.restriction_alimentaire || '')
-    setCommentaire(match.commentaire || '')
+    // Sépare un éventuel préfixe "Accompagnants: ... | commentaire"
+    const rawComment = match.commentaire || ''
+    const accMatch = rawComment.match(/^Accompagnants:\s*([^|]*?)\s*(?:\|\s*([\s\S]*))?$/)
+    if (accMatch) {
+      setAccompagnants((accMatch[1] || '').trim())
+      setCommentaire((accMatch[2] || '').trim())
+    } else {
+      setAccompagnants('')
+      setCommentaire(rawComment)
+    }
 
     // Charger les items qu'il avait déjà réservés
     const { data: myItems } = await supabase
@@ -112,6 +122,10 @@ export default function InvitePage() {
     if (!guestName || !rsvp) return
     setSubmitting(true)
 
+    // Construit le commentaire final avec un éventuel préfixe accompagnants
+    const accTxt = (nbPersonnes > 1 && accompagnants.trim()) ? `Accompagnants: ${accompagnants.trim()}` : ''
+    const finalCommentaire = [accTxt, commentaire.trim()].filter(Boolean).join(' | ') || null
+
     try {
       // 1. Créer OU mettre à jour le participant
       let participant
@@ -123,7 +137,7 @@ export default function InvitePage() {
             rsvp_status: rsvp,
             nb_personnes: nbPersonnes,
             restriction_alimentaire: restriction || null,
-            commentaire: commentaire || null,
+            commentaire: finalCommentaire,
             date_reponse: new Date().toISOString(),
           })
           .eq('id', existingParticipant.id)
@@ -147,7 +161,7 @@ export default function InvitePage() {
             rsvp_status: rsvp,
             nb_personnes: nbPersonnes,
             restriction_alimentaire: restriction || null,
-            commentaire: commentaire || null,
+            commentaire: finalCommentaire,
             date_reponse: new Date().toISOString(),
           })
           .select()
@@ -252,6 +266,9 @@ export default function InvitePage() {
     const dateStr = new Date(event.date).toLocaleDateString('fr-FR', {
       weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
     })
+    const deadlineStr = event.deadline_rsvp
+      ? new Date(event.deadline_rsvp).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+      : null
 
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
@@ -286,6 +303,11 @@ export default function InvitePage() {
               <p className="text-slate-500 text-sm">
                 {event.organizer_name} a ete notifie. A {dateStr} !
               </p>
+              {deadlineStr && (
+                <p className="text-slate-400 text-xs mt-2">
+                  📩 Un message récapitulatif te sera envoyé à la date limite d'inscription ({deadlineStr}).
+                </p>
+              )}
             </>
           )}
 
@@ -311,7 +333,9 @@ export default function InvitePage() {
   const disponibles = items.filter(i => i.status === 'Disponible')
   const reserves = items.filter(i => i.status === 'Réservé')
 
-  const restrictions = ['Végétarien', 'Vegan', 'Sans gluten', 'Sans porc', 'Sans lactose', 'Allergie noix']
+  const allRestrictions = ['Végétarien', 'Vegan', 'Sans gluten', 'Sans porc', 'Sans lactose', 'Allergie noix']
+  // Si l'événement est halal, "Sans porc" est redondant
+  const restrictions = event.event_options?.halal ? allRestrictions.filter(r => r !== 'Sans porc') : allRestrictions
 
   const categoryEmojis = {
     'Nourriture': '🍖',
@@ -424,6 +448,15 @@ export default function InvitePage() {
                     </button>
                   ))}
                 </div>
+
+                {nbPersonnes > 1 && (
+                  <div className="mt-3">
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Prénoms de tes accompagnants</label>
+                    <input type="text" value={accompagnants} onChange={(e) => setAccompagnants(e.target.value)}
+                      placeholder="Digo, Marci"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm" />
+                  </div>
+                )}
               </div>
 
               {/* Liste d'apports */}
