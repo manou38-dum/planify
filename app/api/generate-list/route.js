@@ -96,8 +96,23 @@ function extractJson(text) {
 
 export async function POST(request) {
   try {
-    const { event_type, event_name, nb_participants, event_options, location, description, date } = await request.json()
+    const { event_type, event_name, nb_participants, event_options, location, description, date, selected_lists } = await request.json()
     const heureDebut = typeof date === 'string' && date.length >= 16 ? date.slice(11, 16) : null
+
+    const askedKeys = Object.keys(selected_lists || {}).filter(k => selected_lists[k])
+    if (askedKeys.length === 0) askedKeys.push('menu')
+    const selectionPrefix = `L'organisateur a demandé spécifiquement ces listes : ${askedKeys.join(', ')}.
+Génère UNIQUEMENT ces listes, rien d'autre. Si 'cadeaux' n'est pas demandé, ne génère pas de liste cadeau. Si 'planning' n'est pas demandé, planning = [].
+
+Correspondance :
+- menu → liste behavior 'apport' avec catégories nourriture (Viandes, Accompagnements, Desserts...)
+- boissons → soit intégré au menu en catégorie Boissons, soit liste séparée si menu non coché
+- materiel → liste 'apport' 'Matériel & Logistique'
+- cadeaux → liste behavior 'cadeau'
+- planning → tableau planning rempli
+- checklist → liste behavior 'checklist'
+
+`
 
     const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) {
@@ -119,7 +134,7 @@ export async function POST(request) {
     const message = await anthropic.messages.create({
       model: 'claude-opus-4-8',
       max_tokens: 16000,
-      system: SYSTEM_PROMPT.replaceAll('{nb_participants}', String(nb_participants ?? 'le nombre de')),
+      system: selectionPrefix + SYSTEM_PROMPT.replaceAll('{nb_participants}', String(nb_participants ?? 'le nombre de')),
       messages: [{ role: 'user', content: userContent }],
     })
 

@@ -26,6 +26,7 @@ export default function EventDashboard() {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
+  const [showQR, setShowQR] = useState(false)
   const [showAllMissing, setShowAllMissing] = useState(false)
   const [showAllParticipants, setShowAllParticipants] = useState(false)
 
@@ -112,8 +113,8 @@ export default function EventDashboard() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  function shareWhatsApp() {
-    if (!event) return
+  // Construit le texte d'invitation partagé (WhatsApp, SMS, Email)
+  function buildInvitation() {
     const url = `${window.location.origin}/invite/${event.invite_link_id}`
     const d = new Date(event.date)
     const dateStr = d.toLocaleDateString('fr-FR', {
@@ -149,18 +150,30 @@ export default function EventDashboard() {
       `🗺 ${mapsUrl}`,
     ]
     if (deadlineStr) lines.push(`⏰ Reponds avant le ${deadlineStr}`)
-
-    if (menuLine) {
-      lines.push(``, menuLine)
-    }
-    if (reserves.length > 0) {
-      lines.push(``, `✅ *Deja pris en charge :*`, items_pris)
-    }
-
+    if (menuLine) lines.push(``, menuLine)
+    if (reserves.length > 0) lines.push(``, `✅ *Deja pris en charge :*`, items_pris)
     lines.push(``, `👉 Confirme ta venue et choisis ce que tu apportes :`, url)
 
-    const text = lines.join('\n')
+    return { url, text: lines.join('\n') }
+  }
+
+  function shareWhatsApp() {
+    if (!event) return
+    const { text } = buildInvitation()
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
+  }
+
+  function shareSMS() {
+    if (!event) return
+    const { text } = buildInvitation()
+    window.open(`sms:?&body=${encodeURIComponent(text)}`, '_blank')
+  }
+
+  function shareEmail() {
+    if (!event) return
+    const { text } = buildInvitation()
+    const subject = `Invitation ${event.event_name}`
+    window.open(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`, '_blank')
   }
 
   if (loading) {
@@ -490,21 +503,67 @@ export default function EventDashboard() {
         </div>
       )}
 
-      {/* === BOUTONS ACTION === */}
-      <div className="grid grid-cols-2 gap-3 mb-4">
+      {/* === BOUTONS ACTION / PARTAGE === */}
+      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-4">
         <button
           onClick={copyInviteLink}
-          className="bg-white border border-slate-200 hover:border-blue-300 hover:bg-blue-50 text-slate-700 font-semibold py-3 rounded-xl transition-all text-sm"
+          className="flex flex-col items-center gap-1 bg-white border border-slate-200 hover:border-blue-300 hover:bg-blue-50 text-slate-700 font-medium py-3 rounded-xl transition-all text-xs"
         >
-          {copied ? 'Copie !' : 'Copier le lien'}
+          <span className="text-lg">🔗</span>
+          {copied ? 'Copié !' : 'Copier'}
         </button>
         <button
           onClick={shareWhatsApp}
-          className="bg-green-500 hover:bg-green-600 text-white font-semibold py-3 rounded-xl transition-all text-sm shadow-sm"
+          className="flex flex-col items-center gap-1 bg-green-500 hover:bg-green-600 text-white font-medium py-3 rounded-xl transition-all text-xs shadow-sm"
         >
-          Envoyer WhatsApp
+          <span className="text-lg">💬</span>
+          WhatsApp
+        </button>
+        <button
+          onClick={shareSMS}
+          className="flex flex-col items-center gap-1 bg-white border border-slate-200 hover:border-blue-300 hover:bg-blue-50 text-slate-700 font-medium py-3 rounded-xl transition-all text-xs"
+        >
+          <span className="text-lg">📱</span>
+          SMS
+        </button>
+        <button
+          onClick={shareEmail}
+          className="flex flex-col items-center gap-1 bg-white border border-slate-200 hover:border-blue-300 hover:bg-blue-50 text-slate-700 font-medium py-3 rounded-xl transition-all text-xs"
+        >
+          <span className="text-lg">✉️</span>
+          Email
+        </button>
+        <button
+          onClick={() => setShowQR(true)}
+          className="flex flex-col items-center gap-1 bg-white border border-slate-200 hover:border-blue-300 hover:bg-blue-50 text-slate-700 font-medium py-3 rounded-xl transition-all text-xs"
+        >
+          <span className="text-lg">🔲</span>
+          QR Code
         </button>
       </div>
+
+      {/* === MODAL QR CODE === */}
+      {showQR && event && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4" onClick={() => setShowQR(false)}>
+          <div className="bg-white rounded-2xl p-6 max-w-xs w-full text-center" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-slate-800 mb-1">Scanne pour rejoindre l'événement</h3>
+            <p className="text-xs text-slate-400 mb-4">{event.event_name}</p>
+            <img
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(`${window.location.origin}/invite/${event.invite_link_id}`)}`}
+              alt="QR code d'invitation"
+              className="mx-auto rounded-lg border border-slate-100"
+              width={250}
+              height={250}
+            />
+            <button
+              onClick={() => setShowQR(false)}
+              className="mt-4 w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 rounded-xl transition-colors text-sm"
+            >
+              Fermer
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* === PARTICIPANTS === */}
       {participants.length > 0 && (

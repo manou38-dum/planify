@@ -75,6 +75,27 @@ const OPTIONS_BY_TYPE = {
   },
 }
 
+// Listes à la carte proposées dans l'invitation
+const LIST_CHOICES = [
+  { key: 'menu', label: '🍽 Menu (nourriture)' },
+  { key: 'boissons', label: '🥤 Boissons' },
+  { key: 'materiel', label: '📦 Matériel & logistique' },
+  { key: 'cadeaux', label: '🎁 Liste de cadeaux' },
+  { key: 'planning', label: "📋 Planning d'aide (montage, service, rangement)" },
+  { key: 'checklist', label: '✅ Checklist (matériel obligatoire)' },
+]
+
+// Pré-cochage intelligent selon le type
+const DEFAULT_LISTS = {
+  'BBQ': ['menu', 'boissons', 'materiel'],
+  'Anniversaire': ['menu', 'boissons', 'cadeaux'],
+  'Mariage': ['menu', 'boissons', 'cadeaux', 'planning'],
+  'Randonnée': ['menu', 'checklist'],
+  'Soirée': ['boissons', 'menu'],
+  'Match/Tournoi': ['boissons', 'menu'],
+  'Autre': ['menu'],
+}
+
 export default function CreateEvent() {
   const router = useRouter()
   const [step, setStep] = useState(1)
@@ -92,6 +113,7 @@ export default function CreateEvent() {
   })
   const [eventOptions, setEventOptions] = useState({})
   const [eventDescription, setEventDescription] = useState('')
+  const [selectedLists, setSelectedLists] = useState({})
   const [listening, setListening] = useState(false)
   const [speechSupported, setSpeechSupported] = useState(false)
   const recognitionRef = useRef(null)
@@ -144,7 +166,12 @@ export default function CreateEvent() {
   function chooseType(type) {
     updateForm('event_type', type)
     setEventOptions({})
+    setSelectedLists(Object.fromEntries((DEFAULT_LISTS[type] || ['menu']).map(k => [k, true])))
     setStep(2)
+  }
+
+  function toggleList(key) {
+    setSelectedLists(prev => ({ ...prev, [key]: !prev[key] }))
   }
 
   // ---- Étape 2 → 3 : génération IA ----
@@ -166,6 +193,7 @@ export default function CreateEvent() {
           location: form.location,
           description: eventDescription,
           date: form.date,
+          selected_lists: selectedLists,
         }),
       })
       const data = await res.json()
@@ -228,7 +256,7 @@ export default function CreateEvent() {
           nb_participants: form.nb_participants,
           organizer_name: form.organizer_name,
           deadline_rsvp: form.deadline_rsvp || null,
-          event_options: { ...eventOptions, ...(menuResume ? { menu_resume: menuResume } : {}) },
+          event_options: { ...eventOptions, selected_lists: selectedLists, ...(menuResume ? { menu_resume: menuResume } : {}) },
         })
         .select()
         .single()
@@ -472,6 +500,22 @@ export default function CreateEvent() {
                 )}
               </div>
             )}
+
+            {/* Listes à la carte */}
+            <div className="rounded-2xl p-4 border border-slate-200 bg-white">
+              <p className="text-sm font-semibold text-slate-700 mb-1">Que veux-tu dans ton invitation ?</p>
+              <p className="text-xs text-slate-400 mb-3">L'IA générera uniquement les listes cochées</p>
+              <div className="space-y-1">
+                {LIST_CHOICES.map((c) => (
+                  <label key={c.key} className="flex items-center gap-2 py-1.5 cursor-pointer">
+                    <input type="checkbox" checked={!!selectedLists[c.key]}
+                      onChange={() => toggleList(c.key)}
+                      className="w-4 h-4 accent-blue-500" />
+                    <span className="text-sm text-slate-700">{c.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
 
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={() => setStep(1)}

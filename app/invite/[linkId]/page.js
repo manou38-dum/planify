@@ -382,6 +382,7 @@ export default function InvitePage() {
               <p className="text-blue-100 text-sm flex items-center gap-2">📍 {event.location}</p>
             )}
             <p className="text-blue-100 text-sm flex items-center gap-2">👥 {event.nb_participants} personnes attendues</p>
+            <p className="text-blue-50 text-sm mt-2">Confirme ta venue et participe à l'événement en remplissant les infos</p>
           </div>
           {isExpired && (
             <div className="mt-3 bg-red-500/20 text-red-100 text-sm px-3 py-2 rounded-lg">
@@ -402,13 +403,13 @@ export default function InvitePage() {
 
           {/* Nom */}
           <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-            <label className="block text-sm font-medium text-slate-700 mb-2">Ton prénom</label>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Ton prénom (contact)</label>
             <input
               type="text"
               value={guestName}
               onChange={(e) => setGuestName(e.target.value)}
               onBlur={(e) => checkExistingGuest(e.target.value)}
-              placeholder="Sophie"
+              placeholder="Prénom du contact"
               className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none text-lg"
               required
               disabled={isExpired}
@@ -489,9 +490,15 @@ export default function InvitePage() {
                   <label className="block text-sm font-medium text-slate-700 mb-1">
                     Qu'est-ce que tu apportes ?
                   </label>
-                  <p className="text-xs text-slate-400 mb-3">Coche ce que tu prends en charge</p>
-                  <div className="space-y-2">
-                    {disponibles.map((item) => {
+                  <p className="text-xs text-emerald-600 bg-emerald-50 rounded-lg px-3 py-2 mb-3">Plus on partage, plus la fête est réussie ! Choisis ce que tu apportes 👇</p>
+                  <div className="space-y-4">
+                    {[...new Set(disponibles.map(i => i.category || 'Autre'))].map((cat) => (
+                      <div key={cat}>
+                        <p className="text-xs font-semibold text-slate-500 mb-2 flex items-center gap-1.5">
+                          <span>{categoryEmojis[cat] || '📦'}</span> {cat}
+                        </p>
+                        <div className="space-y-2">
+                          {disponibles.filter(i => (i.category || 'Autre') === cat).map((item) => {
                       const selected = selectedItems[item.id] != null
                       const max = Number(item.quantity) || 1
                       const qty = selectedItems[item.id] || 1
@@ -550,7 +557,10 @@ export default function InvitePage() {
                           )}
                         </div>
                       )
-                    })}
+                          })}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                   {/* Items déjà pris */}
                   {reserves.length > 0 && (
@@ -590,11 +600,11 @@ export default function InvitePage() {
 
               {/* Commentaire */}
               <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-                <label className="block text-sm font-medium text-slate-700 mb-2">Un commentaire ?</label>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Suggestion & commentaire</label>
                 <textarea
                   value={commentaire}
                   onChange={(e) => setCommentaire(e.target.value)}
-                  placeholder="Je serai un peu en retard..."
+                  placeholder="Je serai en retard, j'apporte ma guitare..."
                   rows={2}
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none resize-none text-sm"
                 />
