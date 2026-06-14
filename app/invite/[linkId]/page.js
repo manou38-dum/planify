@@ -17,6 +17,7 @@ export default function InvitePage() {
   const [restriction, setRestriction] = useState('')
   const [commentaire, setCommentaire] = useState('')
   const [selectedItems, setSelectedItems] = useState({})
+  const [selectedItemDetails, setSelectedItemDetails] = useState([])
 
   useEffect(() => {
     loadEvent()
@@ -140,6 +141,17 @@ export default function InvitePage() {
         }
       }
 
+      // Mémoriser les items choisis pour le récap post-soumission
+      const details = Object.entries(selectedItems).map(([itemId, chosenQty]) => {
+        const item = items.find(i => i.id === itemId)
+        return {
+          item_name: item?.item_name || 'Article',
+          quantity: Math.max(1, Math.min(chosenQty, Number(item?.quantity) || 1)),
+          unit: item?.unit || '',
+        }
+      })
+      setSelectedItemDetails(details)
+
       setSubmitted(true)
     } catch (err) {
       alert('Erreur: ' + err.message)
@@ -166,22 +178,59 @@ export default function InvitePage() {
   const isExpired = event.deadline_rsvp && new Date(event.deadline_rsvp) < new Date()
 
   if (submitted) {
+    const dateStr = new Date(event.date).toLocaleDateString('fr-FR', {
+      weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
+    })
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
-        <div className="text-center max-w-sm">
+        <div className="text-center max-w-sm w-full">
           <p className="text-5xl mb-4">{rsvp === 'Confirmé' ? '🎉' : rsvp === 'Refusé' ? '👋' : '🤔'}</p>
-          <h1 className="text-2xl font-bold text-slate-900 mb-2">
-            {rsvp === 'Confirmé' ? 'Super, tu es inscrit !' : rsvp === 'Refusé' ? 'Dommage !' : 'On note !'}
-          </h1>
-          <p className="text-slate-500 mb-2">
-            {rsvp === 'Confirmé'
-              ? `${event.organizer_name} a été notifié. On se voit le jour J !`
-              : 'Merci d\'avoir répondu.'}
-          </p>
-          {Object.keys(selectedItems).length > 0 && (
-            <p className="text-emerald-600 text-sm font-medium">
-              ✅ {Object.keys(selectedItems).length} article{Object.keys(selectedItems).length > 1 ? 's' : ''} réservé{Object.keys(selectedItems).length > 1 ? 's' : ''} à ton nom
-            </p>
+
+          {rsvp === 'Confirmé' && (
+            <>
+              <h1 className="text-2xl font-bold text-slate-900 mb-4">Super, tu es inscrit ! 🎉</h1>
+
+              <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm text-left mb-4">
+                <p className="font-bold text-slate-900 mb-1">{event.event_name}</p>
+                <p className="text-sm text-slate-500 flex items-center gap-2">📅 {dateStr}</p>
+                {event.location && (
+                  <p className="text-sm text-slate-500 flex items-center gap-2 mt-1">📍 {event.location}</p>
+                )}
+
+                {selectedItemDetails.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-slate-100">
+                    <p className="text-sm font-medium text-slate-700 mb-2">Tu apportes :</p>
+                    <ul className="space-y-1">
+                      {selectedItemDetails.map((it, idx) => (
+                        <li key={idx} className="text-sm text-emerald-600 flex items-center gap-2">
+                          ✅ {it.item_name} <span className="text-slate-400">({it.quantity} {it.unit})</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              <p className="text-slate-500 text-sm">
+                {event.organizer_name} a ete notifie. A {dateStr} !
+              </p>
+            </>
+          )}
+
+          {rsvp === 'Refusé' && (
+            <>
+              <h1 className="text-2xl font-bold text-slate-900 mb-3">Dommage !</h1>
+              <p className="text-slate-500 mb-2">Merci d'avoir repondu. A la prochaine, {guestName} ! 👋</p>
+              <p className="text-slate-400 text-sm">Si tu changes d'avis, le lien reste actif.</p>
+            </>
+          )}
+
+          {rsvp === 'Peut-être' && (
+            <>
+              <h1 className="text-2xl font-bold text-slate-900 mb-3">On note ! 🤔</h1>
+              <p className="text-slate-500">Pas de souci, tu pourras confirmer plus tard avec le meme lien.</p>
+            </>
           )}
         </div>
       </div>
