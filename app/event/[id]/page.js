@@ -114,45 +114,34 @@ export default function EventDashboard() {
   }
 
   // Construit le texte d'invitation partagé (WhatsApp, SMS, Email)
+  // Format épuré : emojis sûrs uniquement (📅 📍 ✅ 🎉), pas de lignes de tirets
   function buildInvitation() {
     const url = `${window.location.origin}/invite/${event.invite_link_id}`
     const d = new Date(event.date)
     const dateStr = d.toLocaleDateString('fr-FR', {
       weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
     })
-    const items_pris = reserves.map(i => `  ✅ ${i.item_name} (${i.assigned_to})`).join('\n')
 
-    // Résumé du menu : champ menu_resume si dispo, sinon les 5 premiers items
     const menuResume = event.event_options?.menu_resume
-    let menuLine = null
-    if (menuResume) {
-      menuLine = `🍽 Au menu : ${menuResume}`
-    } else if (items.length > 0) {
-      const noms = items.slice(0, 5).map(i => i.item_name)
-      menuLine = `🍽 Au menu : ${noms.join(', ')}${items.length > 5 ? '...' : ''}`
-    }
-
-    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location || '')}`
     const deadlineStr = event.deadline_rsvp
       ? new Date(event.deadline_rsvp).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
       : null
 
     const lines = [
-      `━━━━━━━━━━━━━━━━━━`,
-      `🎉 *INVITATION*`,
-      `━━━━━━━━━━━━━━━━━━`,
+      `*${event.event_name}* 🎉`,
       ``,
-      `*${event.event_name}*`,
-      `_${event.event_type} organise par ${event.organizer_name}_`,
+      `_${event.organizer_name} t'invite !_`,
       ``,
       `📅 ${dateStr}`,
-      `📍 ${event.location || 'Lieu a confirmer'}`,
-      `🗺 ${mapsUrl}`,
     ]
-    if (deadlineStr) lines.push(`⏰ Reponds avant le ${deadlineStr}`)
-    if (menuLine) lines.push(``, menuLine)
-    if (reserves.length > 0) lines.push(``, `✅ *Deja pris en charge :*`, items_pris)
-    lines.push(``, `👉 Confirme ta venue et choisis ce que tu apportes :`, url)
+    if (event.location) {
+      const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`
+      lines.push(`📍 ${event.location}`)
+      lines.push(`Itinéraire : ${mapsUrl}`)
+    }
+    if (menuResume) lines.push(``, `Au menu : ${menuResume}`)
+    if (deadlineStr) lines.push(``, `Merci de répondre avant le ${deadlineStr}`)
+    lines.push(``, `Confirme ta venue et participe en remplissant tes infos ici :`, url)
 
     return { url, text: lines.join('\n') }
   }
