@@ -18,10 +18,54 @@ export default function InvitePage() {
   const [commentaire, setCommentaire] = useState('')
   const [selectedItems, setSelectedItems] = useState({})
   const [selectedItemDetails, setSelectedItemDetails] = useState([])
+  const [existingParticipant, setExistingParticipant] = useState(null)
 
   useEffect(() => {
     loadEvent()
   }, [linkId])
+
+  // Vérifie (avec debounce) si le prénom correspond à une réponse déjà enregistrée
+  useEffect(() => {
+    if (!event || !guestName.trim()) {
+      setExistingParticipant(null)
+      return
+    }
+    const t = setTimeout(() => checkExistingGuest(guestName), 500)
+    return () => clearTimeout(t)
+  }, [guestName, event])
+
+  async function checkExistingGuest(name) {
+    if (!event || !name.trim()) return
+    const supabase = getSupabase()
+    const { data: parts } = await supabase
+      .from('participants')
+      .select('*')
+      .eq('event_id', event.id)
+      .ilike('participant_name', name.trim()) // exact, insensible à la casse
+
+    const match = parts && parts[0]
+    if (!match) {
+      setExistingParticipant(null)
+      return
+    }
+
+    // Pré-remplir le formulaire avec sa réponse précédente
+    setExistingParticipant(match)
+    setRsvp(match.rsvp_status)
+    setNbPersonnes(match.nb_personnes || 1)
+    setRestriction(match.restriction_alimentaire || '')
+    setCommentaire(match.commentaire || '')
+
+    // Charger les items qu'il avait déjà réservés
+    const { data: myItems } = await supabase
+      .from('items')
+      .select('*')
+      .eq('assigned_participant_id', match.id)
+
+    const sel = {}
+    ;(myItems || []).forEach(it => { sel[it.id] = Number(it.quantity) || 1 })
+    setSelectedItems(sel)
+  }
 
   async function loadEvent() {
     const supabase = getSupabase()
@@ -69,22 +113,49 @@ export default function InvitePage() {
     setSubmitting(true)
 
     try {
-      // 1. Créer le participant
-      const { data: participant, error: partErr } = await supabase
-        .from('participants')
-        .insert({
-          event_id: event.id,
-          participant_name: guestName,
-          rsvp_status: rsvp,
-          nb_personnes: nbPersonnes,
-          restriction_alimentaire: restriction || null,
-          commentaire: commentaire || null,
-          date_reponse: new Date().toISOString(),
-        })
-        .select()
-        .single()
+      // 1. Créer OU mettre à jour le participant
+      let participant
+      if (existingParticipant) {
+        const { data: updated, error: updErr } = await supabase
+          .from('participants')
+          .update({
+            participant_name: guestName,
+            rsvp_status: rsvp,
+            nb_personnes: nbPersonnes,
+            restriction_alimentaire: restriction || null,
+            commentaire: commentaire || null,
+            date_reponse: new Date().toISOString(),
+          })
+          .eq('id', existingParticipant.id)
+          .select()
+          .single()
 
-      if (partErr) throw partErr
+        if (updErr) throw updErr
+        participant = updated
+
+        // Libérer ses anciens items réservés avant de réserver les nouveaux
+        await supabase
+          .from('items')
+          .update({ status: 'Disponible', assigned_to: null, assigned_participant_id: null })
+          .eq('assigned_participant_id', existingParticipant.id)
+      } else {
+        const { data: created, error: partErr } = await supabase
+          .from('participants')
+          .insert({
+            event_id: event.id,
+            participant_name: guestName,
+            rsvp_status: rsvp,
+            nb_personnes: nbPersonnes,
+            restriction_alimentaire: restriction || null,
+            commentaire: commentaire || null,
+            date_reponse: new Date().toISOString(),
+          })
+          .select()
+          .single()
+
+        if (partErr) throw partErr
+        participant = created
+      }
 
       // 2. Réserver les items sélectionnés (verrouillage)
       if (rsvp === 'Confirmé' && Object.keys(selectedItems).length > 0) {
@@ -278,6 +349,13 @@ export default function InvitePage() {
 
       <div className="max-w-lg mx-auto px-4 -mt-4">
         <form onSubmit={handleSubmit} className="space-y-4">
+          {existingParticipant && (
+            <div className="bg-blue-50 border border-blue-200 text-blue-800 text-sm px-4 py-3 rounded-2xl flex items-start gap-2">
+              <span>👋</span>
+              <span>Tu as deja repondu ! Tu peux modifier ta reponse ci-dessous.</span>
+            </div>
+          )}
+
           {/* Nom */}
           <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
             <label className="block text-sm font-medium text-slate-700 mb-2">Ton prénom</label>
@@ -285,6 +363,7 @@ export default function InvitePage() {
               type="text"
               value={guestName}
               onChange={(e) => setGuestName(e.target.value)}
+              onBlur={(e) => checkExistingGuest(e.target.value)}
               placeholder="Sophie"
               className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none text-lg"
               required
@@ -473,7 +552,7 @@ export default function InvitePage() {
               disabled={submitting || isExpired || !guestName}
               className="w-full bg-blue-500 hover:bg-blue-600 disabled:bg-slate-300 text-white font-semibold py-4 rounded-2xl transition-colors text-lg mb-8"
             >
-              {submitting ? '⏳ Envoi...' : 'Confirmer ma réponse'}
+              {submitting ? '⏳ Envoi...' : existingParticipant ? 'Mettre à jour ma réponse' : 'Confirmer ma réponse'}
             </button>
           )}
         </form>
