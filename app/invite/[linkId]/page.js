@@ -16,7 +16,7 @@ export default function InvitePage() {
   const [nbPersonnes, setNbPersonnes] = useState(1)
   const [restriction, setRestriction] = useState('')
   const [commentaire, setCommentaire] = useState('')
-  const [selectedItems, setSelectedItems] = useState([])
+  const [selectedItems, setSelectedItems] = useState({})
 
   useEffect(() => {
     loadEvent()
@@ -45,11 +45,20 @@ export default function InvitePage() {
   }
 
   function toggleItem(itemId) {
-    setSelectedItems(prev =>
-      prev.includes(itemId)
-        ? prev.filter(id => id !== itemId)
-        : [...prev, itemId]
-    )
+    setSelectedItems(prev => {
+      const next = { ...prev }
+      if (next[itemId] != null) {
+        delete next[itemId]
+      } else {
+        next[itemId] = 1
+      }
+      return next
+    })
+  }
+
+  function setItemQty(itemId, qty, max) {
+    const clamped = Math.max(1, Math.min(qty, max))
+    setSelectedItems(prev => ({ ...prev, [itemId]: clamped }))
   }
 
   async function handleSubmit(e) {
@@ -77,17 +86,57 @@ export default function InvitePage() {
       if (partErr) throw partErr
 
       // 2. Réserver les items sélectionnés (verrouillage)
-      if (rsvp === 'Confirmé' && selectedItems.length > 0) {
-        for (const itemId of selectedItems) {
-          await supabase
-            .from('items')
-            .update({
-              status: 'Réservé',
-              assigned_to: guestName,
-              assigned_participant_id: participant.id,
-            })
-            .eq('id', itemId)
-            .eq('status', 'Disponible') // Sécurité anti-doublon
+      if (rsvp === 'Confirmé' && Object.keys(selectedItems).length > 0) {
+        for (const [itemId, chosenQty] of Object.entries(selectedItems)) {
+          const item = items.find(i => i.id === itemId)
+          if (!item) continue
+
+          const total = Number(item.quantity) || 1
+          const taken = Math.max(1, Math.min(chosenQty, total))
+          const unitPrice = (item.estimated_price != null && total > 0)
+            ? Number(item.estimated_price) / total
+            : null
+          const round2 = (n) => Math.round(n * 100) / 100
+
+          if (taken >= total) {
+            // Prise complète : on verrouille l'item existant
+            await supabase
+              .from('items')
+              .update({
+                status: 'Réservé',
+                assigned_to: guestName,
+                assigned_participant_id: participant.id,
+              })
+              .eq('id', itemId)
+              .eq('status', 'Disponible') // Sécurité anti-doublon
+          } else {
+            // Réservation partielle : on scinde l'item
+            const remaining = total - taken
+
+            await supabase
+              .from('items')
+              .update({
+                quantity: taken,
+                estimated_price: unitPrice != null ? round2(unitPrice * taken) : item.estimated_price,
+                status: 'Réservé',
+                assigned_to: guestName,
+                assigned_participant_id: participant.id,
+              })
+              .eq('id', itemId)
+              .eq('status', 'Disponible')
+
+            await supabase
+              .from('items')
+              .insert({
+                event_id: event.id,
+                item_name: item.item_name,
+                category: item.category,
+                quantity: remaining,
+                unit: item.unit,
+                estimated_price: unitPrice != null ? round2(unitPrice * remaining) : null,
+                status: 'Disponible',
+              })
+          }
         }
       }
 
@@ -129,9 +178,9 @@ export default function InvitePage() {
               ? `${event.organizer_name} a été notifié. On se voit le jour J !`
               : 'Merci d\'avoir répondu.'}
           </p>
-          {selectedItems.length > 0 && (
+          {Object.keys(selectedItems).length > 0 && (
             <p className="text-emerald-600 text-sm font-medium">
-              ✅ {selectedItems.length} article{selectedItems.length > 1 ? 's' : ''} réservé{selectedItems.length > 1 ? 's' : ''} à ton nom
+              ✅ {Object.keys(selectedItems).length} article{Object.keys(selectedItems).length > 1 ? 's' : ''} réservé{Object.keys(selectedItems).length > 1 ? 's' : ''} à ton nom
             </p>
           )}
         </div>
@@ -257,36 +306,66 @@ export default function InvitePage() {
                   </label>
                   <p className="text-xs text-slate-400 mb-3">Coche ce que tu prends en charge</p>
                   <div className="space-y-2">
-                    {disponibles.map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => toggleItem(item.id)}
-                        className={`w-full flex items-center justify-between px-3 py-3 rounded-xl border-2 transition-all text-left ${
-                          selectedItems.includes(item.id)
-                            ? 'border-emerald-400 bg-emerald-50'
-                            : 'border-slate-100 hover:border-slate-200'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className="text-lg">{categoryEmojis[item.category] || '📦'}</span>
-                          <div>
-                            <span className="text-sm font-medium text-slate-700">{item.item_name}</span>
-                            <span className="text-xs text-slate-400 ml-2">{item.quantity} {item.unit}</span>
-                          </div>
+                    {disponibles.map((item) => {
+                      const selected = selectedItems[item.id] != null
+                      const max = Number(item.quantity) || 1
+                      const qty = selectedItems[item.id] || 1
+                      return (
+                        <div
+                          key={item.id}
+                          className={`rounded-xl border-2 transition-all ${
+                            selected
+                              ? 'border-emerald-400 bg-emerald-50'
+                              : 'border-slate-100 hover:border-slate-200'
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => toggleItem(item.id)}
+                            className="w-full flex items-center justify-between px-3 py-3 text-left"
+                          >
+                            <div className="flex items-center gap-3">
+                              <span className="text-lg">{categoryEmojis[item.category] || '📦'}</span>
+                              <div>
+                                <span className="text-sm font-medium text-slate-700">{item.item_name}</span>
+                                <span className="text-xs text-slate-400 ml-2">{item.quantity} {item.unit}</span>
+                              </div>
+                            </div>
+                            <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center text-xs ${
+                              selected
+                                ? 'bg-emerald-500 border-emerald-500 text-white'
+                                : 'border-slate-300'
+                            }`}>
+                              {selected ? '✓' : ''}
+                            </span>
+                          </button>
+                          {selected && max > 1 && (
+                            <div className="flex items-center justify-between px-3 pb-3 pt-1">
+                              <span className="text-xs text-slate-500">Tu en apportes combien ?</span>
+                              <div className="flex items-center gap-3">
+                                <button
+                                  type="button"
+                                  onClick={() => setItemQty(item.id, qty - 1, max)}
+                                  disabled={qty <= 1}
+                                  className="w-8 h-8 rounded-lg border-2 border-slate-200 text-slate-600 font-bold disabled:opacity-30"
+                                >
+                                  −
+                                </button>
+                                <span className="text-sm font-semibold text-slate-700 w-14 text-center">{qty} / {max}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setItemQty(item.id, qty + 1, max)}
+                                  disabled={qty >= max}
+                                  className="w-8 h-8 rounded-lg border-2 border-slate-200 text-slate-600 font-bold disabled:opacity-30"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm text-slate-500">{item.estimated_price}€</span>
-                          <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center text-xs ${
-                            selectedItems.includes(item.id)
-                              ? 'bg-emerald-500 border-emerald-500 text-white'
-                              : 'border-slate-300'
-                          }`}>
-                            {selectedItems.includes(item.id) ? '✓' : ''}
-                          </span>
-                        </div>
-                      </button>
-                    ))}
+                      )
+                    })}
                   </div>
                   {/* Items déjà pris */}
                   {reserves.length > 0 && (
