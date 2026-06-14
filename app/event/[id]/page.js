@@ -3,6 +3,21 @@ import { useState, useEffect } from 'react'
 import { getSupabase } from '@/lib/supabase'
 import { useParams, useRouter } from 'next/navigation'
 
+// Le commentaire peut être un JSON { accompagnants:[], commentaire:"" } ou du texte brut
+function parseCommentaire(raw) {
+  if (!raw) return { accompagnants: [], commentaire: '' }
+  if (raw.trim().startsWith('{')) {
+    try {
+      const p = JSON.parse(raw)
+      return {
+        accompagnants: Array.isArray(p.accompagnants) ? p.accompagnants : [],
+        commentaire: typeof p.commentaire === 'string' ? p.commentaire : '',
+      }
+    } catch { /* texte brut */ }
+  }
+  return { accompagnants: [], commentaire: raw }
+}
+
 export default function EventDashboard() {
   const { id } = useParams()
   const router = useRouter()
@@ -516,12 +531,22 @@ export default function EventDashboard() {
                         <span className="bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full text-xs font-semibold shrink-0">+ {p.nb_personnes - 1}</span>
                       )}
                     </p>
-                    {p.restriction_alimentaire && (
-                      <p className="text-xs text-purple-500">{p.restriction_alimentaire}</p>
-                    )}
-                    {p.commentaire && (
-                      <p className="text-xs text-slate-400 truncate">{p.commentaire}</p>
-                    )}
+                    {(() => {
+                      const c = parseCommentaire(p.commentaire)
+                      return (
+                        <>
+                          {c.accompagnants.length > 0 && (
+                            <p className="text-xs text-blue-500 truncate">avec {c.accompagnants.join(', ')}</p>
+                          )}
+                          {p.restriction_alimentaire && (
+                            <p className="text-xs text-purple-500">{p.restriction_alimentaire}</p>
+                          )}
+                          {c.commentaire && (
+                            <p className="text-xs text-slate-400 truncate">{c.commentaire}</p>
+                          )}
+                        </>
+                      )
+                    })()}
                   </div>
                 </div>
                 <span className={`text-xs font-bold px-2.5 py-1 rounded-full shrink-0 ${
