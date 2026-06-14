@@ -1,10 +1,11 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { getSupabase } from '@/lib/supabase'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 
 export default function InvitePage() {
   const { linkId } = useParams()
+  const searchParams = useSearchParams()
   const [event, setEvent] = useState(null)
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
@@ -24,6 +25,12 @@ export default function InvitePage() {
   useEffect(() => {
     loadEvent()
   }, [linkId])
+
+  // Pré-remplit le prénom si présent dans l'URL (?nom=...)
+  useEffect(() => {
+    const nom = searchParams.get('nom')
+    if (nom) setGuestName(nom)
+  }, [searchParams])
 
   // Redimensionne le tableau des accompagnants quand le nombre de personnes change
   useEffect(() => {

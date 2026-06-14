@@ -27,6 +27,7 @@ export default function EventDashboard() {
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
   const [showQR, setShowQR] = useState(false)
+  const [qrError, setQrError] = useState(false)
   const [showAllMissing, setShowAllMissing] = useState(false)
   const [showAllParticipants, setShowAllParticipants] = useState(false)
 
@@ -51,6 +52,19 @@ export default function EventDashboard() {
     setParticipants(partRes.data || [])
     setItems(itemRes.data || [])
     setLoading(false)
+  }
+
+  // Annule la participation : libère ses items, supprime le participant, recharge
+  async function deleteParticipant(p) {
+    const prenom = p.participant_name || 'ce participant'
+    if (!window.confirm(`Annuler la participation de ${prenom} ?`)) return
+    const supabase = getSupabase()
+    await supabase
+      .from('items')
+      .update({ status: 'Disponible', assigned_to: null, assigned_participant_id: null })
+      .eq('assigned_participant_id', p.id)
+    await supabase.from('participants').delete().eq('id', p.id)
+    await loadAll()
   }
 
   // === CRUD Items ===
@@ -155,14 +169,14 @@ export default function EventDashboard() {
   function shareSMS() {
     if (!event) return
     const { text } = buildInvitation()
-    window.open(`sms:?&body=${encodeURIComponent(text)}`, '_blank')
+    window.location.href = `sms:?&body=${encodeURIComponent(text)}`
   }
 
   function shareEmail() {
     if (!event) return
     const { text } = buildInvitation()
     const subject = `Invitation ${event.event_name}`
-    window.open(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`, '_blank')
+    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`
   }
 
   if (loading) {
@@ -523,7 +537,7 @@ export default function EventDashboard() {
           Email
         </button>
         <button
-          onClick={() => setShowQR(true)}
+          onClick={() => { setQrError(false); setShowQR(true) }}
           className="flex flex-col items-center gap-1 bg-white border border-slate-200 hover:border-blue-300 hover:bg-blue-50 text-slate-700 font-medium py-3 rounded-xl transition-all text-xs"
         >
           <span className="text-lg">🔲</span>
@@ -537,13 +551,29 @@ export default function EventDashboard() {
           <div className="bg-white rounded-2xl p-6 max-w-xs w-full text-center" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-bold text-slate-800 mb-1">Scanne pour rejoindre l'événement</h3>
             <p className="text-xs text-slate-400 mb-4">{event.event_name}</p>
-            <img
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(`${window.location.origin}/invite/${event.invite_link_id}`)}`}
-              alt="QR code d'invitation"
-              className="mx-auto rounded-lg border border-slate-100"
-              width={250}
-              height={250}
-            />
+            {qrError ? (
+              <div className="mb-2">
+                <p className="text-sm text-slate-500 mb-2">QR indisponible. Voici le lien d'invitation :</p>
+                <p className="text-xs text-slate-700 break-all bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 mb-3">
+                  {`${window.location.origin}/invite/${event.invite_link_id}`}
+                </p>
+                <button
+                  onClick={copyInviteLink}
+                  className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm"
+                >
+                  {copied ? 'Copié !' : 'Copier le lien'}
+                </button>
+              </div>
+            ) : (
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(`${window.location.origin}/invite/${event.invite_link_id}`)}`}
+                alt="QR code d'invitation"
+                className="mx-auto rounded-lg border border-slate-100"
+                width={250}
+                height={250}
+                onError={() => setQrError(true)}
+              />
+            )}
             <button
               onClick={() => setShowQR(false)}
               className="mt-4 w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 rounded-xl transition-colors text-sm"
@@ -597,13 +627,22 @@ export default function EventDashboard() {
                     })()}
                   </div>
                 </div>
-                <span className={`text-xs font-bold px-2.5 py-1 rounded-full shrink-0 ${
-                  p.rsvp_status === 'Confirmé' ? 'bg-emerald-100 text-emerald-700' :
-                  p.rsvp_status === 'Refusé' ? 'bg-red-100 text-red-600' :
-                  'bg-amber-100 text-amber-600'
-                }`}>
-                  {p.rsvp_status === 'Confirmé' ? 'Oui' : p.rsvp_status === 'Refusé' ? 'Non' : 'Peut-etre'}
-                </span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                    p.rsvp_status === 'Confirmé' ? 'bg-emerald-100 text-emerald-700' :
+                    p.rsvp_status === 'Refusé' ? 'bg-red-100 text-red-600' :
+                    'bg-amber-100 text-amber-600'
+                  }`}>
+                    {p.rsvp_status === 'Confirmé' ? 'Oui' : p.rsvp_status === 'Refusé' ? 'Non' : 'Peut-etre'}
+                  </span>
+                  <button
+                    onClick={() => deleteParticipant(p)}
+                    className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-300 hover:bg-red-50 hover:text-red-500 transition-colors"
+                    title="Annuler la participation"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
             ))}
           </div>

@@ -21,6 +21,15 @@ export default function Home() {
     setLoading(false)
   }
 
+  async function deleteEvent(e, eventId) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!window.confirm('Supprimer cet événement de façon définitive ?')) return
+    const supabase = getSupabase()
+    await supabase.from('events').delete().eq('id', eventId)
+    setEvents(prev => prev.filter(ev => ev.id !== eventId))
+  }
+
   const statusColors = {
     'Actif': 'bg-emerald-100 text-emerald-700',
     'Brouillon': 'bg-amber-100 text-amber-700',
@@ -88,9 +97,19 @@ export default function Home() {
                     )}
                   </div>
                 </div>
-                <span className={`text-xs px-2 py-1 rounded-full font-medium ${statusColors[event.status] || ''}`}>
-                  {event.status}
-                </span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${statusColors[event.status] || ''}`}>
+                    {event.status}
+                  </span>
+                  <button
+                    onClick={(e) => deleteEvent(e, event.id)}
+                    className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-300 hover:bg-red-50 hover:text-red-500 transition-colors"
+                    title="Supprimer l'événement"
+                    aria-label="Supprimer l'événement"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
             </Link>
           ))}
