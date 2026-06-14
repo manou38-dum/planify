@@ -233,6 +233,20 @@ export default function EventDashboard() {
   const missingNames = disponibles.map(i => i.item_name)
   const categories = ['Nourriture', 'Boissons', 'Matériel', 'Décoration', 'Service']
 
+  // Items réservés par un participant donné (lien par id, repli sur le nom)
+  function getItemsForParticipant(p) {
+    return items.filter(i =>
+      i.status === 'Réservé' &&
+      (i.assigned_participant_id === p.id || i.assigned_to === p.participant_name)
+    )
+  }
+
+  // Tri : confirmés d'abord, puis peut-être / en attente, puis refusés
+  const rsvpRank = (s) => (s === 'Confirmé' ? 0 : s === 'Refusé' ? 2 : 1)
+  const sortedParticipants = [...participants].sort(
+    (a, b) => rsvpRank(a.rsvp_status) - rsvpRank(b.rsvp_status)
+  )
+
   return (
     <div className="max-w-md mx-auto px-4 py-6 pb-12">
       {/* Retour */}
@@ -286,22 +300,6 @@ export default function EventDashboard() {
             <span className="text-xs text-slate-400 ml-auto">{totalPersonnes} pers.</span>
           )}
         </div>
-
-        {/* Ce que chacun apporte */}
-        {reserves.length > 0 && (
-          <div className="px-5 py-3 border-b border-slate-100">
-            <h3 className="text-sm font-bold text-slate-800 mb-2">Ce que chacun apporte</h3>
-            <div className="space-y-1.5">
-              {reserves.map((item) => (
-                <div key={item.id} className="flex items-center gap-2 text-sm">
-                  <span className="font-semibold text-slate-700">{item.assigned_to} :</span>
-                  <span className="text-slate-500">{item.item_name}</span>
-                  <span className="text-xs text-slate-400">({item.quantity} {item.unit})</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* Barre orange "Manque" (non-edit mode) */}
         {disponibles.length > 0 && !editMode && (
@@ -612,59 +610,64 @@ export default function EventDashboard() {
             <span className="text-xs text-slate-400">{totalPersonnes} personnes ({participants.length} reponses)</span>
           </div>
           <div className="divide-y divide-slate-50">
-            {(showAllParticipants ? participants : participants.slice(0, 5)).map((p) => (
-              <div key={p.id} className="flex items-center justify-between px-5 py-2.5">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-                    p.rsvp_status === 'Confirmé' ? 'bg-blue-100 text-blue-600' :
-                    p.rsvp_status === 'Refusé' ? 'bg-red-100 text-red-500' :
-                    'bg-amber-100 text-amber-600'
-                  }`}>
-                    {(p.participant_name || '?').charAt(0).toUpperCase()}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-700 truncate flex items-center gap-1.5">
-                      <span className="truncate">{p.participant_name}</span>
-                      {p.nb_personnes > 1 && (
-                        <span className="bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full text-xs font-semibold shrink-0">+ {p.nb_personnes - 1}</span>
+            {(showAllParticipants ? sortedParticipants : sortedParticipants.slice(0, 5)).map((p) => {
+              const c = parseCommentaire(p.commentaire)
+              const apporte = getItemsForParticipant(p)
+              return (
+                <div key={p.id} className="flex items-start justify-between px-5 py-2.5">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                      p.rsvp_status === 'Confirmé' ? 'bg-blue-100 text-blue-600' :
+                      p.rsvp_status === 'Refusé' ? 'bg-red-100 text-red-500' :
+                      'bg-amber-100 text-amber-600'
+                    }`}>
+                      {(p.participant_name || '?').charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-slate-700 truncate flex items-center gap-1.5">
+                        <span className="truncate">{p.participant_name}</span>
+                        {p.nb_personnes > 1 && (
+                          <span className="bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full text-xs font-semibold shrink-0">+ {p.nb_personnes - 1}</span>
+                        )}
+                      </p>
+                      {c.accompagnants.length > 0 && (
+                        <p className="text-xs text-blue-500 truncate">avec {c.accompagnants.join(', ')}</p>
                       )}
-                    </p>
-                    {(() => {
-                      const c = parseCommentaire(p.commentaire)
-                      return (
-                        <>
-                          {c.accompagnants.length > 0 && (
-                            <p className="text-xs text-blue-500 truncate">avec {c.accompagnants.join(', ')}</p>
-                          )}
-                          {p.restriction_alimentaire && (
-                            <p className="text-xs text-purple-500">{p.restriction_alimentaire}</p>
-                          )}
-                          {c.commentaire && (
-                            <p className="text-xs text-slate-400 truncate">{c.commentaire}</p>
-                          )}
-                        </>
-                      )
-                    })()}
+                      {p.restriction_alimentaire && (
+                        <span className="inline-block text-xs bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full mt-0.5">
+                          {p.restriction_alimentaire}
+                        </span>
+                      )}
+                      {c.commentaire && (
+                        <p className="text-xs text-slate-400 italic truncate">{c.commentaire}</p>
+                      )}
+                      {apporte.length > 0 && (
+                        <p className="text-xs text-slate-500 mt-1">
+                          <span className="text-emerald-500">●</span>{' '}
+                          apporte : {apporte.map(i => `${i.item_name} (${i.quantity} ${i.unit})`).join(', ')}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                      p.rsvp_status === 'Confirmé' ? 'bg-emerald-100 text-emerald-700' :
+                      p.rsvp_status === 'Refusé' ? 'bg-red-100 text-red-600' :
+                      'bg-amber-100 text-amber-600'
+                    }`}>
+                      {p.rsvp_status === 'Confirmé' ? 'Oui' : p.rsvp_status === 'Refusé' ? 'Non' : 'Peut-etre'}
+                    </span>
+                    <button
+                      onClick={() => deleteParticipant(p)}
+                      className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-300 hover:bg-red-50 hover:text-red-500 transition-colors"
+                      title="Annuler la participation"
+                    >
+                      ✕
+                    </button>
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
-                    p.rsvp_status === 'Confirmé' ? 'bg-emerald-100 text-emerald-700' :
-                    p.rsvp_status === 'Refusé' ? 'bg-red-100 text-red-600' :
-                    'bg-amber-100 text-amber-600'
-                  }`}>
-                    {p.rsvp_status === 'Confirmé' ? 'Oui' : p.rsvp_status === 'Refusé' ? 'Non' : 'Peut-etre'}
-                  </span>
-                  <button
-                    onClick={() => deleteParticipant(p)}
-                    className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-300 hover:bg-red-50 hover:text-red-500 transition-colors"
-                    title="Annuler la participation"
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
           <div className="bg-slate-50 px-5 py-3 border-t border-slate-100 flex items-center justify-between">
             <span className="text-sm font-medium text-slate-600">Total</span>
