@@ -21,6 +21,11 @@ export default function InviteClient({ linkId }) {
   const [selectedItemDetails, setSelectedItemDetails] = useState([])
   const [existingParticipant, setExistingParticipant] = useState(null)
 
+  const [slots, setSlots] = useState([])
+  const [signups, setSignups] = useState([])
+  const [selectedSlots, setSelectedSlots] = useState({})
+  const [signedSlotDetails, setSignedSlotDetails] = useState([])
+
   useEffect(() => {
     loadEvent()
   }, [linkId])
@@ -99,6 +104,15 @@ export default function InviteClient({ linkId }) {
     const sel = {}
     ;(myItems || []).forEach(it => { sel[it.id] = Number(it.quantity) || 1 })
     setSelectedItems(sel)
+
+    // Pré-cocher les créneaux auxquels il est déjà inscrit
+    const { data: mySignups } = await supabase
+      .from('slot_signups')
+      .select('slot_id')
+      .eq('participant_id', match.id)
+    const selSlots = {}
+    ;(mySignups || []).forEach(su => { selSlots[su.slot_id] = true })
+    setSelectedSlots(selSlots)
   }
 
   async function loadEvent() {
@@ -119,8 +133,49 @@ export default function InviteClient({ linkId }) {
         .eq('event_id', evt.id)
         .order('category')
       setItems(itms || [])
+
+      // Charger les créneaux d'aide et les inscriptions existantes
+      const { data: slts } = await supabase
+        .from('slots')
+        .select('*')
+        .eq('event_id', evt.id)
+        .order('slot_date')
+      setSlots(slts || [])
+
+      const slotIds = (slts || []).map(s => s.id)
+      if (slotIds.length > 0) {
+        const { data: sus } = await supabase
+          .from('slot_signups')
+          .select('*')
+          .in('slot_id', slotIds)
+        setSignups(sus || [])
+      } else {
+        setSignups([])
+      }
     }
     setLoading(false)
+  }
+
+  function toggleSlot(slotId) {
+    setSelectedSlots(prev => {
+      const next = { ...prev }
+      if (next[slotId]) delete next[slotId]
+      else next[slotId] = true
+      return next
+    })
+  }
+
+  // Nombre d'inscrits sur un créneau (signups en base) hors l'invité courant
+  function slotTakenCount(slotId) {
+    return signups.filter(s => s.slot_id === slotId).length
+  }
+
+  function formatHeure(d) {
+    try {
+      return new Date(d).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+    } catch {
+      return ''
+    }
   }
 
   function toggleItem(itemId) {
@@ -252,6 +307,41 @@ export default function InviteClient({ linkId }) {
         }
       }
 
+      // 3. Inscriptions aux créneaux d'aide (seulement si confirmé)
+      let chosenSlotIds = []
+      if (slots.length > 0) {
+        chosenSlotIds = rsvp === 'Confirmé' ? Object.keys(selectedSlots).filter(id => selectedSlots[id]) : []
+
+        // Supprimer toutes les inscriptions précédentes de ce participant,
+        // puis ré-insérer les créneaux choisis (simple et idempotent)
+        await supabase.from('slot_signups').delete().eq('participant_id', participant.id)
+
+        if (chosenSlotIds.length > 0) {
+          const rows = chosenSlotIds.map(slotId => ({
+            slot_id: slotId,
+            participant_id: participant.id,
+            participant_name: guestName,
+          }))
+          await supabase.from('slot_signups').insert(rows)
+        }
+
+        // Recalculer current_count de chaque créneau impacté
+        const affected = new Set([
+          ...chosenSlotIds,
+          ...signups.filter(s => s.participant_id === participant.id).map(s => s.slot_id),
+        ])
+        for (const slotId of affected) {
+          const { count } = await supabase
+            .from('slot_signups')
+            .select('*', { count: 'exact', head: true })
+            .eq('slot_id', slotId)
+          await supabase.from('slots').update({ current_count: count || 0 }).eq('id', slotId)
+        }
+      }
+
+      // Mémoriser les créneaux choisis pour le récap post-soumission
+      setSignedSlotDetails(slots.filter(s => chosenSlotIds.includes(s.id)))
+
       // Mémoriser les items choisis pour le récap post-soumission
       const details = Object.entries(selectedItems).map(([itemId, chosenQty]) => {
         const item = items.find(i => i.id === itemId)
@@ -322,6 +412,15 @@ export default function InviteClient({ linkId }) {
                         </li>
                       ))}
                     </ul>
+                  </div>
+                )}
+
+                {signedSlotDetails.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-slate-100">
+                    <p className="text-sm font-medium text-slate-700 mb-1">Tu aides pour :</p>
+                    <p className="text-sm text-blue-600">
+                      {signedSlotDetails.map(s => `${s.slot_name} (${new Date(s.slot_date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })})`).join(', ')}
+                    </p>
                   </div>
                 )}
               </div>
@@ -586,6 +685,58 @@ export default function InviteClient({ linkId }) {
                       ))}
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Créneaux d'aide */}
+              {slots.length > 0 && (
+                <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Donne un coup de main ? (optionnel)</label>
+                  <p className="text-xs text-slate-400 mb-3">Inscris-toi sur les créneaux où tu peux aider</p>
+                  <div className="space-y-2">
+                    {slots.map((s) => {
+                      const max = s.max_participants || 4
+                      const selected = !!selectedSlots[s.id]
+                      // Inscrits en base, en retirant l'invité courant s'il y figure déjà (évite le double comptage)
+                      const baseCount = signups.filter(
+                        su => su.slot_id === s.id && (!existingParticipant || su.participant_id !== existingParticipant.id)
+                      ).length
+                      const taken = baseCount + (selected ? 1 : 0)
+                      const full = taken >= max && !selected
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => !full && toggleSlot(s.id)}
+                          disabled={full}
+                          className={`w-full text-left rounded-xl border-2 px-3 py-3 transition-all ${
+                            selected ? 'border-emerald-400 bg-emerald-50'
+                              : full ? 'border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed'
+                              : 'border-slate-100 hover:border-slate-200'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-slate-700 truncate">{s.slot_name}</p>
+                              <p className="text-xs text-slate-400 mt-0.5">
+                                🕒 {formatHeure(s.slot_date)} · {s.duration_minutes || 60} min · {taken}/{max} inscrits
+                              </p>
+                            </div>
+                            <span className={`shrink-0 w-5 h-5 rounded-md border-2 flex items-center justify-center text-xs ${
+                              selected ? 'bg-emerald-500 border-emerald-500 text-white'
+                                : full ? 'border-slate-200 text-slate-300'
+                                : 'border-slate-300'
+                            }`}>
+                              {selected ? '✓' : full ? '✕' : ''}
+                            </span>
+                          </div>
+                          {full && !selected && (
+                            <p className="text-xs text-slate-400 mt-1">Complet</p>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
                 </div>
               )}
 

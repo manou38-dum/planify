@@ -25,6 +25,8 @@ export default function EventDashboard() {
   const [event, setEvent] = useState(null)
   const [participants, setParticipants] = useState([])
   const [items, setItems] = useState([])
+  const [slots, setSlots] = useState([])
+  const [signups, setSignups] = useState([])
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
   const [showQR, setShowQR] = useState(false)
@@ -44,14 +46,25 @@ export default function EventDashboard() {
 
   async function loadAll() {
     const supabase = getSupabase()
-    const [evtRes, partRes, itemRes] = await Promise.all([
+    const [evtRes, partRes, itemRes, slotRes] = await Promise.all([
       supabase.from('events').select('*').eq('id', id).single(),
       supabase.from('participants').select('*').eq('event_id', id),
       supabase.from('items').select('*').eq('event_id', id).order('category'),
+      supabase.from('slots').select('*').eq('event_id', id).order('slot_date'),
     ])
     setEvent(evtRes.data)
     setParticipants(partRes.data || [])
     setItems(itemRes.data || [])
+    const slts = slotRes.data || []
+    setSlots(slts)
+
+    const slotIds = slts.map(s => s.id)
+    if (slotIds.length > 0) {
+      const { data: sus } = await supabase.from('slot_signups').select('*').in('slot_id', slotIds)
+      setSignups(sus || [])
+    } else {
+      setSignups([])
+    }
     setLoading(false)
   }
 
@@ -681,6 +694,46 @@ export default function EventDashboard() {
               {showAllParticipants ? 'Reduire' : `Voir les ${participants.length - 5} autres`}
             </button>
           )}
+        </div>
+      )}
+
+      {/* === PLANNING D'AIDE === */}
+      {slots.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mt-4">
+          <div className="px-5 py-3 border-b border-slate-100">
+            <h3 className="text-sm font-bold text-slate-800">Planning d'aide</h3>
+          </div>
+          <div className="divide-y divide-slate-50">
+            {slots.map((s) => {
+              const inscrits = signups.filter(su => su.slot_id === s.id)
+              const max = s.max_participants || 4
+              const complet = inscrits.length >= max
+              const heure = new Date(s.slot_date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+              return (
+                <div key={s.id} className="px-5 py-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-slate-700">
+                        {s.slot_name} <span className="text-slate-400 font-normal">{heure} · {s.duration_minutes || 60} min</span>
+                      </p>
+                      {inscrits.length > 0 ? (
+                        <p className="text-sm text-slate-500 mt-0.5">
+                          {inscrits.map(i => i.participant_name).join(', ')}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-slate-300 italic mt-0.5">Personne inscrit pour l'instant</p>
+                      )}
+                    </div>
+                    <span className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ${
+                      complet ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-600'
+                    }`}>
+                      {complet ? 'Complet' : `${inscrits.length}/${max}`}
+                    </span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
 
