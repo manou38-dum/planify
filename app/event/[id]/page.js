@@ -14,6 +14,12 @@ export default function EventDashboard() {
   const [showAllMissing, setShowAllMissing] = useState(false)
   const [showAllParticipants, setShowAllParticipants] = useState(false)
 
+  // Edition items
+  const [editMode, setEditMode] = useState(false)
+  const [editingItem, setEditingItem] = useState(null)
+  const [newItem, setNewItem] = useState({ item_name: '', quantity: '', unit: '', estimated_price: '', category: 'Nourriture' })
+  const [saving, setSaving] = useState(false)
+
   useEffect(() => {
     loadAll()
   }, [id])
@@ -29,6 +35,58 @@ export default function EventDashboard() {
     setParticipants(partRes.data || [])
     setItems(itemRes.data || [])
     setLoading(false)
+  }
+
+  // === CRUD Items ===
+  async function deleteItem(itemId) {
+    const supabase = getSupabase()
+    await supabase.from('items').delete().eq('id', itemId)
+    setItems(prev => prev.filter(i => i.id !== itemId))
+  }
+
+  async function addItem(e) {
+    e.preventDefault()
+    if (!newItem.item_name) return
+    setSaving(true)
+    const supabase = getSupabase()
+    const { data, error } = await supabase
+      .from('items')
+      .insert({
+        event_id: id,
+        item_name: newItem.item_name,
+        quantity: parseFloat(newItem.quantity) || 1,
+        unit: newItem.unit || 'pcs',
+        estimated_price: parseFloat(newItem.estimated_price) || 0,
+        category: newItem.category,
+        status: 'Disponible',
+        ai_generated: false,
+      })
+      .select()
+      .single()
+    if (data) setItems(prev => [...prev, data])
+    setNewItem({ item_name: '', quantity: '', unit: '', estimated_price: '', category: 'Nourriture' })
+    setSaving(false)
+  }
+
+  async function saveEditItem() {
+    if (!editingItem) return
+    setSaving(true)
+    const supabase = getSupabase()
+    const { error } = await supabase
+      .from('items')
+      .update({
+        item_name: editingItem.item_name,
+        quantity: parseFloat(editingItem.quantity) || 1,
+        unit: editingItem.unit,
+        estimated_price: parseFloat(editingItem.estimated_price) || 0,
+        category: editingItem.category,
+      })
+      .eq('id', editingItem.id)
+    if (!error) {
+      setItems(prev => prev.map(i => i.id === editingItem.id ? { ...i, ...editingItem } : i))
+    }
+    setEditingItem(null)
+    setSaving(false)
   }
 
   function copyInviteLink() {
@@ -82,6 +140,7 @@ export default function EventDashboard() {
   const pctCouvert = items.length > 0 ? Math.round((reserves.length / items.length) * 100) : 0
 
   const missingNames = disponibles.map(i => i.item_name)
+  const categories = ['Nourriture', 'Boissons', 'Matériel', 'Décoration', 'Service']
 
   return (
     <div className="max-w-md mx-auto px-4 py-6 pb-12">
@@ -153,8 +212,8 @@ export default function EventDashboard() {
           </div>
         )}
 
-        {/* Barre orange "Manque" */}
-        {disponibles.length > 0 && (
+        {/* Barre orange "Manque" (non-edit mode) */}
+        {disponibles.length > 0 && !editMode && (
           <div className="mx-4 my-3 bg-gradient-to-r from-amber-400 to-orange-400 text-white rounded-xl px-4 py-3">
             <div className="flex items-center justify-between">
               <div className="flex-1 min-w-0">
@@ -208,6 +267,173 @@ export default function EventDashboard() {
           </div>
         </div>
       </div>
+
+      {/* === BOUTON MODIFIER LA LISTE === */}
+      <button
+        onClick={() => setEditMode(!editMode)}
+        className={`w-full mb-4 py-3 rounded-xl font-semibold text-sm transition-all border ${
+          editMode
+            ? 'bg-slate-100 text-slate-600 border-slate-200'
+            : 'bg-white text-blue-600 border-blue-200 hover:bg-blue-50'
+        }`}
+      >
+        {editMode ? 'Terminer les modifications' : 'Modifier la liste de courses'}
+      </button>
+
+      {/* === MODE EDITION === */}
+      {editMode && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mb-4">
+          <div className="px-5 py-3 border-b border-slate-100 bg-blue-50">
+            <h3 className="text-sm font-bold text-blue-800">Liste de courses</h3>
+            <p className="text-xs text-blue-500">Supprime, modifie ou ajoute des articles</p>
+          </div>
+
+          {/* Items existants */}
+          <div className="divide-y divide-slate-50">
+            {items.map((item) => (
+              <div key={item.id} className="px-4 py-3">
+                {editingItem && editingItem.id === item.id ? (
+                  // Mode edition inline
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      value={editingItem.item_name}
+                      onChange={(e) => setEditingItem({...editingItem, item_name: e.target.value})}
+                      className="w-full px-3 py-2 rounded-lg border border-blue-200 text-sm focus:outline-none focus:border-blue-400"
+                    />
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        value={editingItem.quantity}
+                        onChange={(e) => setEditingItem({...editingItem, quantity: e.target.value})}
+                        className="w-20 px-2 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none"
+                        placeholder="Qte"
+                      />
+                      <input
+                        type="text"
+                        value={editingItem.unit}
+                        onChange={(e) => setEditingItem({...editingItem, unit: e.target.value})}
+                        className="w-24 px-2 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none"
+                        placeholder="Unite"
+                      />
+                      <input
+                        type="number"
+                        value={editingItem.estimated_price}
+                        onChange={(e) => setEditingItem({...editingItem, estimated_price: e.target.value})}
+                        className="w-20 px-2 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none"
+                        placeholder="Prix"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={saveEditItem}
+                        disabled={saving}
+                        className="px-4 py-1.5 bg-blue-500 text-white text-xs font-medium rounded-lg hover:bg-blue-600"
+                      >
+                        {saving ? '...' : 'Enregistrer'}
+                      </button>
+                      <button
+                        onClick={() => setEditingItem(null)}
+                        className="px-4 py-1.5 bg-slate-100 text-slate-600 text-xs font-medium rounded-lg hover:bg-slate-200"
+                      >
+                        Annuler
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  // Affichage normal avec boutons edit/delete
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-medium text-slate-700">{item.item_name}</span>
+                      <span className="text-xs text-slate-400 ml-2">{item.quantity} {item.unit}</span>
+                      {item.assigned_to && (
+                        <span className="text-xs bg-emerald-100 text-emerald-600 px-2 py-0.5 rounded-full ml-2">
+                          {item.assigned_to}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0 ml-2">
+                      <span className="text-sm text-slate-500 mr-2">{item.estimated_price} €</span>
+                      {item.status === 'Disponible' && (
+                        <>
+                          <button
+                            onClick={() => setEditingItem({...item})}
+                            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-blue-50 text-blue-400 hover:text-blue-600 transition-colors"
+                            title="Modifier"
+                          >
+                            ✎
+                          </button>
+                          <button
+                            onClick={() => deleteItem(item.id)}
+                            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 text-red-300 hover:text-red-500 transition-colors"
+                            title="Supprimer"
+                          >
+                            ✕
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Ajouter un article */}
+          <div className="px-4 py-3 bg-slate-50 border-t border-slate-100">
+            <p className="text-xs font-semibold text-slate-500 mb-2">Ajouter un article</p>
+            <form onSubmit={addItem} className="space-y-2">
+              <input
+                type="text"
+                value={newItem.item_name}
+                onChange={(e) => setNewItem({...newItem, item_name: e.target.value})}
+                placeholder="Nom de l'article"
+                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-blue-400"
+                required
+              />
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  value={newItem.quantity}
+                  onChange={(e) => setNewItem({...newItem, quantity: e.target.value})}
+                  placeholder="Qte"
+                  className="w-20 px-2 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none"
+                />
+                <input
+                  type="text"
+                  value={newItem.unit}
+                  onChange={(e) => setNewItem({...newItem, unit: e.target.value})}
+                  placeholder="Unite (kg, packs...)"
+                  className="flex-1 px-2 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none"
+                />
+                <input
+                  type="number"
+                  value={newItem.estimated_price}
+                  onChange={(e) => setNewItem({...newItem, estimated_price: e.target.value})}
+                  placeholder="Prix €"
+                  className="w-20 px-2 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none"
+                />
+              </div>
+              <div className="flex gap-2 items-center">
+                <select
+                  value={newItem.category}
+                  onChange={(e) => setNewItem({...newItem, category: e.target.value})}
+                  className="flex-1 px-2 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none bg-white"
+                >
+                  {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <button
+                  type="submit"
+                  disabled={saving || !newItem.item_name}
+                  className="px-5 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-slate-300 text-white text-sm font-semibold rounded-lg transition-colors"
+                >
+                  {saving ? '...' : 'Ajouter'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* === BOUTONS ACTION === */}
       <div className="grid grid-cols-2 gap-3 mb-4">
