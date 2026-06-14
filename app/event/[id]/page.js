@@ -104,7 +104,18 @@ export default function EventDashboard() {
     const dateStr = d.toLocaleDateString('fr-FR', {
       weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
     })
-    const text = `${event.organizer_name} t'invite !\n${event.event_name} - ${dateStr}\n${event.location || 'Lieu a confirmer'}\n\nConfirme ta venue et choisis ce que tu apportes :\n${url}`
+    const text = [
+      `🎉 *${event.event_name}* 🎉`,
+      `━━━━━━━━━━━━━━━`,
+      `_${event.organizer_name} t'invite !_`,
+      ``,
+      `📅 ${dateStr}`,
+      `📍 ${event.location || 'Lieu à confirmer'}`,
+      `━━━━━━━━━━━━━━━`,
+      ``,
+      `Confirme ta venue et choisis ce que tu apportes 👇`,
+      `${url}`,
+    ].join('\n')
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
   }
 
