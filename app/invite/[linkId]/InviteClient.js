@@ -595,8 +595,8 @@ export default function InviteClient({ linkId }) {
                 )}
               </div>
 
-              {/* Liste d'apports */}
-              {disponibles.length > 0 && (
+              {/* Liste d'apports (masquée en mode solo) */}
+              {event.mode !== 'solo' && disponibles.length > 0 && (
                 <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
                   <label className="block text-sm font-medium text-slate-700 mb-1">
                     Qu'est-ce que tu apportes ?

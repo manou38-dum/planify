@@ -324,8 +324,8 @@ export default function EventDashboard() {
           )}
         </div>
 
-        {/* Barre orange "Manque" (non-edit mode) */}
-        {disponibles.length > 0 && !editMode && (
+        {/* Barre orange "Manque" (non-edit mode, masquée en mode solo) */}
+        {event.mode !== 'solo' && disponibles.length > 0 && !editMode && (
           <div className="mx-4 my-3 bg-gradient-to-r from-amber-400 to-orange-400 text-white rounded-xl px-4 py-3">
             <div className="flex items-center justify-between">
               <div className="flex-1 min-w-0">
@@ -360,37 +360,41 @@ export default function EventDashboard() {
           </div>
         )}
 
-        {/* Barre de progression */}
-        <div className="px-5 py-3">
-          <div className="flex justify-between items-center text-xs text-slate-500 mb-1.5">
-            <span>{reserves.length}/{items.length} articles couverts</span>
-            <span className="font-semibold text-slate-700">
-              {totalCouvert.toFixed(0)} € / {totalBudget.toFixed(0)} €
-            </span>
+        {/* Barre de progression budget (masquée en mode solo) */}
+        {event.mode !== 'solo' && (
+          <div className="px-5 py-3">
+            <div className="flex justify-between items-center text-xs text-slate-500 mb-1.5">
+              <span>{reserves.length}/{items.length} articles couverts</span>
+              <span className="font-semibold text-slate-700">
+                {totalCouvert.toFixed(0)} € / {totalBudget.toFixed(0)} €
+              </span>
+            </div>
+            <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-700 ease-out"
+                style={{
+                  width: `${pctCouvert}%`,
+                  background: pctCouvert === 100 ? '#10b981' : pctCouvert > 50 ? '#3b82f6' : '#f59e0b',
+                }}
+              />
+            </div>
           </div>
-          <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all duration-700 ease-out"
-              style={{
-                width: `${pctCouvert}%`,
-                background: pctCouvert === 100 ? '#10b981' : pctCouvert > 50 ? '#3b82f6' : '#f59e0b',
-              }}
-            />
-          </div>
-        </div>
+        )}
       </div>
 
-      {/* === BOUTON MODIFIER LA LISTE === */}
-      <button
-        onClick={() => setEditMode(!editMode)}
-        className={`w-full mb-4 py-3 rounded-xl font-semibold text-sm transition-all border ${
-          editMode
-            ? 'bg-slate-100 text-slate-600 border-slate-200'
-            : 'bg-white text-blue-600 border-blue-200 hover:bg-blue-50'
-        }`}
-      >
-        {editMode ? 'Terminer les modifications' : 'Modifier la liste de courses'}
-      </button>
+      {/* === BOUTON MODIFIER LA LISTE (masqué en mode solo) === */}
+      {event.mode !== 'solo' && (
+        <button
+          onClick={() => setEditMode(!editMode)}
+          className={`w-full mb-4 py-3 rounded-xl font-semibold text-sm transition-all border ${
+            editMode
+              ? 'bg-slate-100 text-slate-600 border-slate-200'
+              : 'bg-white text-blue-600 border-blue-200 hover:bg-blue-50'
+          }`}
+        >
+          {editMode ? 'Terminer les modifications' : 'Modifier la liste de courses'}
+        </button>
+      )}
 
       {/* === MODE EDITION === */}
       {editMode && (

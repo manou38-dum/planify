@@ -110,6 +110,7 @@ export default function CreateEvent() {
     nb_participants: 20,
     organizer_name: '',
     deadline_rsvp: '',
+    mode: 'collaboratif',
   })
   const [eventOptions, setEventOptions] = useState({})
   const [eventDescription, setEventDescription] = useState('')
@@ -218,6 +219,39 @@ export default function CreateEvent() {
     }
     setGenerating(true)
     try {
+      // Mode solo : aucune liste d'apports. On récupère uniquement le planning
+      // bénévoles si une aide montage/logistique est demandée.
+      if (form.mode === 'solo') {
+        const wantsPlanning = !!(eventOptions.aide_montage || eventOptions.aide_logistique)
+        let planningData = []
+        if (wantsPlanning) {
+          const res = await fetch('/api/generate-list', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              event_type: form.event_type,
+              event_name: form.event_name,
+              nb_participants: form.nb_participants,
+              event_options: eventOptions,
+              location: form.location,
+              description: eventDescription,
+              date: form.date,
+              selected_lists: { planning: true },
+            }),
+          })
+          const data = await res.json()
+          if (!res.ok) throw new Error(data.error || 'Génération impossible')
+          planningData = data.planning || []
+        }
+        setGeneratedLists([])
+        setPlanning(planningData)
+        setMenuResume('')
+        setActiveTab(0)
+        setStep(3)
+        setGenerating(false)
+        return
+      }
+
       const res = await fetch('/api/generate-list', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -293,14 +327,15 @@ export default function CreateEvent() {
           organizer_name: form.organizer_name,
           deadline_rsvp: form.deadline_rsvp || null,
           photo_url: photoUrl || null,
+          mode: form.mode,
           event_options: { ...eventOptions, selected_lists: selectedLists, ...(menuResume ? { menu_resume: menuResume } : {}) },
         })
         .select()
         .single()
       if (error) throw error
 
-      // 2. Listes + items
-      for (let i = 0; i < generatedLists.length; i++) {
+      // 2. Listes + items (sautées en mode solo : aucun apport)
+      for (let i = 0; form.mode !== 'solo' && i < generatedLists.length; i++) {
         const L = generatedLists[i]
         const { data: list, error: lErr } = await supabase
           .from('lists')
@@ -434,6 +469,29 @@ export default function CreateEvent() {
           <p className="text-slate-500 mb-6">Les détails de ton événement</p>
 
           <div className="space-y-4">
+            {/* Mode d'organisation */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Comment veux-tu organiser ?</label>
+              <div className="grid grid-cols-2 gap-3">
+                <button type="button" onClick={() => updateForm('mode', 'collaboratif')}
+                  className={`p-4 rounded-2xl border-2 text-left transition-all ${
+                    form.mode === 'collaboratif' ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:border-slate-300'
+                  }`}>
+                  <span className="text-2xl block mb-1">🤝</span>
+                  <span className="text-sm font-semibold text-slate-800 block">Collaboratif</span>
+                  <span className="text-xs text-slate-500">Chacun apporte quelque chose</span>
+                </button>
+                <button type="button" onClick={() => updateForm('mode', 'solo')}
+                  className={`p-4 rounded-2xl border-2 text-left transition-all ${
+                    form.mode === 'solo' ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:border-slate-300'
+                  }`}>
+                  <span className="text-2xl block mb-1">🎯</span>
+                  <span className="text-sm font-semibold text-slate-800 block">J'organise tout</span>
+                  <span className="text-xs text-slate-500">Les invités confirment juste leur venue</span>
+                </button>
+              </div>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Nom de l'événement</label>
               <input type="text" value={form.event_name} onChange={(e) => updateForm('event_name', e.target.value)}
@@ -570,21 +628,23 @@ export default function CreateEvent() {
               </div>
             )}
 
-            {/* Listes à la carte */}
-            <div className="rounded-2xl p-4 border border-slate-200 bg-white">
-              <p className="text-sm font-semibold text-slate-700 mb-1">Que veux-tu dans ton invitation ?</p>
-              <p className="text-xs text-slate-400 mb-3">L'IA générera uniquement les listes cochées</p>
-              <div className="space-y-1">
-                {LIST_CHOICES.map((c) => (
-                  <label key={c.key} className="flex items-center gap-2 py-1.5 cursor-pointer">
-                    <input type="checkbox" checked={!!selectedLists[c.key]}
-                      onChange={() => toggleList(c.key)}
-                      className="w-4 h-4 accent-blue-500" />
-                    <span className="text-sm text-slate-700">{c.label}</span>
-                  </label>
-                ))}
+            {/* Listes à la carte (collaboratif uniquement) */}
+            {form.mode !== 'solo' && (
+              <div className="rounded-2xl p-4 border border-slate-200 bg-white">
+                <p className="text-sm font-semibold text-slate-700 mb-1">Que veux-tu dans ton invitation ?</p>
+                <p className="text-xs text-slate-400 mb-3">L'IA générera uniquement les listes cochées</p>
+                <div className="space-y-1">
+                  {LIST_CHOICES.map((c) => (
+                    <label key={c.key} className="flex items-center gap-2 py-1.5 cursor-pointer">
+                      <input type="checkbox" checked={!!selectedLists[c.key]}
+                        onChange={() => toggleList(c.key)}
+                        className="w-4 h-4 accent-blue-500" />
+                      <span className="text-sm text-slate-700">{c.label}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={() => setStep(1)}
