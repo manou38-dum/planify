@@ -156,20 +156,18 @@ export default function EventDashboard() {
       : null
 
     const lines = [
-      `*${event.event_name}* 🎉`,
-      ``,
-      `_${event.organizer_name} t'invite !_`,
-      ``,
-      `📅 ${dateStr}`,
+      `${event.organizer_name} t'invite à *${event.event_name}* 🎉`,
     ]
     if (event.location) {
       const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`
-      lines.push(`📍 ${event.location}`)
+      lines.push(`📅 ${dateStr} · 📍 ${event.location}`)
       lines.push(`Itinéraire : ${mapsUrl}`)
+    } else {
+      lines.push(`📅 ${dateStr}`)
     }
-    if (menuResume) lines.push(``, `Au menu : ${menuResume}`)
-    if (deadlineStr) lines.push(``, `Merci de répondre avant le ${deadlineStr}`)
-    lines.push(``, `Confirme ta venue et participe en remplissant tes infos ici :`, url)
+    if (menuResume) lines.push(`🍽 ${menuResume}`)
+    if (deadlineStr) lines.push(`Réponds avant le ${deadlineStr}`)
+    lines.push(``, `👉 Confirme ta venue : ${url}`)
 
     return { url, text: lines.join('\n') }
   }
@@ -246,12 +244,24 @@ export default function EventDashboard() {
   const missingNames = disponibles.map(i => i.item_name)
   const categories = ['Nourriture', 'Boissons', 'Matériel', 'Décoration', 'Service']
 
-  // Items réservés par un participant donné (lien par id, repli sur le nom)
+  // Items réservés par un participant donné (lien par id, repli sur le nom), triés par catégorie
   function getItemsForParticipant(p) {
-    return items.filter(i =>
-      i.status === 'Réservé' &&
-      (i.assigned_participant_id === p.id || i.assigned_to === p.participant_name)
-    )
+    return items
+      .filter(i =>
+        i.status === 'Réservé' &&
+        (i.assigned_participant_id === p.id || i.assigned_to === p.participant_name)
+      )
+      .sort((a, b) => (a.category || '').localeCompare(b.category || ''))
+  }
+
+  // Unités de mesure : on affiche la quantité même à 1 (ex: "0,5 kg"), sinon on
+  // masque le "1 pots / 1 bouteilles / 1 unités" peu lisible.
+  const MESURES = ['kg', 'g', 'l', 'cl', 'ml']
+  function formatApport(item) {
+    const unit = (item.unit || '').trim()
+    const isMesure = MESURES.includes(unit.toLowerCase())
+    const showQty = (Number(item.quantity) > 1) || isMesure
+    return showQty ? `${item.item_name} ${item.quantity} ${unit}`.trim() : item.item_name
   }
 
   // Tri : confirmés d'abord, puis peut-être / en attente, puis refusés
@@ -655,10 +665,21 @@ export default function EventDashboard() {
                         <p className="text-xs text-slate-400 italic truncate">{c.commentaire}</p>
                       )}
                       {apporte.length > 0 && (
-                        <p className="text-xs text-slate-500 mt-1">
-                          <span className="text-emerald-500">●</span>{' '}
-                          apporte : {apporte.map(i => `${i.item_name} (${i.quantity} ${i.unit})`).join(', ')}
-                        </p>
+                        <div className="mt-1">
+                          <p className="text-xs text-slate-400 mb-1">
+                            <span className="text-emerald-500">●</span> apporte :
+                          </p>
+                          <div className="flex flex-wrap gap-1">
+                            {apporte.map(i => (
+                              <span
+                                key={i.id}
+                                className="inline-block text-xs bg-emerald-50 text-emerald-700 border border-emerald-100 px-2 py-0.5 rounded-full"
+                              >
+                                {formatApport(i)}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
                       )}
                     </div>
                   </div>
