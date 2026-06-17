@@ -145,10 +145,29 @@ Correspondance :
     const textBlock = message.content.find(b => b.type === 'text')
     const data = extractJson(textBlock ? textBlock.text : '')
 
+    function buildPlanning(startHHMM, nb) {
+      if (!startHHMM) return []
+      const [h, m] = startHHMM.split(':').map(Number)
+      const startMin = h * 60 + m
+      const fmt = (mins) => {
+        const x = ((mins % 1440) + 1440) % 1440
+        return `${String(Math.floor(x / 60)).padStart(2,'0')}:${String(x % 60).padStart(2,'0')}`
+      }
+      const maxP = Math.max(2, Math.ceil((Number(nb) || 10) / 10))
+      return [
+        { slot_name: 'Installation', description: 'Montage tables, chaises, matériel', start_time: fmt(startMin - 120), duration_minutes: 90, max_participants: maxP },
+        { slot_name: 'Accueil', description: 'Accueil des invités', start_time: fmt(startMin - 30), duration_minutes: 30, max_participants: maxP },
+        { slot_name: 'Service', description: 'Service et cuisson', start_time: fmt(startMin), duration_minutes: 120, max_participants: maxP },
+        { slot_name: 'Rangement', description: 'Rangement et nettoyage', start_time: fmt(startMin + 180), duration_minutes: 60, max_participants: maxP },
+      ]
+    }
+    const wantsPlanning = !!(selected_lists?.planning || event_options?.aide_montage || event_options?.aide_logistique)
+    const planningFinal = wantsPlanning ? buildPlanning(heureDebut, nb_participants) : []
+
     return Response.json({
       menu_resume: typeof data.menu_resume === 'string' ? data.menu_resume : '',
       lists: Array.isArray(data.lists) ? data.lists : [],
-      planning: Array.isArray(data.planning) ? data.planning : [],
+      planning: planningFinal,
     })
   } catch (err) {
     return Response.json({ error: err.message }, { status: 500 })

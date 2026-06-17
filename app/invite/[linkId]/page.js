@@ -50,8 +50,6 @@ export async function generateMetadata({ params }) {
       title,
       description,
       type: 'website',
-      // Si une photo existe, on la propose en premier ; l'opengraph-image généré reste en fallback
-      ...(event.photo_url ? { images: [{ url: event.photo_url }] } : {}),
     },
   }
 }
