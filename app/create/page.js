@@ -125,6 +125,8 @@ export default function CreateEvent() {
 
   const [generatedLists, setGeneratedLists] = useState([])
   const [planning, setPlanning] = useState([])
+  // Créneaux édités par l'organisateur (la logique propose, l'organisateur dispose)
+  const [editedPlanning, setEditedPlanning] = useState([])
   const [menuResume, setMenuResume] = useState('')
   const [activeTab, setActiveTab] = useState(0)
 
@@ -245,6 +247,7 @@ export default function CreateEvent() {
         }
         setGeneratedLists([])
         setPlanning(planningData)
+        setEditedPlanning(normalizeSlots(planningData))
         setMenuResume('')
         setActiveTab(0)
         setStep(3)
@@ -270,6 +273,7 @@ export default function CreateEvent() {
       if (!res.ok) throw new Error(data.error || 'Génération impossible')
       setGeneratedLists(data.lists || [])
       setPlanning(data.planning || [])
+      setEditedPlanning(normalizeSlots(data.planning || []))
       setMenuResume(data.menu_resume || '')
       setActiveTab(0)
       setStep(3)
@@ -295,8 +299,24 @@ export default function CreateEvent() {
       li !== listIdx ? l : { ...l, items: [...(l.items || []), { item_name: '', category: 'Nourriture', quantity: 1, unit: '', estimated_price: 0 }] }
     ))
   }
-  function deleteSlot(slotIdx) {
-    setPlanning(prev => prev.filter((_, i) => i !== slotIdx))
+  // Normalise un créneau (issu de buildPlanning) en carte éditable
+  function normalizeSlots(slots) {
+    return (slots || []).map(p => ({
+      slot_name: p.slot_name || '',
+      start_time: p.start_time || '',
+      duration_minutes: p.duration_minutes ?? 60,
+      max_participants: p.max_participants ?? 4,
+      description: p.description || '',
+    }))
+  }
+  function updateSlotField(idx, field, value) {
+    setEditedPlanning(prev => prev.map((s, i) => (i === idx ? { ...s, [field]: value } : s)))
+  }
+  function deleteEditedSlot(idx) {
+    setEditedPlanning(prev => prev.filter((_, i) => i !== idx))
+  }
+  function addEditedSlot() {
+    setEditedPlanning(prev => [...prev, { slot_name: '', start_time: '', duration_minutes: 60, max_participants: 4, description: '' }])
   }
 
   // Liste "Matériel & Logistique" → comportement inversé (coché par défaut, on décoche)
@@ -370,17 +390,16 @@ export default function CreateEvent() {
         }
       }
 
-      // 3. Planning → slots (heure absolue start_time "HH:MM" le jour de l'événement)
-      if (planning.length > 0) {
+      // 3. Planning → slots (créneaux édités par l'organisateur, heure absolue start_time "HH:MM" le jour de l'événement)
+      if (editedPlanning.length > 0) {
         const dayPart = (form.date || '').slice(0, 10)
-        const slotsToInsert = planning.map(p => {
+        const slotsToInsert = editedPlanning.map(p => {
           let slotDate
           if (p.start_time && dayPart) {
             slotDate = new Date(`${dayPart}T${p.start_time}`).toISOString()
           } else if (form.date) {
-            // Repli : ancien format offset_hours, sinon heure de début de l'événement
-            const base = new Date(form.date).getTime()
-            slotDate = new Date(base + (Number(p.offset_hours) || 0) * 3600 * 1000).toISOString()
+            // Repli : heure de début de l'événement si pas d'heure renseignée
+            slotDate = new Date(form.date).toISOString()
           } else {
             slotDate = new Date().toISOString()
           }
@@ -388,8 +407,9 @@ export default function CreateEvent() {
             event_id: event.id,
             slot_name: p.slot_name || 'Créneau',
             slot_date: slotDate,
-            duration_minutes: p.duration_minutes || 60,
-            max_participants: p.max_participants || 4,
+            duration_minutes: Number(p.duration_minutes) || 60,
+            max_participants: Number(p.max_participants) || 4,
+            description: p.description || null,
           }
         })
         const { error: sErr } = await supabase.from('slots').insert(slotsToInsert)
@@ -729,24 +749,60 @@ export default function CreateEvent() {
             )
           })()}
 
-          {/* Contenu : planning */}
+          {/* Contenu : planning (cartes éditables) */}
           {activeTab === 'planning' && (
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 space-y-2">
+            <div className="space-y-3">
               <p className="text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2.5">
                 Ces créneaux permettent à tes invités de se répartir l'organisation (installation, service, rangement). Chaque créneau a un nombre de places limité : premier arrivé, premier servi.
               </p>
-              {planning.map((p, i) => (
-                <div key={i} className="flex items-start justify-between gap-2 py-2 border-b border-slate-50 last:border-0">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-700">{p.slot_name}</p>
-                    {p.description && <p className="text-xs text-slate-400">{p.description}</p>}
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      {p.start_time ? `🕒 ${p.start_time}` : (Number(p.offset_hours) >= 0 ? '+' : '') + (p.offset_hours || 0) + 'h'} · {p.duration_minutes || 60} min · {p.max_participants || 4} pers.
-                    </p>
+
+              {editedPlanning.map((p, i) => (
+                <div key={i} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 space-y-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Nom du créneau</label>
+                    <input type="text" value={p.slot_name} onChange={(e) => updateSlotField(i, 'slot_name', e.target.value)}
+                      placeholder="Installation, Service, Rangement..."
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm" />
                   </div>
-                  <button onClick={() => deleteSlot(i)} className="shrink-0 w-8 h-8 rounded-lg text-red-400 hover:bg-red-50 transition-colors">✕</button>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Début</label>
+                      <input type="time" value={p.start_time} onChange={(e) => updateSlotField(i, 'start_time', e.target.value)}
+                        className="w-full px-2 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Durée (min)</label>
+                      <input type="number" min="0" value={p.duration_minutes}
+                        onChange={(e) => updateSlotField(i, 'duration_minutes', e.target.value === '' ? '' : Number(e.target.value))}
+                        className="w-full px-2 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm text-center" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Places</label>
+                      <input type="number" min="1" value={p.max_participants}
+                        onChange={(e) => updateSlotField(i, 'max_participants', e.target.value === '' ? '' : Number(e.target.value))}
+                        className="w-full px-2 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm text-center" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Description</label>
+                    <textarea value={p.description} onChange={(e) => updateSlotField(i, 'description', e.target.value)} rows={2}
+                      placeholder="Ce qu'il y a à faire sur ce créneau..."
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm resize-none" />
+                  </div>
+
+                  <button type="button" onClick={() => deleteEditedSlot(i)}
+                    className="w-full py-2 rounded-lg border border-red-200 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors">
+                    Supprimer ce créneau
+                  </button>
                 </div>
               ))}
+
+              <button type="button" onClick={addEditedSlot}
+                className="w-full py-3 rounded-2xl border-2 border-dashed border-slate-200 text-slate-400 text-sm font-medium hover:border-blue-300 hover:text-blue-500 transition-colors">
+                + Ajouter un créneau
+              </button>
             </div>
           )}
 
