@@ -142,7 +142,8 @@ export default function EventDashboard() {
   }
 
   // Construit le texte d'invitation partagé (WhatsApp, SMS, Email)
-  // Format épuré : emojis sûrs uniquement (📅 📍 ✅ 🎉), pas de lignes de tirets
+  // Sans emoji (caractères cassés) et SANS autre lien que le lien Planify final,
+  // pour que WhatsApp génère l'aperçu de l'invitation (pas Google Maps).
   function buildInvitation() {
     const url = `${window.location.origin}/invite/${event.invite_link_id}`
     const d = new Date(event.date)
@@ -156,18 +157,15 @@ export default function EventDashboard() {
       : null
 
     const lines = [
-      `${event.organizer_name} t'invite à *${event.event_name}* 🎉`,
+      `${event.organizer_name} t'invite !`,
+      ``,
+      `*${event.event_name}*`,
+      `Quand : ${dateStr}`,
     ]
-    if (event.location) {
-      const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`
-      lines.push(`📅 ${dateStr} · 📍 ${event.location}`)
-      lines.push(`Itinéraire : ${mapsUrl}`)
-    } else {
-      lines.push(`📅 ${dateStr}`)
-    }
-    if (menuResume) lines.push(`🍽 ${menuResume}`)
-    if (deadlineStr) lines.push(`Réponds avant le ${deadlineStr}`)
-    lines.push(``, `👉 Confirme ta venue : ${url}`)
+    if (event.location) lines.push(`Où : ${event.location}`)
+    if (menuResume) lines.push(`Au menu : ${menuResume}`)
+    if (deadlineStr) lines.push(`Réponse souhaitée avant le ${deadlineStr}`)
+    lines.push(``, `Confirme ta venue ici :`, url)
 
     return { url, text: lines.join('\n') }
   }
