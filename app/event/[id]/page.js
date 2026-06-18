@@ -725,6 +725,7 @@ export default function EventDashboard() {
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mt-4">
           <div className="px-5 py-3 border-b border-slate-100">
             <h3 className="text-sm font-bold text-slate-800">Planning d'aide</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Qui aide et quand. Les invités s'inscrivent eux-mêmes depuis leur invitation.</p>
           </div>
           <div className="divide-y divide-slate-50">
             {slots.map((s) => {

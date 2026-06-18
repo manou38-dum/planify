@@ -490,7 +490,17 @@ export default function InviteClient({ linkId }) {
               })}
             </p>
             {event.location && (
-              <p className="text-blue-100 text-sm flex items-center gap-2">📍 {event.location}</p>
+              <p className="text-blue-100 text-sm flex items-center gap-2">
+                📍 {event.location}
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-200 underline hover:text-white text-xs"
+                >
+                  Voir l'itinéraire
+                </a>
+              </p>
             )}
             <p className="text-blue-100 text-sm flex items-center gap-2">👥 {event.nb_participants} personnes attendues</p>
             <p className="text-blue-50 text-sm mt-2">Confirme ta venue et participe à l'événement en remplissant les infos</p>
@@ -692,7 +702,7 @@ export default function InviteClient({ linkId }) {
               {slots.length > 0 && (
                 <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
                   <label className="block text-sm font-medium text-slate-700 mb-1">Donne un coup de main ? (optionnel)</label>
-                  <p className="text-xs text-slate-400 mb-3">Inscris-toi sur les créneaux où tu peux aider</p>
+                  <p className="text-xs text-slate-400 mb-3">Donne un coup de main si tu peux ! Choisis un ou plusieurs créneaux. Quand un créneau est complet, il se verrouille automatiquement.</p>
                   <div className="space-y-2">
                     {slots.map((s) => {
                       const max = s.max_participants || 4
