@@ -404,7 +404,16 @@ export default function InviteClient({ linkId }) {
 
           {rsvp === 'Confirmé' && (
             <>
-              <h1 className="text-2xl font-bold text-slate-900 mb-4">Super, tu es inscrit ! 🎉</h1>
+              <h1 className="text-2xl font-bold text-slate-900 mb-2">
+                {guestName ? `C'est noté, ${guestName} ! 🎉` : 'Super, tu es inscrit ! 🎉'}
+              </h1>
+              <p className="text-slate-500 mb-4">
+                {signedSlotDetails.length > 0
+                  ? 'Merci pour ton coup de main, ça compte énormément 🙌'
+                  : selectedItemDetails.length > 0
+                    ? 'Merci pour ta contribution, ça va régaler tout le monde !'
+                    : 'On a hâte de te voir, ça va être top !'}
+              </p>
 
               <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm text-left mb-4">
                 <p className="font-bold text-slate-900 mb-1">{event.event_name}</p>

@@ -596,7 +596,7 @@ export default function CreateEvent() {
                 onChange={(e) => updateForm('nb_participants', parseInt(e.target.value))}
                 className="w-full accent-blue-500" />
               <div className="flex justify-between text-xs text-slate-400 mt-1">
-                <span>2</span><span>50</span><span>100</span><span>200</span>
+                <span>2</span><span>200</span>
               </div>
             </div>
 

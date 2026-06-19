@@ -27,6 +27,13 @@ RÈGLES DE SIMPLICITÉ :
 - Les quantités sont calculées pour {nb_participants} personnes
 - Arrondir les quantités à des nombres pratiques (pas 3.7 kg → 4 kg)
 
+RÈGLE OBJETS PHYSIQUES UNIQUEMENT (tous types d'événements) :
+- Les listes d'apports (menu, boissons, matériel) contiennent UNIQUEMENT des objets physiques qu'un invité peut apporter (nourriture, boissons, vaisselle, charbon, glacière, tables, chaises...), avec des unités réelles (kg, L, cl, unités, paquets, baguettes).
+- INTERDIT d'y mettre des tâches ou responsabilités (ex : "trier les déchets", "accueillir les invités", "réserver l'emplacement", "vérifier la météo"). Ne JAMAIS utiliser l'unité "tâche".
+- INTERDIT d'y mettre des tâches administratives de l'organisateur (réserver un lieu, confirmer la météo) : ça ne concerne pas les invités.
+- Toute l'entraide (qui aide et quand) est gérée séparément par le planning d'aide. La gestion des déchets est déjà couverte par le créneau "Rangement".
+- La liste Matériel sert juste à ce que les invités cochent l'objet physique qu'ils apportent.
+
 RÈGLE CONDIMENTS & EXTRAS (tous types d'événements, BBQ inclus) :
 - Tous les petits condiments et extras d'intendance (moutarde, ketchup, mayonnaise, sel, poivre, sauces, sopalin/essuie-tout, allumettes…) doivent être regroupés en UN SEUL article nommé "Kit condiments & extras".
 - Mets le détail entre parenthèses dans la description de cet article (ex : "moutarde, ketchup, mayo, sel, poivre, sauces").
