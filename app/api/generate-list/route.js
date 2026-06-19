@@ -53,7 +53,7 @@ STRUCTURE DES LISTES PAR TYPE :
 - BBQ : UNE SEULE liste "apport" appelée "Menu BBQ" avec des SECTIONS via le champ category :
   * category "Viandes" (2-3 viandes max)
   * category "Accompagnements" (salade, pain, sauces type ketchup/moutarde)
-  * category "Desserts" (1-2 desserts — uniquement si les desserts sont demandés)
+  * category "Desserts" : SI ET SEULEMENT SI event_options.desserts vaut true, ajoute 1 à 2 desserts adaptés (ex : tarte aux pommes, salade de fruits, brownies) avec quantités réalistes (1 part/personne). Si desserts est false ou absent, n'ajoute AUCUN dessert.
   * category "Boissons" (soft, eau, jus ; alcool seulement si autorisé)
   Puis une liste "apport" SÉPARÉE "Matériel & Logistique" (barbecue, tables, chaises, assiettes, couverts, glacière — PAS les sauces).
 - Anniversaire : UNE liste "apport" "Buffet anniversaire" avec les category Salé, Sucré, Boissons (fusionner goûter/dessert/boisson).
@@ -101,7 +101,9 @@ IMPORTANT :
 - Les prix sont en euros, réalistes pour la France (supermarché, pas premium)
 - Chaque item doit mentionner la quantité totale arrondie pour {nb_participants} personnes
 - Le nom de la première liste doit refléter le menu (ex: "Menu BBQ", "Buffet anniversaire") pour qu'on puisse l'afficher dans l'invitation
-- Si l'organisateur a fourni une description de l'événement, sers-t'en pour personnaliser les listes (ambiance, thème, plats spécifiques)`
+- Si l'organisateur a fourni une description de l'événement, sers-t'en pour personnaliser les listes (ambiance, thème, plats spécifiques)
+
+INTERPRÉTATION DES OPTIONS : lis event_options et conforme-toi strictement. desserts=true → inclure la catégorie Desserts. vegetarien=true → au moins une option végétarienne. sans_alcool=true → aucun alcool. halal=true → viandes halal uniquement, pas de porc.`
 
 function extractJson(text) {
   let raw = (text || '').trim()
