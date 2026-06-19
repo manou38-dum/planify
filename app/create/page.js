@@ -603,11 +603,17 @@ export default function CreateEvent() {
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Nombre de personnes attendues : <span className="text-blue-500 font-bold">{form.nb_participants}</span>
               </label>
-              <input type="range" min="2" max="200" value={form.nb_participants}
+              <input type="range" min="2" max="200" value={Math.min(Number(form.nb_participants) || 2, 200)}
                 onChange={(e) => updateForm('nb_participants', parseInt(e.target.value))}
                 className="w-full accent-blue-500" />
               <div className="flex justify-between text-xs text-slate-400 mt-1">
                 <span>2</span><span>200</span>
+              </div>
+              <div className="flex items-center gap-2 mt-2">
+                <input type="number" min={2} max={200} value={form.nb_participants}
+                  onChange={(e) => updateForm('nb_participants', e.target.value === '' ? '' : Number(e.target.value))}
+                  className="w-24 px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm text-center" />
+                <span className="text-xs text-slate-400">ou saisis le nombre exact</span>
               </div>
             </div>
 
@@ -722,7 +728,7 @@ export default function CreateEvent() {
               <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
                 {materiel ? (
                   <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2 mb-3">
-                    Décoche ce que tu fournis toi-même ou qui n'est pas nécessaire
+                    Coche ce que tu peux apporter. Une case vide = personne ne l'apporte encore (décoche ce que tu n'apportes pas).
                   </p>
                 ) : generatedLists[activeTab].description && (
                   <p className="text-xs text-slate-400 mb-3">{generatedLists[activeTab].description}</p>

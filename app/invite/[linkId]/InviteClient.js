@@ -639,6 +639,9 @@ export default function InviteClient({ linkId }) {
                         <p className="text-xs font-semibold text-slate-500 mb-2 flex items-center gap-1.5">
                           <span>{categoryEmojis[cat] || '📦'}</span> {cat}
                         </p>
+                        {/mat[ée]riel|logistique/i.test(cat) && (
+                          <p className="text-xs text-slate-400 mb-2">Coche ce que tu peux apporter.</p>
+                        )}
                         <div className="space-y-2">
                           {disponibles.filter(i => (i.category || 'Autre') === cat).map((item) => {
                       const selected = selectedItems[item.id] != null
