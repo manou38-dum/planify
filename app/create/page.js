@@ -121,6 +121,7 @@ export default function CreateEvent() {
     organizer_name: '',
     deadline_rsvp: '',
     mode: 'collaboratif',
+    carpool_enabled: false,
   })
   const [eventOptions, setEventOptions] = useState({})
   const [eventDescription, setEventDescription] = useState('')
@@ -359,6 +360,7 @@ export default function CreateEvent() {
           deadline_rsvp: form.deadline_rsvp || null,
           photo_url: photoUrl || null,
           mode: form.mode,
+          carpool_enabled: form.carpool_enabled,
           event_options: { ...eventOptions, selected_lists: selectedLists, ...(menuResume ? { menu_resume: menuResume } : {}) },
         })
         .select()
@@ -664,6 +666,16 @@ export default function CreateEvent() {
                 )}
               </div>
             )}
+
+            {/* Covoiturage (tous types) */}
+            <div className="rounded-2xl p-4 border border-slate-200 bg-white">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={form.carpool_enabled}
+                  onChange={(e) => updateForm('carpool_enabled', e.target.checked)}
+                  className="w-4 h-4 accent-blue-500" />
+                <span className="text-sm font-medium text-slate-700">🚗 Activer le covoiturage entre invités</span>
+              </label>
+            </div>
 
             {/* Listes à la carte (collaboratif uniquement) */}
             {form.mode !== 'solo' && (

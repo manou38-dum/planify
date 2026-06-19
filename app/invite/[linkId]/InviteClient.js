@@ -27,6 +27,11 @@ export default function InviteClient({ linkId }) {
   const [slotComments, setSlotComments] = useState({})
   const [signedSlotDetails, setSignedSlotDetails] = useState([])
 
+  const [carpoolEntries, setCarpoolEntries] = useState([])
+  const [carpoolMode, setCarpoolMode] = useState(null) // 'offre' | 'demande' | null
+  const [carpoolForm, setCarpoolForm] = useState({ zone: '', heure: '', places: 1, phone: '' })
+  const [carpoolSubmitting, setCarpoolSubmitting] = useState(false)
+
   useEffect(() => {
     loadEvent()
   }, [linkId])
@@ -158,6 +163,17 @@ export default function InviteClient({ linkId }) {
       } else {
         setSignups([])
       }
+
+      // Charger les entrées de covoiturage si activé
+      if (evt.carpool_enabled) {
+        const { data: cp } = await supabase
+          .from('carpool')
+          .select('*')
+          .eq('event_id', evt.id)
+        setCarpoolEntries(cp || [])
+      } else {
+        setCarpoolEntries([])
+      }
     }
     setLoading(false)
   }
@@ -173,6 +189,59 @@ export default function InviteClient({ linkId }) {
 
   function updateSlotComment(slotId, value) {
     setSlotComments(prev => ({ ...prev, [slotId]: value }))
+  }
+
+  // ---- Covoiturage ----
+  async function loadCarpool(eventId) {
+    const supabase = getSupabase()
+    const { data } = await supabase.from('carpool').select('*').eq('event_id', eventId)
+    setCarpoolEntries(data || [])
+  }
+
+  // Nettoie un numéro pour wa.me : ne garde que les chiffres, 0 initial → 33
+  function cleanPhone(raw) {
+    let digits = (raw || '').replace(/\D/g, '')
+    if (digits.startsWith('0')) digits = '33' + digits.slice(1)
+    return digits
+  }
+
+  function updateCarpoolForm(field, value) {
+    setCarpoolForm(prev => ({ ...prev, [field]: value }))
+  }
+
+  async function submitCarpoolOffer() {
+    if (!guestName.trim()) { alert('Indique ton prénom en haut de la page.'); return }
+    setCarpoolSubmitting(true)
+    const supabase = getSupabase()
+    await supabase.from('carpool').insert({
+      event_id: event.id,
+      type: 'offre',
+      prenom: guestName,
+      zone: carpoolForm.zone || null,
+      heure: carpoolForm.heure || null,
+      places: Number(carpoolForm.places) || 1,
+      phone: carpoolForm.phone || null,
+    })
+    setCarpoolForm({ zone: '', heure: '', places: 1, phone: '' })
+    setCarpoolMode(null)
+    await loadCarpool(event.id)
+    setCarpoolSubmitting(false)
+  }
+
+  async function submitCarpoolSearch() {
+    if (!guestName.trim()) { alert('Indique ton prénom en haut de la page.'); return }
+    setCarpoolSubmitting(true)
+    const supabase = getSupabase()
+    await supabase.from('carpool').insert({
+      event_id: event.id,
+      type: 'demande',
+      prenom: guestName,
+      zone: carpoolForm.zone || null,
+    })
+    setCarpoolForm({ zone: '', heure: '', places: 1, phone: '' })
+    setCarpoolMode(null)
+    await loadCarpool(event.id)
+    setCarpoolSubmitting(false)
   }
 
   // Nombre d'inscrits sur un créneau (signups en base) hors l'invité courant
@@ -782,6 +851,111 @@ export default function InviteClient({ linkId }) {
                       )
                     })}
                   </div>
+                </div>
+              )}
+
+              {/* Covoiturage */}
+              {event.carpool_enabled && (
+                <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">🚗 Covoiturage</label>
+                  <p className="text-xs text-slate-400 mb-3">Propose des places ou trouve un trajet avec d'autres invités.</p>
+
+                  <div className="flex gap-2 mb-3">
+                    <button type="button" onClick={() => setCarpoolMode(carpoolMode === 'offre' ? null : 'offre')}
+                      className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
+                        carpoolMode === 'offre' ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-slate-100 text-slate-600 hover:border-slate-200'
+                      }`}>
+                      Je propose des places
+                    </button>
+                    <button type="button" onClick={() => setCarpoolMode(carpoolMode === 'demande' ? null : 'demande')}
+                      className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
+                        carpoolMode === 'demande' ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-slate-100 text-slate-600 hover:border-slate-200'
+                      }`}>
+                      Je cherche une place
+                    </button>
+                  </div>
+
+                  {/* Formulaire : je propose */}
+                  {carpoolMode === 'offre' && (
+                    <div className="space-y-2 mb-4 bg-slate-50 rounded-xl p-3">
+                      <input type="text" value={carpoolForm.zone} onChange={(e) => updateCarpoolForm('zone', e.target.value)}
+                        placeholder="Zone de départ (ex : Lyon 3e)"
+                        className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm" />
+                      <input type="text" value={carpoolForm.heure} onChange={(e) => updateCarpoolForm('heure', e.target.value)}
+                        placeholder="Heure de départ (ex : 13h30)"
+                        className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm" />
+                      <div className="flex gap-2">
+                        <input type="number" min={1} value={carpoolForm.places} onChange={(e) => updateCarpoolForm('places', e.target.value)}
+                          placeholder="Places"
+                          className="w-20 px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm text-center" />
+                        <input type="text" value={carpoolForm.phone} onChange={(e) => updateCarpoolForm('phone', e.target.value)}
+                          placeholder="Téléphone (facultatif)"
+                          className="flex-1 px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm" />
+                      </div>
+                      <button type="button" onClick={submitCarpoolOffer} disabled={carpoolSubmitting}
+                        className="w-full py-2.5 bg-blue-500 hover:bg-blue-600 disabled:bg-slate-300 text-white text-sm font-semibold rounded-lg transition-colors">
+                        {carpoolSubmitting ? '…' : 'Publier mon offre'}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Formulaire : je cherche */}
+                  {carpoolMode === 'demande' && (
+                    <div className="space-y-2 mb-4 bg-slate-50 rounded-xl p-3">
+                      <input type="text" value={carpoolForm.zone} onChange={(e) => updateCarpoolForm('zone', e.target.value)}
+                        placeholder="Zone de départ (ex : Lyon 3e)"
+                        className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm" />
+                      <button type="button" onClick={submitCarpoolSearch} disabled={carpoolSubmitting}
+                        className="w-full py-2.5 bg-blue-500 hover:bg-blue-600 disabled:bg-slate-300 text-white text-sm font-semibold rounded-lg transition-colors">
+                        {carpoolSubmitting ? '…' : 'Publier ma demande'}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Deux colonnes : conducteurs / passagers */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-xs font-semibold text-slate-500 mb-2">Conducteurs</p>
+                      <div className="space-y-2">
+                        {carpoolEntries.filter(c => c.type === 'offre').map(c => {
+                          const msg = encodeURIComponent(`Salut ${c.prenom}, je suis intéressé(e) par ta place pour ${event.event_name} !`)
+                          return (
+                            <div key={c.id} className="rounded-lg border border-slate-100 px-3 py-2">
+                              <p className="text-sm font-medium text-slate-700">{c.prenom}</p>
+                              <p className="text-xs text-slate-400">
+                                {[c.zone, c.heure, c.places ? `${c.places} place${c.places > 1 ? 's' : ''}` : null].filter(Boolean).join(' · ')}
+                              </p>
+                              {c.phone && (
+                                <a href={`https://wa.me/${cleanPhone(c.phone)}?text=${msg}`} target="_blank" rel="noopener noreferrer"
+                                  className="inline-block mt-1.5 text-xs font-medium bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-full transition-colors">
+                                  Contacter
+                                </a>
+                              )}
+                            </div>
+                          )
+                        })}
+                        {carpoolEntries.filter(c => c.type === 'offre').length === 0 && (
+                          <p className="text-xs text-slate-300 italic">Personne pour l'instant</p>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-slate-500 mb-2">Passagers</p>
+                      <div className="space-y-2">
+                        {carpoolEntries.filter(c => c.type === 'demande').map(c => (
+                          <div key={c.id} className="rounded-lg border border-slate-100 px-3 py-2">
+                            <p className="text-sm font-medium text-slate-700">{c.prenom}</p>
+                            {c.zone && <p className="text-xs text-slate-400">{c.zone}</p>}
+                          </div>
+                        ))}
+                        {carpoolEntries.filter(c => c.type === 'demande').length === 0 && (
+                          <p className="text-xs text-slate-300 italic">Personne pour l'instant</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-slate-400 mt-3">Ton numéro ne sera visible que par les invités de cet événement, et seulement si tu choisis de le partager.</p>
                 </div>
               )}
 
