@@ -33,6 +33,8 @@ RÈGLE OBJETS PHYSIQUES UNIQUEMENT (tous types d'événements) :
 - INTERDIT d'y mettre des tâches administratives de l'organisateur (réserver un lieu, confirmer la météo) : ça ne concerne pas les invités.
 - Toute l'entraide (qui aide et quand) est gérée séparément par le planning d'aide. La gestion des déchets est déjà couverte par le créneau "Rangement".
 - La liste Matériel sert juste à ce que les invités cochent l'objet physique qu'ils apportent.
+- Il est STRICTEMENT INTERDIT de mettre une action/tâche dans une liste 'apport' ("trier les déchets", "réserver l'emplacement", "confirmer la météo", "accueillir les invités"...). Ces actions relèvent UNIQUEMENT du planning d'aide.
+- En cas de doute sur un élément (objet physique ou tâche ?), EXCLURE l'élément plutôt que de l'ajouter.
 
 RÈGLE CONDIMENTS & EXTRAS (tous types d'événements, BBQ inclus) :
 - Tous les petits condiments et extras d'intendance (moutarde, ketchup, mayonnaise, sel, poivre, sauces, sopalin/essuie-tout, allumettes…) doivent être regroupés en UN SEUL article nommé "Kit condiments & extras".

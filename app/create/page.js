@@ -21,7 +21,6 @@ const OPTIONS_BY_TYPE = {
       { key: 'vegetarien', label: 'Végétarien' },
       { key: 'sans_alcool', label: 'Sans alcool' },
       { key: 'desserts', label: 'Prévoir les desserts' },
-      { key: 'aide_montage', label: "Besoin d'aide montage/démontage" },
     ],
   },
   'Anniversaire': {
@@ -85,9 +84,20 @@ const LIST_CHOICES = [
   { key: 'checklist', label: '✅ Checklist (matériel obligatoire)' },
 ]
 
+// Listes pertinentes selon le type (on ne propose pas cadeaux/checklist sur un BBQ, etc.)
+const AVAILABLE_LISTS = {
+  'BBQ': ['menu', 'boissons', 'materiel', 'planning'],
+  'Anniversaire': ['menu', 'boissons', 'cadeaux', 'planning'],
+  'Soirée': ['boissons', 'menu', 'materiel'],
+  'Mariage': ['cadeaux', 'planning', 'materiel'],
+  'Randonnée': ['checklist', 'menu', 'materiel'],
+  'Match/Tournoi': ['boissons', 'menu', 'materiel', 'planning'],
+  'Autre': ['menu', 'boissons', 'materiel', 'cadeaux', 'planning', 'checklist'],
+}
+
 // Pré-cochage intelligent selon le type
 const DEFAULT_LISTS = {
-  'BBQ': ['menu', 'boissons', 'materiel'],
+  'BBQ': ['menu', 'boissons', 'materiel', 'planning'],
   'Anniversaire': ['menu', 'boissons', 'cadeaux'],
   'Mariage': ['menu', 'boissons', 'cadeaux', 'planning'],
   'Randonnée': ['menu', 'checklist'],
@@ -224,7 +234,8 @@ export default function CreateEvent() {
       // Mode solo : aucune liste d'apports. On récupère uniquement le planning
       // bénévoles si une aide montage/logistique est demandée.
       if (form.mode === 'solo') {
-        const wantsPlanning = !!(eventOptions.aide_montage || eventOptions.aide_logistique)
+        const PLANNING_TYPES = ['BBQ', 'Mariage', 'Match/Tournoi']
+        const wantsPlanning = PLANNING_TYPES.includes(form.event_type)
         let planningData = []
         if (wantsPlanning) {
           const res = await fetch('/api/generate-list', {
@@ -249,7 +260,7 @@ export default function CreateEvent() {
         setPlanning(planningData)
         setEditedPlanning(normalizeSlots(planningData))
         setMenuResume('')
-        setActiveTab(0)
+        setActiveTab(planningData.length > 0 ? 'planning' : 0)
         setStep(3)
         setGenerating(false)
         return
@@ -275,7 +286,7 @@ export default function CreateEvent() {
       setPlanning(data.planning || [])
       setEditedPlanning(normalizeSlots(data.planning || []))
       setMenuResume(data.menu_resume || '')
-      setActiveTab(0)
+      setActiveTab((data.lists || []).length > 0 ? 0 : ((data.planning || []).length > 0 ? 'planning' : 0))
       setStep(3)
     } catch (err) {
       alert('Erreur IA: ' + err.message)
@@ -654,7 +665,7 @@ export default function CreateEvent() {
                 <p className="text-sm font-semibold text-slate-700 mb-1">Que veux-tu dans ton invitation ?</p>
                 <p className="text-xs text-slate-400 mb-3">L'IA générera uniquement les listes cochées</p>
                 <div className="space-y-1">
-                  {LIST_CHOICES.map((c) => (
+                  {LIST_CHOICES.filter(c => (AVAILABLE_LISTS[form.event_type] || []).includes(c.key)).map((c) => (
                     <label key={c.key} className="flex items-center gap-2 py-1.5 cursor-pointer">
                       <input type="checkbox" checked={!!selectedLists[c.key]}
                         onChange={() => toggleList(c.key)}
