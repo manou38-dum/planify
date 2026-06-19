@@ -7,6 +7,8 @@ export default function InviteClient({ linkId }) {
   const searchParams = useSearchParams()
   const [event, setEvent] = useState(null)
   const [items, setItems] = useState([])
+  const [lists, setLists] = useState([])
+  const [reservingGiftId, setReservingGiftId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [submitted, setSubmitted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -145,6 +147,13 @@ export default function InviteClient({ linkId }) {
         .order('category')
       setItems(itms || [])
 
+      // Charger les listes pour connaître le behavior de chaque liste (apport vs cadeau)
+      const { data: lsts } = await supabase
+        .from('lists')
+        .select('id, behavior')
+        .eq('event_id', evt.id)
+      setLists(lsts || [])
+
       // Charger les créneaux d'aide et les inscriptions existantes
       const { data: slts } = await supabase
         .from('slots')
@@ -272,6 +281,21 @@ export default function InviteClient({ linkId }) {
   function setItemQty(itemId, qty, max) {
     const clamped = Math.max(1, Math.min(qty, max))
     setSelectedItems(prev => ({ ...prev, [itemId]: clamped }))
+  }
+
+  // Réservation d'un cadeau : 1 cadeau = 1 personne, anti-doublon via le statut Disponible
+  async function reserveGift(gift) {
+    if (!guestName.trim()) { alert('Indique ton prénom en haut de la page.'); return }
+    setReservingGiftId(gift.id)
+    const supabase = getSupabase()
+    const { error } = await supabase
+      .from('items')
+      .update({ status: 'Réservé', assigned_to: guestName.trim() })
+      .eq('id', gift.id)
+      .eq('status', 'Disponible') // Sécurité anti-doublon : échoue si déjà pris
+    if (error) alert('Erreur: ' + error.message)
+    await loadEvent()
+    setReservingGiftId(null)
   }
 
   async function handleSubmit(e) {
@@ -545,8 +569,17 @@ export default function InviteClient({ linkId }) {
     )
   }
 
-  const disponibles = items.filter(i => i.status === 'Disponible')
-  const reserves = items.filter(i => i.status === 'Réservé')
+  // Map list_id -> behavior pour séparer les apports des cadeaux
+  const listBehavior = {}
+  lists.forEach(l => { listBehavior[l.id] = l.behavior })
+  const apportItems = items.filter(i => listBehavior[i.list_id] !== 'cadeau')
+  const giftItems = items.filter(i => listBehavior[i.list_id] === 'cadeau')
+
+  const disponibles = apportItems.filter(i => i.status === 'Disponible')
+  const reserves = apportItems.filter(i => i.status === 'Réservé')
+
+  const isAnnivEnfant = event.event_options?.anniv_type === 'enfant'
+  const eventDateStr = new Date(event.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })
 
   const allRestrictions = ['Végétarien', 'Vegan', 'Sans gluten', 'Sans porc', 'Sans lactose', 'Allergie noix']
   // Si l'événement est halal, "Sans porc" est redondant
@@ -562,6 +595,13 @@ export default function InviteClient({ linkId }) {
 
   return (
     <div className="min-h-screen bg-slate-50">
+      {/* Bandeau surprise */}
+      {event.event_options?.surprise && (
+        <div className="bg-amber-100 border-b border-amber-200 text-amber-900 text-sm font-medium px-4 py-3 text-center">
+          🤫 C'est une surprise ! Surtout, ne dis rien à {event.event_options?.pour_qui || 'la personne fêtée'}.
+        </div>
+      )}
+
       {/* Header événement */}
       <div className="relative bg-gradient-to-b from-blue-500 to-blue-600 text-white px-4 pt-10 pb-8 overflow-hidden">
         {event.photo_url && (
@@ -695,8 +735,8 @@ export default function InviteClient({ linkId }) {
                 )}
               </div>
 
-              {/* Liste d'apports (masquée en mode solo) */}
-              {event.mode !== 'solo' && disponibles.length > 0 && (
+              {/* Liste d'apports (masquée en mode solo et en anniversaire enfant) */}
+              {event.mode !== 'solo' && !isAnnivEnfant && disponibles.length > 0 && (
                 <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
                   <label className="block text-sm font-medium text-slate-700 mb-1">
                     Qu'est-ce que tu apportes ?
@@ -795,6 +835,54 @@ export default function InviteClient({ linkId }) {
                       ))}
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Idées cadeaux */}
+              {giftItems.length > 0 && (
+                <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">🎁 Idées cadeaux</label>
+                  <p className="text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2 mb-3">
+                    Réserve le cadeau que tu offres (pour éviter les doublons), puis achète-le où tu veux. L'app ne gère pas l'achat.
+                  </p>
+                  <div className="space-y-2">
+                    {giftItems.map((gift) => {
+                      const reserved = gift.status === 'Réservé'
+                      const price = gift.estimated_price != null ? `~${Math.round(Number(gift.estimated_price))}€` : null
+                      const shopUrl = `https://www.google.com/search?tbm=shop&gl=fr&hl=fr&q=${encodeURIComponent(gift.item_name)}`
+                      return (
+                        <div key={gift.id} className={`rounded-xl border-2 px-3 py-3 transition-all ${
+                          reserved ? 'border-slate-100 bg-slate-50' : 'border-slate-100 hover:border-slate-200'
+                        }`}>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className={`text-sm font-medium ${reserved ? 'text-slate-400 line-through' : 'text-slate-700'}`}>
+                                🎁 {gift.item_name}
+                              </p>
+                              {price && <p className="text-xs text-slate-400 mt-0.5">Prix indicatif : {price}</p>}
+                            </div>
+                            {reserved ? (
+                              <span className="shrink-0 text-xs font-medium text-slate-400">
+                                🔒 déjà réservé{gift.assigned_to ? ` · ${gift.assigned_to}` : ''}
+                              </span>
+                            ) : (
+                              <button type="button" onClick={() => reserveGift(gift)} disabled={reservingGiftId === gift.id}
+                                className="shrink-0 text-xs font-semibold bg-pink-500 hover:bg-pink-600 disabled:bg-pink-300 text-white px-3 py-1.5 rounded-full transition-colors">
+                                {reservingGiftId === gift.id ? '…' : "Je m'en charge"}
+                              </button>
+                            )}
+                          </div>
+                          {reserved && (
+                            <a href={shopUrl} target="_blank" rel="noopener noreferrer"
+                              className="inline-block mt-2 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-full transition-colors">
+                              🔍 Trouver ce cadeau
+                            </a>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <p className="text-xs text-slate-400 mt-3">Pense à commander avant le {eventDateStr} pour être livré à temps.</p>
                 </div>
               )}
 

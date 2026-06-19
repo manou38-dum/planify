@@ -25,12 +25,12 @@ const OPTIONS_BY_TYPE = {
   },
   'Anniversaire': {
     fields: [
-      { key: 'pour_qui', label: 'Pour qui ?', placeholder: 'Léa, ma sœur...' },
+      { key: 'pour_qui', label: 'Prénom de la personne fêtée', placeholder: 'Léa, ma sœur...' },
       { key: 'age', label: 'Âge', placeholder: '30 ans' },
-      { key: 'centres_interet', label: "Centres d'intérêt", placeholder: 'Cuisine, voyages...' },
+      { key: 'centres_interet', label: "Centres d'intérêt (idées / passions)", placeholder: 'Cuisine, voyages, jeux vidéo...' },
     ],
     checks: [
-      { key: 'liste_cadeaux', label: 'Proposer liste cadeaux' },
+      { key: 'surprise', label: '🤫 Anniversaire surprise' },
       { key: 'decoration', label: 'Décoration (ballons, guirlandes, banderole)' },
       { key: 'theme', label: 'Thème spécial' },
     ],
@@ -104,6 +104,20 @@ const DEFAULT_LISTS = {
   'Soirée': ['boissons', 'menu'],
   'Match/Tournoi': ['boissons', 'menu'],
   'Autre': ['menu'],
+}
+
+// Pour l'Anniversaire, les listes disponibles dépendent du sous-type enfant/adulte.
+// Enfant : juste la liste de cadeaux (+ descriptif goûter). Adulte : apports comme un BBQ + cadeaux.
+function annivLists(annivType) {
+  return annivType === 'enfant' ? ['cadeaux'] : ['menu', 'boissons', 'cadeaux']
+}
+function availableListsFor(type, options) {
+  if (type === 'Anniversaire') return options?.anniv_type ? annivLists(options.anniv_type) : []
+  return AVAILABLE_LISTS[type] || []
+}
+function defaultListsFor(type, options) {
+  if (type === 'Anniversaire') return options?.anniv_type ? annivLists(options.anniv_type) : []
+  return DEFAULT_LISTS[type] || ['menu']
 }
 
 export default function CreateEvent() {
@@ -184,8 +198,15 @@ export default function CreateEvent() {
   function chooseType(type) {
     updateForm('event_type', type)
     setEventOptions({})
-    setSelectedLists(Object.fromEntries((DEFAULT_LISTS[type] || ['menu']).map(k => [k, true])))
+    // Pour l'anniversaire, la pré-sélection dépend du sous-type enfant/adulte choisi à l'étape 2
+    setSelectedLists(type === 'Anniversaire' ? {} : Object.fromEntries((DEFAULT_LISTS[type] || ['menu']).map(k => [k, true])))
     setStep(2)
+  }
+
+  // Sélecteur enfant/adulte de l'anniversaire : fixe le sous-type et recale la pré-sélection des listes
+  function chooseAnnivType(annivType) {
+    updateOption('anniv_type', annivType)
+    setSelectedLists(Object.fromEntries(annivLists(annivType).map(k => [k, true])))
   }
 
   function toggleList(key) {
@@ -228,6 +249,10 @@ export default function CreateEvent() {
   async function handleGenerate() {
     if (!form.event_name || !form.date || !form.organizer_name) {
       alert('Remplis le nom de l\'événement, la date et ton prénom.')
+      return
+    }
+    if (form.event_type === 'Anniversaire' && !eventOptions.anniv_type) {
+      alert('Précise si c\'est un anniversaire pour un enfant ou pour un adulte.')
       return
     }
     setGenerating(true)
@@ -502,6 +527,31 @@ export default function CreateEvent() {
           <p className="text-slate-500 mb-6">Les détails de ton événement</p>
 
           <div className="space-y-4">
+            {/* Aiguillage enfant / adulte (anniversaire uniquement) */}
+            {form.event_type === 'Anniversaire' && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">C'est un anniversaire pour…</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button type="button" onClick={() => chooseAnnivType('enfant')}
+                    className={`p-4 rounded-2xl border-2 text-left transition-all ${
+                      eventOptions.anniv_type === 'enfant' ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:border-slate-300'
+                    }`}>
+                    <span className="text-2xl block mb-1">🧒</span>
+                    <span className="text-sm font-semibold text-slate-800 block">Pour un enfant</span>
+                    <span className="text-xs text-slate-500">Liste de cadeaux + goûter</span>
+                  </button>
+                  <button type="button" onClick={() => chooseAnnivType('adulte')}
+                    className={`p-4 rounded-2xl border-2 text-left transition-all ${
+                      eventOptions.anniv_type === 'adulte' ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:border-slate-300'
+                    }`}>
+                    <span className="text-2xl block mb-1">🎂</span>
+                    <span className="text-sm font-semibold text-slate-800 block">Pour un adulte</span>
+                    <span className="text-xs text-slate-500">Apéro/buffet + cadeaux</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Mode d'organisation */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">Comment veux-tu organiser ?</label>
@@ -683,7 +733,7 @@ export default function CreateEvent() {
                 <p className="text-sm font-semibold text-slate-700 mb-1">Que veux-tu dans ton invitation ?</p>
                 <p className="text-xs text-slate-400 mb-3">L'IA générera uniquement les listes cochées</p>
                 <div className="space-y-1">
-                  {LIST_CHOICES.filter(c => (AVAILABLE_LISTS[form.event_type] || []).includes(c.key)).map((c) => (
+                  {LIST_CHOICES.filter(c => availableListsFor(form.event_type, eventOptions).includes(c.key)).map((c) => (
                     <label key={c.key} className="flex items-center gap-2 py-1.5 cursor-pointer">
                       <input type="checkbox" checked={!!selectedLists[c.key]}
                         onChange={() => toggleList(c.key)}

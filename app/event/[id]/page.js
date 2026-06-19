@@ -156,12 +156,16 @@ export default function EventDashboard() {
       ? new Date(event.deadline_rsvp).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
       : null
 
-    const lines = [
+    const lines = []
+    if (event.event_options?.surprise) {
+      lines.push(`🤫 SURPRISE — ne préviens pas ${event.event_options?.pour_qui || 'la personne fêtée'} !`, ``)
+    }
+    lines.push(
       `${event.organizer_name} t'invite !`,
       ``,
       `*${event.event_name}*`,
       `Quand : ${dateStr}`,
-    ]
+    )
     if (event.location) lines.push(`Où : ${event.location}`)
     if (menuResume) lines.push(`Au menu : ${menuResume}`)
     if (deadlineStr) lines.push(`Réponse souhaitée avant le ${deadlineStr}`)

@@ -57,9 +57,11 @@ STRUCTURE DES LISTES PAR TYPE :
   * category "Desserts" : SI ET SEULEMENT SI event_options.desserts vaut true, ajoute 1 à 2 desserts adaptés (ex : tarte aux pommes, salade de fruits, brownies) avec quantités réalistes (1 part/personne). Si desserts est false ou absent, n'ajoute AUCUN dessert.
   * category "Boissons" (soft, eau, jus ; alcool seulement si autorisé)
   Puis une liste "apport" SÉPARÉE "Matériel & Logistique" (barbecue, tables, chaises, assiettes, couverts, glacière — PAS les sauces).
-- Anniversaire : UNE liste "apport" "Buffet anniversaire" avec les category Salé, Sucré, Boissons (fusionner goûter/dessert/boisson).
+- Anniversaire : lis event_options.anniv_type ('enfant' ou 'adulte'), event_options.age, event_options.centres_interet et event_options.pour_qui.
+  * Liste de cadeaux : TOUJOURS une liste behavior 'cadeau' nommée "Idées cadeaux". Génère 6 à 10 IDÉES de cadeaux adaptées à l'âge et aux centres d'intérêt indiqués. Chaque idée a un item_name clair et précis, un estimated_price réaliste en euros (prix indicatif), et quantity = 1.
+  * Si anniv_type = 'enfant' : génère UNIQUEMENT la liste "Idées cadeaux". AUCUNE liste d'apports. Renseigne menu_resume avec une courte description du goûter (ex : "Gâteau au chocolat, bonbons, jus de fruits").
+  * Si anniv_type = 'adulte' : génère AUSSI une liste d'apports behavior 'apport' "Buffet anniversaire" (category Salé, Sucré, Boissons — mêmes règles de quantités et d'arrondi que le BBQ) EN PLUS de la liste "Idées cadeaux".
   Ajoute UNE liste "apport" "Décoration" SEULEMENT si l'organisateur a coché "decoration" dans les options.
-  Ajoute UNE liste "cadeau" SEULEMENT si "liste_cadeaux" est coché (adapte à l'âge et aux centres d'intérêt).
 
 RÈGLES DE PLANNING :
 - Générer un planning UNIQUEMENT si l'organisateur a coché "aide montage/démontage" ou "aide logistique"
