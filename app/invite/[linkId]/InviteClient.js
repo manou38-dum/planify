@@ -14,7 +14,7 @@ export default function InviteClient({ linkId }) {
   const [guestName, setGuestName] = useState('')
   const [rsvp, setRsvp] = useState(null)
   const [nbPersonnes, setNbPersonnes] = useState(1)
-  const [restriction, setRestriction] = useState('')
+  const [selectedRestrictions, setSelectedRestrictions] = useState([])
   const [commentaire, setCommentaire] = useState('')
   const [companionNames, setCompanionNames] = useState([])
   const [selectedItems, setSelectedItems] = useState({})
@@ -80,7 +80,7 @@ export default function InviteClient({ linkId }) {
     setExistingParticipant(match)
     setRsvp(match.rsvp_status)
     setNbPersonnes(match.nb_personnes || 1)
-    setRestriction(match.restriction_alimentaire || '')
+    setSelectedRestrictions((match.restriction_alimentaire || '').split(', ').filter(Boolean))
     // Le commentaire peut être un JSON { accompagnants:[], commentaire:"" } ou du texte brut
     const rawComment = match.commentaire || ''
     let parsed = null
@@ -227,7 +227,7 @@ export default function InviteClient({ linkId }) {
             participant_name: guestName,
             rsvp_status: rsvp,
             nb_personnes: nbPersonnes,
-            restriction_alimentaire: restriction || null,
+            restriction_alimentaire: selectedRestrictions.join(', ') || null,
             commentaire: finalCommentaire,
             date_reponse: new Date().toISOString(),
           })
@@ -251,7 +251,7 @@ export default function InviteClient({ linkId }) {
             participant_name: guestName,
             rsvp_status: rsvp,
             nb_personnes: nbPersonnes,
-            restriction_alimentaire: restriction || null,
+            restriction_alimentaire: selectedRestrictions.join(', ') || null,
             commentaire: finalCommentaire,
             date_reponse: new Date().toISOString(),
           })
@@ -793,9 +793,9 @@ export default function InviteClient({ linkId }) {
                     <button
                       key={r}
                       type="button"
-                      onClick={() => setRestriction(prev => prev === r ? '' : r)}
+                      onClick={() => setSelectedRestrictions(prev => prev.includes(r) ? prev.filter(x => x !== r) : [...prev, r])}
                       className={`px-3 py-1.5 rounded-full text-sm border transition-all ${
-                        restriction === r
+                        selectedRestrictions.includes(r)
                           ? 'border-purple-400 bg-purple-50 text-purple-700'
                           : 'border-slate-200 text-slate-500 hover:border-slate-300'
                       }`}

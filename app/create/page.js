@@ -728,7 +728,7 @@ export default function CreateEvent() {
               <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
                 {materiel ? (
                   <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2 mb-3">
-                    Coche ce que tu peux apporter. Une case vide = personne ne l'apporte encore (décoche ce que tu n'apportes pas).
+                    Le matériel à prévoir pour ton événement. Décoche ce qui est inutile, ajuste les quantités. Tes invités cocheront ensuite ce qu'ils apportent depuis leur invitation.
                   </p>
                 ) : generatedLists[activeTab].description && (
                   <p className="text-xs text-slate-400 mb-3">{generatedLists[activeTab].description}</p>
