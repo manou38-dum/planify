@@ -766,6 +766,13 @@ export default function InviteClient({ linkId }) {
                                 >
                                   +
                                 </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setItemQty(item.id, max, max)}
+                                  className="px-2.5 h-8 rounded-lg border-2 border-emerald-300 text-emerald-600 text-xs font-semibold hover:bg-emerald-100 transition-colors"
+                                >
+                                  Tout
+                                </button>
                               </div>
                             </div>
                           )}
