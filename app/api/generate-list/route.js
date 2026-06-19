@@ -26,6 +26,7 @@ RÈGLES DE SIMPLICITÉ :
 - Rester sur des classiques adaptés au type d'événement
 - Les quantités sont calculées pour {nb_participants} personnes
 - Arrondir les quantités à des nombres pratiques (pas 3.7 kg → 4 kg)
+- ARRONDI OBLIGATOIRE : pour les articles comptés à l'unité (bouteilles, paquets, salades, baguettes, sachets, unités), arrondis TOUJOURS à l'entier supérieur — jamais de décimale (ex : 12,8 bouteilles → 13 bouteilles ; 2,5 salades → 3 salades). Les décimales ne sont tolérées QUE pour les unités de poids ou volume continues (kg, g, L, cl, ml), où 2,5 kg ou 1,5 L sont acceptables. Ne génère jamais une quantité comme '2.5 unités' ou '0.4 bouteille'.
 
 RÈGLE OBJETS PHYSIQUES UNIQUEMENT (tous types d'événements) :
 - Les listes d'apports (menu, boissons, matériel) contiennent UNIQUEMENT des objets physiques qu'un invité peut apporter (nourriture, boissons, vaisselle, charbon, glacière, tables, chaises...), avec des unités réelles (kg, L, cl, unités, paquets, baguettes).
