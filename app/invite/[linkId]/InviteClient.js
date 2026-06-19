@@ -386,8 +386,9 @@ export default function InviteClient({ linkId }) {
     </div>
   )
 
-  // Vérifier deadline
-  const isExpired = event.deadline_rsvp && new Date(event.deadline_rsvp) < new Date()
+  // Vérifier deadline : la date limite vaut jusqu'à la FIN de la journée (23:59:59)
+  const deadlineEnd = event.deadline_rsvp ? new Date(new Date(event.deadline_rsvp).getFullYear(), new Date(event.deadline_rsvp).getMonth(), new Date(event.deadline_rsvp).getDate(), 23, 59, 59) : null
+  const isExpired = deadlineEnd ? deadlineEnd < new Date() : false
 
   if (submitted) {
     const dateStr = new Date(event.date).toLocaleDateString('fr-FR', {
