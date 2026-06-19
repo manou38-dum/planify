@@ -27,6 +27,12 @@ RÈGLES DE SIMPLICITÉ :
 - Les quantités sont calculées pour {nb_participants} personnes
 - Arrondir les quantités à des nombres pratiques (pas 3.7 kg → 4 kg)
 
+RÈGLE CONDIMENTS & EXTRAS (tous types d'événements, BBQ inclus) :
+- Tous les petits condiments et extras d'intendance (moutarde, ketchup, mayonnaise, sel, poivre, sauces, sopalin/essuie-tout, allumettes…) doivent être regroupés en UN SEUL article nommé "Kit condiments & extras".
+- Mets le détail entre parenthèses dans la description de cet article (ex : "moutarde, ketchup, mayo, sel, poivre, sauces").
+- Cet article est pris en charge par une seule personne (quantity 1).
+- Ne JAMAIS lister ces éléments en articles séparés.
+
 RÈGLES DE CATÉGORISATION — les listes doivent être dans cet ordre :
 1. D'abord les listes "apport" nourriture (viandes, accompagnements, desserts)
 2. Puis les listes "apport" boissons

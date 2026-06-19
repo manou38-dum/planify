@@ -741,9 +741,16 @@ export default function EventDashboard() {
                         {s.slot_name} <span className="text-slate-400 font-normal">{heure} · {s.duration_minutes || 60} min</span>
                       </p>
                       {inscrits.length > 0 ? (
-                        <p className="text-sm text-slate-500 mt-0.5">
-                          {inscrits.map(i => i.participant_name).join(', ')}
-                        </p>
+                        <div className="mt-0.5 space-y-0.5">
+                          {inscrits.map(i => (
+                            <div key={i.id} className="text-sm text-slate-500">
+                              {i.participant_name}
+                              {i.comment && (
+                                <span className="text-xs text-slate-400 italic"> — {i.comment}</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
                       ) : (
                         <p className="text-sm text-slate-300 italic mt-0.5">Personne inscrit pour l'instant</p>
                       )}

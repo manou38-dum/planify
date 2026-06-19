@@ -24,6 +24,7 @@ export default function InviteClient({ linkId }) {
   const [slots, setSlots] = useState([])
   const [signups, setSignups] = useState([])
   const [selectedSlots, setSelectedSlots] = useState({})
+  const [slotComments, setSlotComments] = useState({})
   const [signedSlotDetails, setSignedSlotDetails] = useState([])
 
   useEffect(() => {
@@ -105,14 +106,19 @@ export default function InviteClient({ linkId }) {
     ;(myItems || []).forEach(it => { sel[it.id] = Number(it.quantity) || 1 })
     setSelectedItems(sel)
 
-    // Pré-cocher les créneaux auxquels il est déjà inscrit
+    // Pré-cocher les créneaux auxquels il est déjà inscrit + récupérer ses commentaires
     const { data: mySignups } = await supabase
       .from('slot_signups')
-      .select('slot_id')
+      .select('slot_id, comment')
       .eq('participant_id', match.id)
     const selSlots = {}
-    ;(mySignups || []).forEach(su => { selSlots[su.slot_id] = true })
+    const slotComs = {}
+    ;(mySignups || []).forEach(su => {
+      selSlots[su.slot_id] = true
+      if (su.comment) slotComs[su.slot_id] = su.comment
+    })
     setSelectedSlots(selSlots)
+    setSlotComments(slotComs)
   }
 
   async function loadEvent() {
@@ -163,6 +169,10 @@ export default function InviteClient({ linkId }) {
       else next[slotId] = true
       return next
     })
+  }
+
+  function updateSlotComment(slotId, value) {
+    setSlotComments(prev => ({ ...prev, [slotId]: value }))
   }
 
   // Nombre d'inscrits sur un créneau (signups en base) hors l'invité courant
@@ -321,6 +331,7 @@ export default function InviteClient({ linkId }) {
             slot_id: slotId,
             participant_id: participant.id,
             participant_name: guestName,
+            comment: (slotComments[slotId] || '').trim() || null,
           }))
           await supabase.from('slot_signups').insert(rows)
         }
@@ -714,36 +725,47 @@ export default function InviteClient({ linkId }) {
                       const taken = baseCount + (selected ? 1 : 0)
                       const full = taken >= max && !selected
                       return (
-                        <button
-                          key={s.id}
-                          type="button"
-                          onClick={() => !full && toggleSlot(s.id)}
-                          disabled={full}
-                          className={`w-full text-left rounded-xl border-2 px-3 py-3 transition-all ${
-                            selected ? 'border-emerald-400 bg-emerald-50'
-                              : full ? 'border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed'
-                              : 'border-slate-100 hover:border-slate-200'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="min-w-0">
-                              <p className="text-sm font-medium text-slate-700 truncate">{s.slot_name}</p>
-                              <p className="text-xs text-slate-400 mt-0.5">
-                                🕒 {formatHeure(s.slot_date)} · {s.duration_minutes || 60} min · {taken}/{max} inscrits
-                              </p>
+                        <div key={s.id}>
+                          <button
+                            type="button"
+                            onClick={() => !full && toggleSlot(s.id)}
+                            disabled={full}
+                            className={`w-full text-left rounded-xl border-2 px-3 py-3 transition-all ${
+                              selected ? 'border-emerald-400 bg-emerald-50'
+                                : full ? 'border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed'
+                                : 'border-slate-100 hover:border-slate-200'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-slate-700 truncate">{s.slot_name}</p>
+                                <p className="text-xs text-slate-400 mt-0.5">
+                                  🕒 {formatHeure(s.slot_date)} · {s.duration_minutes || 60} min · {taken}/{max} inscrits
+                                </p>
+                              </div>
+                              <span className={`shrink-0 w-5 h-5 rounded-md border-2 flex items-center justify-center text-xs ${
+                                selected ? 'bg-emerald-500 border-emerald-500 text-white'
+                                  : full ? 'border-slate-200 text-slate-300'
+                                  : 'border-slate-300'
+                              }`}>
+                                {selected ? '✓' : full ? '✕' : ''}
+                              </span>
                             </div>
-                            <span className={`shrink-0 w-5 h-5 rounded-md border-2 flex items-center justify-center text-xs ${
-                              selected ? 'bg-emerald-500 border-emerald-500 text-white'
-                                : full ? 'border-slate-200 text-slate-300'
-                                : 'border-slate-300'
-                            }`}>
-                              {selected ? '✓' : full ? '✕' : ''}
-                            </span>
-                          </div>
-                          {full && !selected && (
-                            <p className="text-xs text-slate-400 mt-1">Complet</p>
+                            {full && !selected && (
+                              <p className="text-xs text-slate-400 mt-1">Complet</p>
+                            )}
+                          </button>
+                          {/* Commentaire optionnel : visible seulement une fois inscrit */}
+                          {selected && (
+                            <textarea
+                              value={slotComments[s.id] || ''}
+                              onChange={(e) => updateSlotComment(s.id, e.target.value)}
+                              rows={2}
+                              placeholder="Une précision ? (ex : dispo seulement 1h, j'arrive à 19h…)"
+                              className="w-full mt-1.5 px-3 py-2 rounded-lg border border-slate-200 focus:border-emerald-400 outline-none text-sm resize-none"
+                            />
                           )}
-                        </button>
+                        </div>
                       )
                     })}
                   </div>

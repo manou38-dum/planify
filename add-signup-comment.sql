@@ -1,0 +1,1 @@
+ALTER TABLE slot_signups ADD COLUMN IF NOT EXISTS comment TEXT;
