@@ -19,6 +19,7 @@ export default function InviteClient({ linkId }) {
   const [nbPersonnes, setNbPersonnes] = useState(1)
   const [selectedRestrictions, setSelectedRestrictions] = useState([])
   const [commentaire, setCommentaire] = useState('')
+  const [isVolunteer, setIsVolunteer] = useState(false)
   const [companionNames, setCompanionNames] = useState([])
   const [selectedItems, setSelectedItems] = useState({})
   const [selectedItemDetails, setSelectedItemDetails] = useState([])
@@ -88,6 +89,7 @@ export default function InviteClient({ linkId }) {
     setExistingParticipant(match)
     setRsvp(match.rsvp_status)
     setNbPersonnes(match.nb_personnes || 1)
+    setIsVolunteer(!!match.is_volunteer)
     setSelectedRestrictions((match.restriction_alimentaire || '').split(', ').filter(Boolean))
     // Le commentaire peut être un JSON { accompagnants:[], commentaire:"" } ou du texte brut
     const rawComment = match.commentaire || ''
@@ -354,6 +356,7 @@ export default function InviteClient({ linkId }) {
             nb_personnes: nbPersonnes,
             restriction_alimentaire: selectedRestrictions.join(', ') || null,
             commentaire: finalCommentaire,
+            is_volunteer: rsvp === 'Confirmé' ? isVolunteer : false,
             date_reponse: new Date().toISOString(),
           })
           .eq('id', existingParticipant.id)
@@ -378,6 +381,7 @@ export default function InviteClient({ linkId }) {
             nb_personnes: nbPersonnes,
             restriction_alimentaire: selectedRestrictions.join(', ') || null,
             commentaire: finalCommentaire,
+            is_volunteer: rsvp === 'Confirmé' ? isVolunteer : false,
             date_reponse: new Date().toISOString(),
           })
           .select()
@@ -632,6 +636,8 @@ export default function InviteClient({ linkId }) {
   }
 
   const isAnnivEnfant = event.event_options?.anniv_type === 'enfant'
+  // Tournoi complet : on propose à l'invité de se déclarer prêt à aider comme bénévole
+  const isTournoiComplet = event.event_type === 'Match/Tournoi' && event.event_options?.tournoi_mode === 'complet'
   const eventDateStr = new Date(event.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })
 
   const allRestrictions = ['Végétarien', 'Vegan', 'Sans gluten', 'Sans porc', 'Sans lactose', 'Allergie noix']
@@ -1134,6 +1140,18 @@ export default function InviteClient({ linkId }) {
                   </div>
 
                   <p className="text-xs text-slate-400 mt-3">Ton numéro ne sera visible que par les invités de cet événement, et seulement si tu choisis de le partager.</p>
+                </div>
+              )}
+
+              {/* Bénévolat (tournoi complet) : simple déclaration d'intérêt */}
+              {isTournoiComplet && (
+                <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input type="checkbox" checked={isVolunteer}
+                      onChange={(e) => setIsVolunteer(e.target.checked)}
+                      className="w-4 h-4 mt-0.5 accent-blue-500" />
+                    <span className="text-sm text-slate-700">🙋 Je suis prêt(e) à donner un coup de main comme bénévole</span>
+                  </label>
                 </div>
               )}
 

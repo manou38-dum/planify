@@ -114,12 +114,18 @@ const DEFAULT_LISTS = {
 function annivLists(annivType) {
   return annivType === 'enfant' ? ['cadeaux'] : ['menu', 'boissons', 'cadeaux']
 }
+// Pour le Tournoi, les listes dépendent du format : complet (apports + postes) ou bénévoles seuls.
+function tournoiLists(tournoiMode) {
+  return tournoiMode === 'benevoles' ? ['planning'] : ['boissons', 'menu', 'materiel', 'planning']
+}
 function availableListsFor(type, options) {
   if (type === 'Anniversaire') return options?.anniv_type ? annivLists(options.anniv_type) : []
+  if (type === 'Match/Tournoi') return options?.tournoi_mode ? tournoiLists(options.tournoi_mode) : []
   return AVAILABLE_LISTS[type] || []
 }
 function defaultListsFor(type, options) {
   if (type === 'Anniversaire') return options?.anniv_type ? annivLists(options.anniv_type) : []
+  if (type === 'Match/Tournoi') return options?.tournoi_mode ? tournoiLists(options.tournoi_mode) : []
   return DEFAULT_LISTS[type] || ['menu']
 }
 
@@ -203,12 +209,13 @@ export default function CreateEvent() {
     setForm(prev => ({
       ...prev,
       event_type: type,
-      // Anniversaire et Soirée sont toujours collaboratifs en interne : la distinction se fait via les listes cochées
-      mode: (type === 'Anniversaire' || type === 'Soirée') ? 'collaboratif' : prev.mode,
+      // Anniversaire, Soirée et Tournoi sont toujours collaboratifs en interne : la distinction se fait via les listes cochées
+      mode: (type === 'Anniversaire' || type === 'Soirée' || type === 'Match/Tournoi') ? 'collaboratif' : prev.mode,
     }))
     setEventOptions({})
-    // Pour l'anniversaire, la pré-sélection dépend du sous-type enfant/adulte choisi à l'étape 2
-    setSelectedLists(type === 'Anniversaire' ? {} : Object.fromEntries((DEFAULT_LISTS[type] || ['menu']).map(k => [k, true])))
+    // Anniversaire et Tournoi : la pré-sélection dépend d'un sous-format choisi à l'étape 2
+    const needsSubFormat = type === 'Anniversaire' || type === 'Match/Tournoi'
+    setSelectedLists(needsSubFormat ? {} : Object.fromEntries((DEFAULT_LISTS[type] || ['menu']).map(k => [k, true])))
     setStep(2)
   }
 
@@ -216,6 +223,12 @@ export default function CreateEvent() {
   function chooseAnnivType(annivType) {
     updateOption('anniv_type', annivType)
     setSelectedLists(Object.fromEntries(annivLists(annivType).map(k => [k, true])))
+  }
+
+  // Sélecteur de format du tournoi (complet / bénévoles) : fixe le format et recale la pré-sélection
+  function chooseTournoiMode(tournoiMode) {
+    updateOption('tournoi_mode', tournoiMode)
+    setSelectedLists(Object.fromEntries(tournoiLists(tournoiMode).map(k => [k, true])))
   }
 
   function toggleList(key) {
@@ -262,6 +275,10 @@ export default function CreateEvent() {
     }
     if (form.event_type === 'Anniversaire' && !eventOptions.anniv_type) {
       alert('Précise si c\'est un anniversaire pour un enfant ou pour un adulte.')
+      return
+    }
+    if (form.event_type === 'Match/Tournoi' && !eventOptions.tournoi_mode) {
+      alert('Choisis le format : tournoi complet ou bénévoles uniquement.')
       return
     }
     setGenerating(true)
@@ -562,8 +579,33 @@ export default function CreateEvent() {
               </div>
             )}
 
-            {/* Mode d'organisation (masqué pour l'anniversaire et la soirée : la distinction se fait via les listes cochées) */}
-            {form.event_type !== 'Anniversaire' && form.event_type !== 'Soirée' && (
+            {/* Aiguillage format du tournoi (Match/Tournoi uniquement) */}
+            {form.event_type === 'Match/Tournoi' && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Quel format ?</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button type="button" onClick={() => chooseTournoiMode('complet')}
+                    className={`p-4 rounded-2xl border-2 text-left transition-all ${
+                      eventOptions.tournoi_mode === 'complet' ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:border-slate-300'
+                    }`}>
+                    <span className="text-2xl block mb-1">🏆</span>
+                    <span className="text-sm font-semibold text-slate-800 block">Tournoi complet</span>
+                    <span className="text-xs text-slate-500">Participants + bénévoles</span>
+                  </button>
+                  <button type="button" onClick={() => chooseTournoiMode('benevoles')}
+                    className={`p-4 rounded-2xl border-2 text-left transition-all ${
+                      eventOptions.tournoi_mode === 'benevoles' ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:border-slate-300'
+                    }`}>
+                    <span className="text-2xl block mb-1">🙋</span>
+                    <span className="text-sm font-semibold text-slate-800 block">Bénévoles uniquement</span>
+                    <span className="text-xs text-slate-500">Juste les postes à pourvoir</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Mode d'organisation (masqué pour anniversaire, soirée et tournoi : la distinction se fait via les listes cochées) */}
+            {form.event_type !== 'Anniversaire' && form.event_type !== 'Soirée' && form.event_type !== 'Match/Tournoi' && (
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Comment veux-tu organiser ?</label>
                 <div className="grid grid-cols-2 gap-3">
@@ -694,8 +736,8 @@ export default function CreateEvent() {
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none text-slate-900" />
             </div>
 
-            {/* Options spécifiques au type */}
-            {(opts.fields?.length || opts.checks?.length || opts.textarea) && (
+            {/* Options spécifiques au type (masquées tant que le format du tournoi n'est pas choisi) */}
+            {(opts.fields?.length || opts.checks?.length || opts.textarea) && !(form.event_type === 'Match/Tournoi' && !eventOptions.tournoi_mode) && (
               <div className={`rounded-2xl p-4 border-2 ${currentType.bg} ${currentType.border}`}>
                 <p className={`text-sm font-semibold mb-3 ${currentType.text}`}>Options {currentType.label}</p>
 
@@ -746,8 +788,8 @@ export default function CreateEvent() {
               </label>
             </div>
 
-            {/* Listes à la carte (collaboratif uniquement) */}
-            {form.mode !== 'solo' && (
+            {/* Listes à la carte (collaboratif uniquement, et seulement si des listes sont disponibles) */}
+            {form.mode !== 'solo' && availableListsFor(form.event_type, eventOptions).length > 0 && (
               <div className="rounded-2xl p-4 border border-slate-200 bg-white">
                 <p className="text-sm font-semibold text-slate-700 mb-1">Que veux-tu dans ton invitation ?</p>
                 <p className="text-xs text-slate-400 mb-3">L'IA générera uniquement les listes cochées</p>

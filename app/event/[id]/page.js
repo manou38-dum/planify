@@ -181,6 +181,20 @@ export default function EventDashboard() {
     return { url, text: lines.join('\n') }
   }
 
+  // Messages de partage dédiés au Tournoi (familles vs bénévoles) — même lien d'invitation
+  function buildInviteFamilies() {
+    const url = `${window.location.origin}/invite/${event.invite_link_id}`
+    const dateStr = new Date(event.date).toLocaleDateString('fr-FR', {
+      weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
+    })
+    const lieu = event.location ? ` à ${event.location}` : ''
+    return `Bonjour ! On organise ${event.event_name} le ${dateStr}${lieu}. Viens nombreux ! Dis-nous si tu viens et à combien : ${url}`
+  }
+  function buildMobilizeVolunteers() {
+    const url = `${window.location.origin}/invite/${event.invite_link_id}`
+    return `On a besoin de bras pour ${event.event_name} ! Inscris-toi sur un poste (arbitrage, buvette, montage…) : ${url}`
+  }
+
   function shareWhatsApp() {
     if (!event) return
     const { text } = buildInvitation()
@@ -412,6 +426,14 @@ export default function EventDashboard() {
         bilanLines.push('🙌 Tous les créneaux de bénévolat sont couverts ✅.')
       } else {
         incomplets.forEach(s => bilanLines.push(`🙌 ${s.slot_name} : il manque ${s.manque} personne${s.manque > 1 ? 's' : ''}.`))
+      }
+    }
+    // Vivier de bénévoles (tournois uniquement)
+    if (event.event_type === 'Match/Tournoi') {
+      const vols = participants.filter(p => p.is_volunteer)
+      if (vols.length > 0) {
+        const noms = vols.map(p => p.participant_name).filter(Boolean).join(', ')
+        bilanLines.push(`🙋 ${vols.length} ${vols.length > 1 ? 'personnes prêtes' : 'personne prête'} à aider : ${noms}`)
       }
     }
   }
@@ -767,6 +789,24 @@ export default function EventDashboard() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* === PARTAGE CIBLÉ TOURNOI : familles vs bénévoles === */}
+      {event.event_type === 'Match/Tournoi' && (
+        <div className="grid grid-cols-2 gap-2 mb-4">
+          <button
+            onClick={() => setShareMsg({ title: 'Inviter les familles', text: buildInviteFamilies() })}
+            className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 rounded-xl transition-colors text-sm"
+          >
+            📣 Inviter les familles
+          </button>
+          <button
+            onClick={() => setShareMsg({ title: 'Mobiliser les bénévoles', text: buildMobilizeVolunteers() })}
+            className="bg-amber-500 hover:bg-amber-600 text-white font-semibold py-3 rounded-xl transition-colors text-sm"
+          >
+            🙋 Mobiliser les bénévoles
+          </button>
         </div>
       )}
 

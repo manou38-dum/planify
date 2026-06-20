@@ -66,6 +66,12 @@ STRUCTURE DES LISTES PAR TYPE :
   * liste "apport" "Boissons" : softs, eau, jus, et alcool (vin, bière) SEULEMENT si event_options.sans_alcool n'est pas coché. Prévois un peu plus que pour un repas (soirée souvent longue/dansante). Ratios et arrondi habituels.
   * liste "apport" "Apéro & snacks" (uniquement si la liste snacks/menu est demandée) : chips, cacahuètes, olives, charcuterie, fromage apéro, mini-pizzas, dips. PAS de plat principal. Vise ~150 g de snacks salés par personne.
   * liste "apport" "Matériel" (uniquement si demandée) : gobelets, assiettes, serviettes, glaçons, enceinte, déco. Objets physiques uniquement, jamais de tâches.
+- Match/Tournoi : lis event_options.tournoi_mode ('complet' ou 'benevoles') et event_options.sport.
+  * Si tournoi_mode = 'benevoles' : ne génère AUCUNE liste d'apports (les postes bénévoles sont gérés séparément via le planning).
+  * Si tournoi_mode = 'complet' : génère
+    - liste "apport" "Boissons" : hydratation avant tout (eau ++, softs) ; alcool seulement si autorisé.
+    - liste "apport" "Buvette & snacks" (si demandée) : snacks simples, barres de céréales, fruits.
+    - liste "apport" "Matériel sportif" (si demandée) : adapte au sport indiqué (ballons, plots, filets, dossards, sifflets, table de marque). Objets physiques uniquement, jamais de tâches.
 
 RÈGLES DE PLANNING :
 - Générer un planning UNIQUEMENT si l'organisateur a coché "aide montage/démontage" ou "aide logistique"
@@ -184,6 +190,16 @@ Correspondance :
           { slot_name: 'Installation', description: "Installer la déco, mettre les boissons au frais, l'enceinte, disposer gobelets et snacks", start_time: fmt(startMin - 90), duration_minutes: 60, max_participants: maxP },
           { slot_name: 'Bar / Service', description: "Gérer les boissons, réapprovisionner l'apéro, accueillir", start_time: fmt(startMin), duration_minutes: 120, max_participants: maxP },
           { slot_name: 'Rangement', description: 'Ranger, nettoyer, sortir les poubelles. Départs échelonnés : viens quand tu peux.', start_time: fmt(startMin + 180), duration_minutes: 60, max_participants: maxP },
+        ]
+      }
+      // Tournoi : des POSTES à quotas (arbitrage, buvette, montage…), modifiables par l'organisateur
+      if (type === 'Match/Tournoi') {
+        return [
+          { slot_name: 'Montage des terrains', description: 'Installer les terrains, filets, plots, tables et chaises', start_time: fmt(startMin - 90), duration_minutes: 90, max_participants: 6 },
+          { slot_name: 'Arbitrage', description: 'Arbitrer les matchs selon le planning', start_time: fmt(startMin), duration_minutes: 300, max_participants: 6 },
+          { slot_name: 'Buvette', description: 'Tenir la buvette, servir boissons et snacks', start_time: fmt(startMin), duration_minutes: 300, max_participants: 4 },
+          { slot_name: 'Accueil / Parking', description: 'Accueillir, orienter les familles, gérer le parking', start_time: fmt(startMin - 30), duration_minutes: 120, max_participants: 3 },
+          { slot_name: 'Rangement', description: 'Ranger terrains et matériel, nettoyer. Départs échelonnés.', start_time: fmt(startMin + 300), duration_minutes: 60, max_participants: 6 },
         ]
       }
       return [
