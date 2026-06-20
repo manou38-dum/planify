@@ -276,14 +276,26 @@ export default function EventDashboard() {
     return { slot_name: s.slot_name, inscrits, max, manque: Math.max(0, max - inscrits) }
   })
 
-  // Items réservés par un participant donné (lien par id, repli sur le nom), triés par catégorie
+  // Apports réservés par un participant (hors cadeaux), triés par catégorie
   function getItemsForParticipant(p) {
     return items
       .filter(i =>
         i.status === 'Réservé' &&
+        listBehavior[i.list_id] !== 'cadeau' &&
         (i.assigned_participant_id === p.id || i.assigned_to === p.participant_name)
       )
       .sort((a, b) => (a.category || '').localeCompare(b.category || ''))
+  }
+
+  // Cadeaux réservés par un participant (listes behavior 'cadeau')
+  function getGiftsForParticipant(p) {
+    return items
+      .filter(i =>
+        i.status === 'Réservé' &&
+        listBehavior[i.list_id] === 'cadeau' &&
+        (i.assigned_participant_id === p.id || i.assigned_to === p.participant_name)
+      )
+      .sort((a, b) => (a.item_name || '').localeCompare(b.item_name || ''))
   }
 
   // Unités de mesure : on affiche la quantité même à 1 (ex: "0,5 kg"), sinon on
@@ -354,6 +366,47 @@ export default function EventDashboard() {
     window.open(`https://wa.me/?text=${encodeURIComponent(shareMsg.text)}`, '_blank')
   }
 
+  // ─── Bilan rédigé en phrases, toujours visible, évolue au fil des réponses ───
+  const bilanLines = []
+  {
+    const bilanDate = new Date(event.date).toLocaleDateString('fr-FR', {
+      weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
+    })
+    const annivPart = (event.event_type === 'Anniversaire' && event.event_options?.pour_qui)
+      ? ` pour ${event.event_options.pour_qui}` : ''
+    const lieuPart = event.location ? ` à ${event.location}` : ''
+    bilanLines.push(`Tu organises ${event.event_name}${annivPart}, le ${bilanDate}${lieuPart}.`)
+    bilanLines.push(isExpired ? 'Les inscriptions sont closes, voici le bilan final.' : 'Les inscriptions sont ouvertes.')
+    bilanLines.push(`${totalPersonnes} personne${totalPersonnes > 1 ? 's' : ''} sur ${event.nb_participants} ont confirmé${
+      totalPersonnes >= event.nb_participants ? ", c'est complet ✅." : ', il reste de la place.'
+    }`)
+    if (apportItems.length > 0) {
+      if (reserves.length === apportItems.length) {
+        bilanLines.push('Côté apports : tout est couvert ✅.')
+      } else {
+        const reste = apportItems.length - reserves.length
+        const noms = disponibles.slice(0, 3).map(i => i.item_name).join(', ')
+        bilanLines.push(`Côté apports : il reste ${reste} chose${reste > 1 ? 's' : ''} à apporter (${noms}).`)
+      }
+    }
+    if (giftItems.length > 0) {
+      if (giftReserves.length === giftItems.length) {
+        bilanLines.push('🎁 Liste de cadeaux complète, tout a été réservé ✅.')
+      } else {
+        const reste = giftItems.length - giftReserves.length
+        bilanLines.push(`🎁 Il reste ${reste} cadeau${reste > 1 ? 'x' : ''} disponible${reste > 1 ? 's' : ''}.`)
+      }
+    }
+    if (slots.length > 0) {
+      const incomplets = slotStatuses.filter(s => s.manque > 0)
+      if (incomplets.length === 0) {
+        bilanLines.push('🙌 Tous les créneaux de bénévolat sont couverts ✅.')
+      } else {
+        incomplets.forEach(s => bilanLines.push(`🙌 ${s.slot_name} : il manque ${s.manque} personne${s.manque > 1 ? 's' : ''}.`))
+      }
+    }
+  }
+
   return (
     <div className="max-w-md mx-auto px-4 py-6 pb-12">
       {/* Retour */}
@@ -416,41 +469,22 @@ export default function EventDashboard() {
         )}
       </div>
 
-      {/* === RÉCAP DE FIN (date limite dépassée) === */}
-      {isExpired && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 mb-4">
-          <h2 className="text-sm font-bold text-slate-800 mb-3">📋 Récapitulatif</h2>
-          <ul className="space-y-2 text-sm text-slate-600">
-            <li>👥 <span className="font-semibold text-slate-800">{totalPersonnes}</span> personnes confirmées sur {event.nb_participants} attendues</li>
-            {apportItems.length > 0 && (
-              <li>🍽 Apports : <span className="font-semibold text-slate-800">{reserves.length}/{apportItems.length}</span> articles pris</li>
-            )}
-            {giftItems.length > 0 && (
-              <li>🎁 Cadeaux : <span className="font-semibold text-slate-800">{giftReserves.length}/{giftItems.length}</span> cadeaux réservés</li>
-            )}
-          </ul>
-          {slots.length > 0 && (
-            <div className="mt-3 pt-3 border-t border-slate-100">
-              <p className="text-xs font-semibold text-slate-500 mb-2">🙋 Bénévolat</p>
-              <ul className="space-y-1 text-sm">
-                {slotStatuses.map((s, idx) => (
-                  <li key={idx} className={s.manque > 0 ? 'text-amber-600' : 'text-emerald-600'}>
-                    {s.slot_name} : {s.inscrits}/{s.max} places prises
-                    {s.manque > 0 && <span> — il manque {s.manque} personne{s.manque > 1 ? 's' : ''}</span>}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+      {/* === BILAN (rédigé, toujours visible) === */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 mb-4">
+        <h2 className="text-sm font-bold text-slate-800 mb-3">📋 Bilan</h2>
+        <div className="space-y-2 text-sm text-slate-600 leading-relaxed">
+          {bilanLines.map((line, idx) => <p key={idx}>{line}</p>)}
+        </div>
 
+        {isExpired && (
           <button
             onClick={() => setShareMsg({ title: 'Récap final', text: buildRecapFinal().text })}
             className="mt-4 w-full bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm"
           >
             ✅ Envoyer le récap final
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* === CARTE PRINCIPALE === */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mb-4">
@@ -848,6 +882,7 @@ export default function EventDashboard() {
             {(showAllParticipants ? sortedParticipants : sortedParticipants.slice(0, 5)).map((p) => {
               const c = parseCommentaire(p.commentaire)
               const apporte = getItemsForParticipant(p)
+              const offre = getGiftsForParticipant(p)
               return (
                 <div key={p.id} className="flex items-start justify-between px-5 py-2.5">
                   <div className="flex items-start gap-3 min-w-0">
@@ -888,6 +923,21 @@ export default function EventDashboard() {
                                 className="inline-block text-xs bg-emerald-50 text-emerald-700 border border-emerald-100 px-2 py-0.5 rounded-full"
                               >
                                 {formatApport(i)}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {offre.length > 0 && (
+                        <div className="mt-1">
+                          <p className="text-xs text-slate-400 mb-1">🎁 offre :</p>
+                          <div className="flex flex-wrap gap-1">
+                            {offre.map(i => (
+                              <span
+                                key={i.id}
+                                className="inline-block text-xs bg-pink-50 text-pink-700 border border-pink-100 px-2 py-0.5 rounded-full"
+                              >
+                                {i.item_name}
                               </span>
                             ))}
                           </div>
