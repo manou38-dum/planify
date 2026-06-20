@@ -25,6 +25,7 @@ export default function EventDashboard() {
   const [event, setEvent] = useState(null)
   const [participants, setParticipants] = useState([])
   const [items, setItems] = useState([])
+  const [lists, setLists] = useState([])
   const [slots, setSlots] = useState([])
   const [signups, setSignups] = useState([])
   const [loading, setLoading] = useState(true)
@@ -46,15 +47,17 @@ export default function EventDashboard() {
 
   async function loadAll() {
     const supabase = getSupabase()
-    const [evtRes, partRes, itemRes, slotRes] = await Promise.all([
+    const [evtRes, partRes, itemRes, listRes, slotRes] = await Promise.all([
       supabase.from('events').select('*').eq('id', id).single(),
       supabase.from('participants').select('*').eq('event_id', id),
       supabase.from('items').select('*').eq('event_id', id).order('category'),
+      supabase.from('lists').select('id, behavior').eq('event_id', id),
       supabase.from('slots').select('*').eq('event_id', id).order('slot_date'),
     ])
     setEvent(evtRes.data)
     setParticipants(partRes.data || [])
     setItems(itemRes.data || [])
+    setLists(listRes.data || [])
     const slts = slotRes.data || []
     setSlots(slts)
 
@@ -236,15 +239,38 @@ export default function EventDashboard() {
   const totalPersonnes = confirmed.reduce((sum, p) => sum + (p.nb_personnes || 1), 0)
   const totalInvites = confirmed.length + refused.length + pending.length
 
-  const disponibles = items.filter(i => i.status === 'Disponible')
-  const reserves = items.filter(i => i.status === 'Réservé')
+  // Séparation apports / cadeaux via le behavior des listes
+  const listBehavior = {}
+  lists.forEach(l => { listBehavior[l.id] = l.behavior })
+  const apportItems = items.filter(i => listBehavior[i.list_id] !== 'cadeau')
+  const giftItems = items.filter(i => listBehavior[i.list_id] === 'cadeau')
+
+  const disponibles = apportItems.filter(i => i.status === 'Disponible')
+  const reserves = apportItems.filter(i => i.status === 'Réservé')
+  const giftReserves = giftItems.filter(i => i.status === 'Réservé')
   const totalManquant = disponibles.reduce((sum, i) => sum + (i.estimated_price || 0), 0)
   const totalCouvert = reserves.reduce((sum, i) => sum + (i.estimated_price || 0), 0)
   const totalBudget = totalManquant + totalCouvert
-  const pctCouvert = items.length > 0 ? Math.round((reserves.length / items.length) * 100) : 0
+  const pctCouvert = apportItems.length > 0 ? Math.round((reserves.length / apportItems.length) * 100) : 0
 
   const missingNames = disponibles.map(i => i.item_name)
   const categories = ['Nourriture', 'Boissons', 'Matériel', 'Décoration', 'Service']
+
+  // Emoji du type d'événement (pour l'en-tête résumé)
+  const TYPE_EMOJIS = { 'BBQ': '🔥', 'Anniversaire': '🎂', 'Mariage': '💍', 'Randonnée': '🥾', 'Soirée': '🎶', 'Match/Tournoi': '⚽', 'Autre': '✨' }
+  const typeEmoji = TYPE_EMOJIS[event.event_type] || '🎉'
+
+  // Date limite valable jusqu'à la FIN de la journée (même logique que côté invité)
+  const dl = event.deadline_rsvp ? new Date(event.deadline_rsvp) : null
+  const deadlineEnd = dl ? new Date(dl.getFullYear(), dl.getMonth(), dl.getDate(), 23, 59, 59) : null
+  const isExpired = deadlineEnd ? deadlineEnd < new Date() : false
+
+  // Créneaux d'aide non complets (pour le récap de fin)
+  const slotStatuses = slots.map(s => {
+    const inscrits = signups.filter(su => su.slot_id === s.id).length
+    const max = s.max_participants || 4
+    return { slot_name: s.slot_name, inscrits, max, manque: Math.max(0, max - inscrits) }
+  })
 
   // Items réservés par un participant donné (lien par id, repli sur le nom), triés par catégorie
   function getItemsForParticipant(p) {
@@ -281,6 +307,72 @@ export default function EventDashboard() {
       >
         ← Mes evenements
       </button>
+
+      {/* === EN-TÊTE RÉSUMÉ === */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 mb-4">
+        <div className="flex items-start justify-between gap-3">
+          <h1 className="text-xl font-extrabold text-slate-900 leading-tight flex items-center gap-2">
+            <span>{typeEmoji}</span>
+            <span>{event.event_name}</span>
+          </h1>
+          <span className={`shrink-0 text-xs font-semibold px-3 py-1 rounded-full ${
+            isExpired ? 'bg-slate-100 text-slate-500' : 'bg-emerald-100 text-emerald-700'
+          }`}>
+            {isExpired ? 'Inscriptions terminées' : 'Inscriptions ouvertes'}
+          </span>
+        </div>
+        <div className="mt-2 space-y-1 text-sm text-slate-600">
+          <p className="flex items-center gap-2">
+            📅 {new Date(event.date).toLocaleDateString('fr-FR', {
+              weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
+            })}
+          </p>
+          {event.location && <p className="flex items-center gap-2">📍 {event.location}</p>}
+          {event.event_type === 'Anniversaire' && (event.event_options?.pour_qui || event.event_options?.surprise) && (
+            <p className="flex items-center gap-2">
+              {event.event_options?.pour_qui && <span>🎉 Pour {event.event_options.pour_qui}</span>}
+              {event.event_options?.surprise && (
+                <span className="bg-amber-100 text-amber-800 text-xs font-semibold px-2 py-0.5 rounded-full">🤫 Surprise</span>
+              )}
+            </p>
+          )}
+        </div>
+        <div className="mt-3">
+          <span className="inline-flex items-center bg-blue-100 text-blue-700 text-sm font-bold px-3 py-1.5 rounded-full">
+            {totalPersonnes} / {event.nb_participants}
+            <span className="font-normal text-xs ml-1.5">confirmés / attendus</span>
+          </span>
+        </div>
+      </div>
+
+      {/* === RÉCAP DE FIN (date limite dépassée) === */}
+      {isExpired && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 mb-4">
+          <h2 className="text-sm font-bold text-slate-800 mb-3">📋 Récapitulatif</h2>
+          <ul className="space-y-2 text-sm text-slate-600">
+            <li>👥 <span className="font-semibold text-slate-800">{totalPersonnes}</span> personnes confirmées sur {event.nb_participants} attendues</li>
+            {apportItems.length > 0 && (
+              <li>🍽 Apports : <span className="font-semibold text-slate-800">{reserves.length}/{apportItems.length}</span> articles pris</li>
+            )}
+            {giftItems.length > 0 && (
+              <li>🎁 Cadeaux : <span className="font-semibold text-slate-800">{giftReserves.length}/{giftItems.length}</span> cadeaux réservés</li>
+            )}
+          </ul>
+          {slots.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-slate-100">
+              <p className="text-xs font-semibold text-slate-500 mb-2">🙋 Bénévolat</p>
+              <ul className="space-y-1 text-sm">
+                {slotStatuses.map((s, idx) => (
+                  <li key={idx} className={s.manque > 0 ? 'text-amber-600' : 'text-emerald-600'}>
+                    {s.slot_name} : {s.inscrits}/{s.max} places prises
+                    {s.manque > 0 && <span> — il manque {s.manque} personne{s.manque > 1 ? 's' : ''}</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* === CARTE PRINCIPALE === */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mb-4">
@@ -362,11 +454,11 @@ export default function EventDashboard() {
           </div>
         )}
 
-        {/* Barre de progression budget (masquée en mode solo) */}
-        {event.mode !== 'solo' && (
+        {/* Barre de progression budget (masquée en mode solo et sans apports) */}
+        {event.mode !== 'solo' && apportItems.length > 0 && (
           <div className="px-5 py-3">
             <div className="flex justify-between items-center text-xs text-slate-500 mb-1.5">
-              <span>{reserves.length}/{items.length} articles couverts</span>
+              <span>{reserves.length}/{apportItems.length} articles couverts</span>
               <span className="font-semibold text-slate-700">
                 {totalCouvert.toFixed(0)} € / {totalBudget.toFixed(0)} €
               </span>

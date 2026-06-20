@@ -196,7 +196,12 @@ export default function CreateEvent() {
   }
 
   function chooseType(type) {
-    updateForm('event_type', type)
+    setForm(prev => ({
+      ...prev,
+      event_type: type,
+      // L'anniversaire est toujours collaboratif en interne : la distinction se fait via les listes cochées
+      mode: type === 'Anniversaire' ? 'collaboratif' : prev.mode,
+    }))
     setEventOptions({})
     // Pour l'anniversaire, la pré-sélection dépend du sous-type enfant/adulte choisi à l'étape 2
     setSelectedLists(type === 'Anniversaire' ? {} : Object.fromEntries((DEFAULT_LISTS[type] || ['menu']).map(k => [k, true])))
@@ -552,28 +557,30 @@ export default function CreateEvent() {
               </div>
             )}
 
-            {/* Mode d'organisation */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Comment veux-tu organiser ?</label>
-              <div className="grid grid-cols-2 gap-3">
-                <button type="button" onClick={() => updateForm('mode', 'collaboratif')}
-                  className={`p-4 rounded-2xl border-2 text-left transition-all ${
-                    form.mode === 'collaboratif' ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:border-slate-300'
-                  }`}>
-                  <span className="text-2xl block mb-1">🤝</span>
-                  <span className="text-sm font-semibold text-slate-800 block">Collaboratif</span>
-                  <span className="text-xs text-slate-500">Chacun apporte quelque chose</span>
-                </button>
-                <button type="button" onClick={() => updateForm('mode', 'solo')}
-                  className={`p-4 rounded-2xl border-2 text-left transition-all ${
-                    form.mode === 'solo' ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:border-slate-300'
-                  }`}>
-                  <span className="text-2xl block mb-1">🎯</span>
-                  <span className="text-sm font-semibold text-slate-800 block">J'organise tout</span>
-                  <span className="text-xs text-slate-500">Les invités confirment juste leur venue</span>
-                </button>
+            {/* Mode d'organisation (masqué pour l'anniversaire : la distinction se fait via les listes cochées) */}
+            {form.event_type !== 'Anniversaire' && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Comment veux-tu organiser ?</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button type="button" onClick={() => updateForm('mode', 'collaboratif')}
+                    className={`p-4 rounded-2xl border-2 text-left transition-all ${
+                      form.mode === 'collaboratif' ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:border-slate-300'
+                    }`}>
+                    <span className="text-2xl block mb-1">🤝</span>
+                    <span className="text-sm font-semibold text-slate-800 block">Collaboratif</span>
+                    <span className="text-xs text-slate-500">Chacun apporte quelque chose</span>
+                  </button>
+                  <button type="button" onClick={() => updateForm('mode', 'solo')}
+                    className={`p-4 rounded-2xl border-2 text-left transition-all ${
+                      form.mode === 'solo' ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:border-slate-300'
+                    }`}>
+                    <span className="text-2xl block mb-1">🎯</span>
+                    <span className="text-sm font-semibold text-slate-800 block">J'organise tout</span>
+                    <span className="text-xs text-slate-500">Les invités confirment juste leur venue</span>
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Nom de l'événement</label>
