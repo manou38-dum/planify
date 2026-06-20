@@ -133,6 +133,7 @@ export default function CreateEvent() {
     location: '',
     nb_participants: 20,
     organizer_name: '',
+    organizer_phone: '',
     deadline_rsvp: '',
     mode: 'collaboratif',
     carpool_enabled: false,
@@ -387,6 +388,7 @@ export default function CreateEvent() {
           location: form.location || null,
           nb_participants: form.nb_participants,
           organizer_name: form.organizer_name,
+          organizer_phone: form.organizer_phone || null,
           deadline_rsvp: form.deadline_rsvp || null,
           photo_url: photoUrl || null,
           mode: form.mode,
@@ -614,6 +616,13 @@ export default function CreateEvent() {
             </div>
 
             <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Ton numéro (facultatif, pour que les invités puissent te joindre)</label>
+              <input type="tel" value={form.organizer_phone} onChange={(e) => updateForm('organizer_phone', e.target.value)}
+                placeholder="06 12 34 56 78"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none text-slate-900" />
+            </div>
+
+            <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Date et heure</label>
               <input type="datetime-local" value={form.date} onChange={(e) => updateForm('date', e.target.value)}
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none text-slate-900" />
@@ -660,7 +669,7 @@ export default function CreateEvent() {
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Nombre de personnes attendues : <span className="text-blue-500 font-bold">{form.nb_participants}</span>
+                Nombre de personnes attendues (accompagnants compris) : <span className="text-blue-500 font-bold">{form.nb_participants}</span>
               </label>
               <input type="range" min="2" max="200" value={Math.min(Number(form.nb_participants) || 2, 200)}
                 onChange={(e) => updateForm('nb_participants', parseInt(e.target.value))}

@@ -271,6 +271,8 @@ export default function EventDashboard() {
 
   // Jauge atteinte : autant (ou plus) de personnes confirmées que de convives attendus
   const isFull = event.nb_participants > 0 && totalPersonnes >= event.nb_participants
+  // Inscriptions fermées : soit complet, soit date limite dépassée
+  const isClosed = isFull || isExpired
 
   // Créneaux d'aide non complets (pour le récap de fin)
   const slotStatuses = slots.map(s => {
@@ -379,7 +381,11 @@ export default function EventDashboard() {
       ? ` pour ${event.event_options.pour_qui}` : ''
     const lieuPart = event.location ? ` à ${event.location}` : ''
     bilanLines.push(`Tu organises ${event.event_name}${annivPart}, le ${bilanDate}${lieuPart}.`)
-    bilanLines.push(isExpired ? 'Les inscriptions sont closes, voici le bilan final.' : 'Les inscriptions sont ouvertes.')
+    bilanLines.push(
+      isFull ? "C'est complet, les inscriptions sont closes."
+        : isExpired ? 'Les inscriptions sont closes, voici le bilan final.'
+        : 'Les inscriptions sont ouvertes.'
+    )
     bilanLines.push(`${totalPersonnes} personne${totalPersonnes > 1 ? 's' : ''} sur ${event.nb_participants} ont confirmé${
       totalPersonnes >= event.nb_participants ? ", c'est complet ✅." : ', il reste de la place.'
     }`)
@@ -463,8 +469,8 @@ export default function EventDashboard() {
           </span>
         </div>
 
-        {/* Relance ciblée : seulement avant la date limite et s'il manque quelque chose */}
-        {!isExpired && hasMissing && (
+        {/* Relance ciblée : seulement tant que les inscriptions sont ouvertes et s'il manque quelque chose */}
+        {!isClosed && hasMissing && (
           <button
             onClick={() => setShareMsg({ title: 'Relancer les invités', text: buildRelance().text })}
             className="mt-3 w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm"
@@ -483,7 +489,7 @@ export default function EventDashboard() {
           {bilanLines.map((line, idx) => <p key={idx}>{line}</p>)}
         </div>
 
-        {isExpired && (
+        {isClosed && (
           <button
             onClick={() => setShareMsg({ title: 'Récap final', text: buildRecapFinal().text })}
             className="mt-4 w-full bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm"

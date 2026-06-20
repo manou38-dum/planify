@@ -690,6 +690,16 @@ export default function InviteClient({ linkId }) {
             <div className="bg-orange-50 border border-orange-200 text-orange-800 text-sm px-4 py-3 rounded-2xl">
               <p className="font-semibold">Désolé, c'est complet ! ({confirmedTotal}/{event.nb_participants} personnes)</p>
               <p className="text-orange-700 mt-0.5">L'organisateur a peut-être encore de la place, contacte-le.</p>
+              {organizerPhone && (
+                <a
+                  href={`https://wa.me/${cleanPhone(organizerPhone)}?text=${encodeURIComponent(`Salut, j'ai une question pour ${event.event_name}`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block mt-3 text-xs font-semibold bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-full transition-colors"
+                >
+                  💬 Contacter l'organisateur
+                </a>
+              )}
             </div>
           )}
 
@@ -774,7 +784,7 @@ export default function InviteClient({ linkId }) {
                   </p>
                   {organizerPhone && (
                     <a
-                      href={`https://wa.me/${cleanPhone(organizerPhone)}?text=${encodeURIComponent(`Salut ${event.organizer_name || ''}, c'est à propos de ${event.event_name} !`)}`}
+                      href={`https://wa.me/${cleanPhone(organizerPhone)}?text=${encodeURIComponent(`Salut, j'ai une question pour ${event.event_name}`)}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-block mt-3 text-xs font-semibold bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-full transition-colors"
