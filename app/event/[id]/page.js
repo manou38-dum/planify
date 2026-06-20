@@ -35,6 +35,10 @@ export default function EventDashboard() {
   const [showAllMissing, setShowAllMissing] = useState(false)
   const [showAllParticipants, setShowAllParticipants] = useState(false)
 
+  // Message à partager (relance ou récap final) : { title, text }
+  const [shareMsg, setShareMsg] = useState(null)
+  const [msgCopied, setMsgCopied] = useState(false)
+
   // Edition items
   const [editMode, setEditMode] = useState(false)
   const [editingItem, setEditingItem] = useState(null)
@@ -298,6 +302,58 @@ export default function EventDashboard() {
     (a, b) => rsvpRank(a.rsvp_status) - rsvpRank(b.rsvp_status)
   )
 
+  // ─── Indicateur de santé : ce qui manque encore ───
+  const giftDispo = giftItems.filter(i => i.status === 'Disponible')
+  const slotsIncomplets = slotStatuses.filter(s => s.manque > 0)
+  const reponsesManque = pending.length // réponses encore "peut-être" / en attente
+  const hasMissing = disponibles.length > 0 || giftDispo.length > 0 || slotsIncomplets.length > 0 || reponsesManque > 0
+  const allCovered = !hasMissing
+
+  // Message de relance (avant la date limite) : ciblé sur le manque réel
+  function buildRelance() {
+    const url = `${window.location.origin}/invite/${event.invite_link_id}`
+    const manques = [
+      ...disponibles.map(i => i.item_name),
+      ...giftDispo.map(i => i.item_name),
+      ...slotsIncomplets.map(s => `${s.manque} personne${s.manque > 1 ? 's' : ''} pour ${s.slot_name}`),
+    ]
+    const lines = [`Salut ! Plus que quelques jours avant ${event.event_name} 🎉`, ``]
+    if (manques.length > 0) {
+      lines.push(`Il manque encore : ${manques.join(', ')}`)
+    } else if (reponsesManque > 0) {
+      lines.push(`On attend encore quelques réponses 🙏`)
+    }
+    lines.push(``, `Si tu peux aider : ${url}`, `Merci 🙌`)
+    return { url, text: lines.join('\n') }
+  }
+
+  // Message de récap final (date limite atteinte) : confirmation de l'événement
+  function buildRecapFinal() {
+    const url = `${window.location.origin}/invite/${event.invite_link_id}`
+    const d = new Date(event.date)
+    const dateStr = d.toLocaleDateString('fr-FR', {
+      weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
+    })
+    const jourStr = d.toLocaleDateString('fr-FR', { weekday: 'long' })
+    const lines = [
+      `C'est confirmé pour ${event.event_name}, le ${dateStr}${event.location ? ` à ${event.location}` : ''} ! ${typeEmoji}`,
+    ]
+    if (apportItems.length > 0) lines.push(`Pense à apporter ce que tu as réservé.`)
+    lines.push(`Liste complète et qui apporte quoi : ${url}`, `À ${jourStr} !`)
+    return { url, text: lines.join('\n') }
+  }
+
+  function copyShareMsg() {
+    if (!shareMsg) return
+    navigator.clipboard?.writeText(shareMsg.text)
+    setMsgCopied(true)
+    setTimeout(() => setMsgCopied(false), 2000)
+  }
+  function shareMsgWhatsApp() {
+    if (!shareMsg) return
+    window.open(`https://wa.me/?text=${encodeURIComponent(shareMsg.text)}`, '_blank')
+  }
+
   return (
     <div className="max-w-md mx-auto px-4 py-6 pb-12">
       {/* Retour */}
@@ -337,12 +393,27 @@ export default function EventDashboard() {
             </p>
           )}
         </div>
-        <div className="mt-3">
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="inline-flex items-center bg-blue-100 text-blue-700 text-sm font-bold px-3 py-1.5 rounded-full">
             {totalPersonnes} / {event.nb_participants}
             <span className="font-normal text-xs ml-1.5">confirmés / attendus</span>
           </span>
+          <span className={`inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-full ${
+            allCovered ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'
+          }`}>
+            {allCovered ? '🟢 Tout est prêt' : '🟠 Il manque des choses'}
+          </span>
         </div>
+
+        {/* Relance ciblée : seulement avant la date limite et s'il manque quelque chose */}
+        {!isExpired && hasMissing && (
+          <button
+            onClick={() => setShareMsg({ title: 'Relancer les invités', text: buildRelance().text })}
+            className="mt-3 w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm"
+          >
+            📣 Relancer les invités
+          </button>
+        )}
       </div>
 
       {/* === RÉCAP DE FIN (date limite dépassée) === */}
@@ -371,6 +442,13 @@ export default function EventDashboard() {
               </ul>
             </div>
           )}
+
+          <button
+            onClick={() => setShareMsg({ title: 'Récap final', text: buildRecapFinal().text })}
+            className="mt-4 w-full bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm"
+          >
+            ✅ Envoyer le récap final
+          </button>
         </div>
       )}
 
@@ -688,6 +766,42 @@ export default function EventDashboard() {
         <p className="text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 mt-2 text-center">
           {shareNotice}
         </p>
+      )}
+
+      {/* === MODAL MESSAGE À PARTAGER (relance / récap) === */}
+      {shareMsg && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4" onClick={() => setShareMsg(null)}>
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-slate-800 mb-1">{shareMsg.title}</h3>
+            <p className="text-xs text-slate-400 mb-3">Tu rédiges, tu envoies toi-même. Rien n'est envoyé automatiquement.</p>
+            <textarea
+              readOnly
+              value={shareMsg.text}
+              rows={8}
+              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-700 bg-slate-50 resize-none focus:outline-none"
+            />
+            <div className="grid grid-cols-2 gap-2 mt-3">
+              <button
+                onClick={copyShareMsg}
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold py-2.5 rounded-xl transition-colors text-sm"
+              >
+                {msgCopied ? 'Copié !' : '🔗 Copier'}
+              </button>
+              <button
+                onClick={shareMsgWhatsApp}
+                className="bg-green-500 hover:bg-green-600 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm"
+              >
+                💬 WhatsApp
+              </button>
+            </div>
+            <button
+              onClick={() => setShareMsg(null)}
+              className="mt-3 w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 rounded-xl transition-colors text-sm"
+            >
+              Fermer
+            </button>
+          </div>
+        </div>
       )}
 
       {/* === MODAL QR CODE === */}
