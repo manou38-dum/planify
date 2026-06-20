@@ -269,6 +269,9 @@ export default function EventDashboard() {
   const deadlineEnd = dl ? new Date(dl.getFullYear(), dl.getMonth(), dl.getDate(), 23, 59, 59) : null
   const isExpired = deadlineEnd ? deadlineEnd < new Date() : false
 
+  // Jauge atteinte : autant (ou plus) de personnes confirmées que de convives attendus
+  const isFull = event.nb_participants > 0 && totalPersonnes >= event.nb_participants
+
   // Créneaux d'aide non complets (pour le récap de fin)
   const slotStatuses = slots.map(s => {
     const inscrits = signups.filter(su => su.slot_id === s.id).length
@@ -425,9 +428,11 @@ export default function EventDashboard() {
             <span>{event.event_name}</span>
           </h1>
           <span className={`shrink-0 text-xs font-semibold px-3 py-1 rounded-full ${
-            isExpired ? 'bg-slate-100 text-slate-500' : 'bg-emerald-100 text-emerald-700'
+            isExpired ? 'bg-slate-100 text-slate-500'
+              : isFull ? 'bg-emerald-500 text-white'
+              : 'bg-emerald-100 text-emerald-700'
           }`}>
-            {isExpired ? 'Inscriptions terminées' : 'Inscriptions ouvertes'}
+            {isExpired ? 'Inscriptions terminées' : isFull ? 'Complet' : 'Inscriptions ouvertes'}
           </span>
         </div>
         <div className="mt-2 space-y-1 text-sm text-slate-600">
@@ -469,8 +474,10 @@ export default function EventDashboard() {
         )}
       </div>
 
-      {/* === BILAN (rédigé, toujours visible) === */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 mb-4">
+      {/* === BILAN (rédigé, toujours visible) — coloré selon l'état === */}
+      <div className={`rounded-2xl shadow-sm border p-5 mb-4 ${
+        allCovered ? 'bg-emerald-50 border-emerald-200' : 'bg-orange-50 border-orange-200'
+      }`}>
         <h2 className="text-sm font-bold text-slate-800 mb-3">📋 Bilan</h2>
         <div className="space-y-2 text-sm text-slate-600 leading-relaxed">
           {bilanLines.map((line, idx) => <p key={idx}>{line}</p>)}

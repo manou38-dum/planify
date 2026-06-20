@@ -8,6 +8,7 @@ export default function InviteClient({ linkId }) {
   const [event, setEvent] = useState(null)
   const [items, setItems] = useState([])
   const [lists, setLists] = useState([])
+  const [confirmedTotal, setConfirmedTotal] = useState(0)
   const [reservingGiftId, setReservingGiftId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [submitted, setSubmitted] = useState(false)
@@ -153,6 +154,14 @@ export default function InviteClient({ linkId }) {
         .select('id, behavior')
         .eq('event_id', evt.id)
       setLists(lsts || [])
+
+      // Total de personnes déjà confirmées (pour fermer les inscriptions à la jauge)
+      const { data: confParts } = await supabase
+        .from('participants')
+        .select('nb_personnes')
+        .eq('event_id', evt.id)
+        .eq('rsvp_status', 'Confirmé')
+      setConfirmedTotal((confParts || []).reduce((s, p) => s + (p.nb_personnes || 1), 0))
 
       // Charger les créneaux d'aide et les inscriptions existantes
       const { data: slts } = await supabase
@@ -577,6 +586,15 @@ export default function InviteClient({ linkId }) {
 
   const disponibles = apportItems.filter(i => i.status === 'Disponible')
   const reserves = apportItems.filter(i => i.status === 'Réservé')
+  const giftDispo = giftItems.filter(i => i.status === 'Disponible')
+
+  // Jauge atteinte : autant de personnes confirmées que de convives attendus
+  const isFull = event.nb_participants > 0 && confirmedTotal >= event.nb_participants
+  // Tout est déjà couvert : il existe des listes mais plus rien de disponible (apports ni cadeaux)
+  const hasAnyList = apportItems.length > 0 || giftItems.length > 0
+  const allReserved = hasAnyList && disponibles.length === 0 && giftDispo.length === 0
+  // Téléphone de l'organisateur (si renseigné quelque part sur l'événement)
+  const organizerPhone = event.organizer_phone || event.event_options?.organizer_phone || event.event_options?.phone || null
 
   const isAnnivEnfant = event.event_options?.anniv_type === 'enfant'
   const eventDateStr = new Date(event.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })
@@ -667,6 +685,14 @@ export default function InviteClient({ linkId }) {
             />
           </div>
 
+          {/* Jauge atteinte : on bloque la confirmation (sauf pour qui est déjà inscrit) */}
+          {isFull && !existingParticipant && (
+            <div className="bg-orange-50 border border-orange-200 text-orange-800 text-sm px-4 py-3 rounded-2xl">
+              <p className="font-semibold">Désolé, c'est complet ! ({confirmedTotal}/{event.nb_participants} personnes)</p>
+              <p className="text-orange-700 mt-0.5">L'organisateur a peut-être encore de la place, contacte-le.</p>
+            </div>
+          )}
+
           {/* RSVP */}
           <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
             <label className="block text-sm font-medium text-slate-700 mb-3">Tu viens ?</label>
@@ -675,24 +701,29 @@ export default function InviteClient({ linkId }) {
                 { val: 'Confirmé', emoji: '✅', label: 'Oui !' },
                 { val: 'Refusé', emoji: '❌', label: 'Non' },
                 { val: 'Peut-être', emoji: '🤔', label: 'Peut-être' },
-              ].map((opt) => (
-                <button
-                  key={opt.val}
-                  type="button"
-                  disabled={isExpired}
-                  onClick={() => setRsvp(opt.val)}
-                  className={`py-4 rounded-xl border-2 text-center transition-all ${
-                    rsvp === opt.val
-                      ? opt.val === 'Confirmé' ? 'border-emerald-500 bg-emerald-50'
-                        : opt.val === 'Refusé' ? 'border-red-400 bg-red-50'
-                        : 'border-amber-400 bg-amber-50'
-                      : 'border-slate-100 hover:border-slate-200'
-                  }`}
-                >
-                  <span className="text-2xl block">{opt.emoji}</span>
-                  <span className="text-sm mt-1 block text-slate-600">{opt.label}</span>
-                </button>
-              ))}
+              ].map((opt) => {
+                // "Je viens" bloqué quand c'est complet, sauf si l'invité a déjà répondu
+                const blocked = opt.val === 'Confirmé' && isFull && !existingParticipant
+                return (
+                  <button
+                    key={opt.val}
+                    type="button"
+                    disabled={isExpired || blocked}
+                    onClick={() => setRsvp(opt.val)}
+                    className={`py-4 rounded-xl border-2 text-center transition-all ${
+                      blocked ? 'opacity-40 cursor-not-allowed border-slate-100' :
+                      rsvp === opt.val
+                        ? opt.val === 'Confirmé' ? 'border-emerald-500 bg-emerald-50'
+                          : opt.val === 'Refusé' ? 'border-red-400 bg-red-50'
+                          : 'border-amber-400 bg-amber-50'
+                        : 'border-slate-100 hover:border-slate-200'
+                    }`}
+                  >
+                    <span className="text-2xl block">{opt.emoji}</span>
+                    <span className="text-sm mt-1 block text-slate-600">{opt.label}</span>
+                  </button>
+                )
+              })}
             </div>
           </div>
 
@@ -734,6 +765,25 @@ export default function InviteClient({ linkId }) {
                   </div>
                 )}
               </div>
+
+              {/* Tout est déjà couvert : message bienveillant à la place des listes */}
+              {event.mode !== 'solo' && allReserved && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
+                  <p className="text-sm text-emerald-800">
+                    ✅ Super, tout est déjà couvert ! Pas besoin de te charger de quoi que ce soit. Si tu veux apporter un petit extra ou poser une question, contacte l'organisateur.
+                  </p>
+                  {organizerPhone && (
+                    <a
+                      href={`https://wa.me/${cleanPhone(organizerPhone)}?text=${encodeURIComponent(`Salut ${event.organizer_name || ''}, c'est à propos de ${event.event_name} !`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block mt-3 text-xs font-semibold bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-full transition-colors"
+                    >
+                      💬 Contacter l'organisateur
+                    </a>
+                  )}
+                </div>
+              )}
 
               {/* Liste d'apports (masquée en mode solo et en anniversaire enfant) */}
               {event.mode !== 'solo' && !isAnnivEnfant && disponibles.length > 0 && (
@@ -839,7 +889,7 @@ export default function InviteClient({ linkId }) {
               )}
 
               {/* Idées cadeaux */}
-              {giftItems.length > 0 && (
+              {giftItems.length > 0 && !allReserved && (
                 <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
                   <label className="block text-sm font-medium text-slate-700 mb-1">🎁 Idées cadeaux</label>
                   <p className="text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2 mb-3">
