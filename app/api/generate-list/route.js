@@ -62,6 +62,10 @@ STRUCTURE DES LISTES PAR TYPE :
   * Si anniv_type = 'enfant' : génère UNIQUEMENT la liste "Idées cadeaux". AUCUNE liste d'apports. Renseigne menu_resume avec une courte description du goûter (ex : "Gâteau au chocolat, bonbons, jus de fruits").
   * Si anniv_type = 'adulte' : génère AUSSI une liste d'apports behavior 'apport' "Buffet anniversaire" (category Salé, Sucré, Boissons — mêmes règles de quantités et d'arrondi que le BBQ) EN PLUS de la liste "Idées cadeaux".
   Ajoute UNE liste "apport" "Décoration" SEULEMENT si l'organisateur a coché "decoration" dans les options.
+- Soirée : PAS de repas complet, format apéro/boissons.
+  * liste "apport" "Boissons" : softs, eau, jus, et alcool (vin, bière) SEULEMENT si event_options.sans_alcool n'est pas coché. Prévois un peu plus que pour un repas (soirée souvent longue/dansante). Ratios et arrondi habituels.
+  * liste "apport" "Apéro & snacks" (uniquement si la liste snacks/menu est demandée) : chips, cacahuètes, olives, charcuterie, fromage apéro, mini-pizzas, dips. PAS de plat principal. Vise ~150 g de snacks salés par personne.
+  * liste "apport" "Matériel" (uniquement si demandée) : gobelets, assiettes, serviettes, glaçons, enceinte, déco. Objets physiques uniquement, jamais de tâches.
 
 RÈGLES DE PLANNING :
 - Générer un planning UNIQUEMENT si l'organisateur a coché "aide montage/démontage" ou "aide logistique"
@@ -165,7 +169,7 @@ Correspondance :
     const textBlock = message.content.find(b => b.type === 'text')
     const data = extractJson(textBlock ? textBlock.text : '')
 
-    function buildPlanning(startHHMM, nb) {
+    function buildPlanning(startHHMM, nb, type) {
       if (!startHHMM) return []
       const [h, m] = startHHMM.split(':').map(Number)
       const startMin = h * 60 + m
@@ -174,6 +178,14 @@ Correspondance :
         return `${String(Math.floor(x / 60)).padStart(2,'0')}:${String(x % 60).padStart(2,'0')}`
       }
       const maxP = Math.max(2, Math.ceil((Number(nb) || 10) / 10))
+      // Soirée : pas de cuisson, format apéro/bar, départs échelonnés
+      if (type === 'Soirée') {
+        return [
+          { slot_name: 'Installation', description: "Installer la déco, mettre les boissons au frais, l'enceinte, disposer gobelets et snacks", start_time: fmt(startMin - 90), duration_minutes: 60, max_participants: maxP },
+          { slot_name: 'Bar / Service', description: "Gérer les boissons, réapprovisionner l'apéro, accueillir", start_time: fmt(startMin), duration_minutes: 120, max_participants: maxP },
+          { slot_name: 'Rangement', description: 'Ranger, nettoyer, sortir les poubelles. Départs échelonnés : viens quand tu peux.', start_time: fmt(startMin + 180), duration_minutes: 60, max_participants: maxP },
+        ]
+      }
       return [
         { slot_name: 'Installation', description: 'Montage tables, chaises, matériel', start_time: fmt(startMin - 120), duration_minutes: 90, max_participants: maxP },
         { slot_name: 'Accueil', description: 'Accueil des invités', start_time: fmt(startMin - 30), duration_minutes: 30, max_participants: maxP },
@@ -182,7 +194,7 @@ Correspondance :
       ]
     }
     const wantsPlanning = !!(selected_lists?.planning || event_options?.aide_montage || event_options?.aide_logistique)
-    const planningFinal = wantsPlanning ? buildPlanning(heureDebut, nb_participants) : []
+    const planningFinal = wantsPlanning ? buildPlanning(heureDebut, nb_participants, event_type) : []
 
     return Response.json({
       menu_resume: typeof data.menu_resume === 'string' ? data.menu_resume : '',

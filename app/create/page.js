@@ -61,6 +61,9 @@ const OPTIONS_BY_TYPE = {
       { key: 'theme', label: 'Thème' },
       { key: 'sans_alcool', label: 'Sans alcool' },
     ],
+    conditionals: [
+      { showIf: 'theme', key: 'theme_detail', label: 'Thème / dress code', placeholder: 'Années 80, blanc, déguisé...' },
+    ],
   },
   'Match/Tournoi': {
     fields: [
@@ -88,7 +91,7 @@ const LIST_CHOICES = [
 const AVAILABLE_LISTS = {
   'BBQ': ['menu', 'boissons', 'materiel', 'planning'],
   'Anniversaire': ['menu', 'boissons', 'cadeaux', 'planning'],
-  'Soirée': ['boissons', 'menu', 'materiel'],
+  'Soirée': ['boissons', 'menu', 'materiel', 'planning'],
   'Mariage': ['cadeaux', 'planning', 'materiel'],
   'Randonnée': ['checklist', 'menu', 'materiel'],
   'Match/Tournoi': ['boissons', 'menu', 'materiel', 'planning'],
@@ -136,7 +139,7 @@ export default function CreateEvent() {
     organizer_phone: '',
     deadline_rsvp: '',
     mode: 'collaboratif',
-    carpool_enabled: false,
+    carpool_enabled: true,
   })
   const [eventOptions, setEventOptions] = useState({})
   const [eventDescription, setEventDescription] = useState('')
