@@ -203,8 +203,8 @@ export default function CreateEvent() {
     setForm(prev => ({
       ...prev,
       event_type: type,
-      // L'anniversaire est toujours collaboratif en interne : la distinction se fait via les listes cochées
-      mode: type === 'Anniversaire' ? 'collaboratif' : prev.mode,
+      // Anniversaire et Soirée sont toujours collaboratifs en interne : la distinction se fait via les listes cochées
+      mode: (type === 'Anniversaire' || type === 'Soirée') ? 'collaboratif' : prev.mode,
     }))
     setEventOptions({})
     // Pour l'anniversaire, la pré-sélection dépend du sous-type enfant/adulte choisi à l'étape 2
@@ -562,8 +562,8 @@ export default function CreateEvent() {
               </div>
             )}
 
-            {/* Mode d'organisation (masqué pour l'anniversaire : la distinction se fait via les listes cochées) */}
-            {form.event_type !== 'Anniversaire' && (
+            {/* Mode d'organisation (masqué pour l'anniversaire et la soirée : la distinction se fait via les listes cochées) */}
+            {form.event_type !== 'Anniversaire' && form.event_type !== 'Soirée' && (
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Comment veux-tu organiser ?</label>
                 <div className="grid grid-cols-2 gap-3">
