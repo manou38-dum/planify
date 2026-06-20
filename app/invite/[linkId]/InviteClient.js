@@ -313,6 +313,29 @@ export default function InviteClient({ linkId }) {
     if (!guestName || !rsvp) return
     setSubmitting(true)
 
+    // Contrôle anti-dépassement AU SUBMIT (données fraîches) : prime sur l'affichage.
+    // On vérifie qu'il reste assez de places pour cet invité + ses accompagnants.
+    if (rsvp === 'Confirmé' && event.nb_participants > 0) {
+      let q = supabase
+        .from('participants')
+        .select('nb_personnes')
+        .eq('event_id', event.id)
+        .eq('rsvp_status', 'Confirmé')
+      if (existingParticipant) q = q.neq('id', existingParticipant.id) // ne pas se compter soi-même
+      const { data: confParts } = await q
+      const sommeFraiche = (confParts || []).reduce((s, p) => s + (p.nb_personnes || 1), 0)
+      const placesRestantes = event.nb_participants - sommeFraiche
+      if (nbPersonnes > placesRestantes) {
+        setSubmitting(false)
+        if (placesRestantes <= 0) {
+          alert(`Désolé, l'événement est complet (${sommeFraiche}/${event.nb_participants}). Tu ne peux plus t'inscrire.`)
+        } else {
+          alert(`Il ne reste que ${placesRestantes} place${placesRestantes > 1 ? 's' : ''} et tu as indiqué ${nbPersonnes} personnes. Réduis le nombre ou contacte l'organisateur.`)
+        }
+        return
+      }
+    }
+
     // Commentaire final : JSON {accompagnants, commentaire} s'il y a des accompagnants, sinon texte brut
     const comps = (nbPersonnes > 1 ? companionNames : []).map(s => s.trim()).filter(Boolean)
     const finalCommentaire = comps.length > 0
@@ -595,6 +618,18 @@ export default function InviteClient({ linkId }) {
   const allReserved = hasAnyList && disponibles.length === 0 && giftDispo.length === 0
   // Téléphone de l'organisateur (si renseigné quelque part sur l'événement)
   const organizerPhone = event.organizer_phone || event.event_options?.organizer_phone || event.event_options?.phone || null
+  const organizerWaLink = organizerPhone
+    ? `https://wa.me/${cleanPhone(organizerPhone)}?text=${encodeURIComponent("Salut, j'ai une question pour " + event.event_name)}`
+    : null
+  // Bouton réutilisable : n'affiche rien si l'organisateur n'a pas de numéro
+  function ContactOrganizerButton({ label, className }) {
+    if (!organizerWaLink) return null
+    return (
+      <a href={organizerWaLink} target="_blank" rel="noopener noreferrer" className={className}>
+        {label}
+      </a>
+    )
+  }
 
   const isAnnivEnfant = event.event_options?.anniv_type === 'enfant'
   const eventDateStr = new Date(event.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })
@@ -690,16 +725,10 @@ export default function InviteClient({ linkId }) {
             <div className="bg-orange-50 border border-orange-200 text-orange-800 text-sm px-4 py-3 rounded-2xl">
               <p className="font-semibold">Désolé, c'est complet ! ({confirmedTotal}/{event.nb_participants} personnes)</p>
               <p className="text-orange-700 mt-0.5">L'organisateur a peut-être encore de la place, contacte-le.</p>
-              {organizerPhone && (
-                <a
-                  href={`https://wa.me/${cleanPhone(organizerPhone)}?text=${encodeURIComponent(`Salut, j'ai une question pour ${event.event_name}`)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-block mt-3 text-xs font-semibold bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-full transition-colors"
-                >
-                  💬 Contacter l'organisateur
-                </a>
-              )}
+              <ContactOrganizerButton
+                label="💬 Contacter l'organisateur"
+                className="inline-block mt-3 text-xs font-semibold bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-full transition-colors"
+              />
             </div>
           )}
 
@@ -782,16 +811,10 @@ export default function InviteClient({ linkId }) {
                   <p className="text-sm text-emerald-800">
                     ✅ Super, tout est déjà couvert ! Pas besoin de te charger de quoi que ce soit. Si tu veux apporter un petit extra ou poser une question, contacte l'organisateur.
                   </p>
-                  {organizerPhone && (
-                    <a
-                      href={`https://wa.me/${cleanPhone(organizerPhone)}?text=${encodeURIComponent(`Salut, j'ai une question pour ${event.event_name}`)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-block mt-3 text-xs font-semibold bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-full transition-colors"
-                    >
-                      💬 Contacter l'organisateur
-                    </a>
-                  )}
+                  <ContactOrganizerButton
+                    label="💬 Contacter l'organisateur"
+                    className="inline-block mt-3 text-xs font-semibold bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-full transition-colors"
+                  />
                 </div>
               )}
 
@@ -1160,6 +1183,16 @@ export default function InviteClient({ linkId }) {
             </button>
           )}
         </form>
+
+        {/* Contact organisateur : toujours disponible si un numéro existe */}
+        {organizerWaLink && (
+          <div className="text-center pb-10 -mt-4">
+            <ContactOrganizerButton
+              label="💬 Une question ? Contacter l'organisateur"
+              className="inline-block text-sm font-medium text-green-600 hover:text-green-700 underline"
+            />
+          </div>
+        )}
       </div>
     </div>
   )
