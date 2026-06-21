@@ -7,7 +7,7 @@ const EVENT_TYPES = [
   { value: 'BBQ', icon: '🔥', label: 'BBQ', bg: 'bg-orange-50', border: 'border-orange-300', text: 'text-orange-700', accent: 'bg-orange-500' },
   { value: 'Anniversaire', icon: '🎂', label: 'Anniversaire', bg: 'bg-pink-50', border: 'border-pink-300', text: 'text-pink-700', accent: 'bg-pink-500' },
   { value: 'Mariage', icon: '💍', label: 'Mariage', bg: 'bg-violet-50', border: 'border-violet-300', text: 'text-violet-700', accent: 'bg-violet-500' },
-  { value: 'Randonnée', icon: '🥾', label: 'Randonnée', bg: 'bg-green-50', border: 'border-green-300', text: 'text-green-700', accent: 'bg-green-500' },
+  { value: 'Randonnée', icon: '🧭', label: 'Sortie / Activité', bg: 'bg-green-50', border: 'border-green-300', text: 'text-green-700', accent: 'bg-green-500' },
   { value: 'Soirée', icon: '🎶', label: 'Soirée', bg: 'bg-indigo-50', border: 'border-indigo-300', text: 'text-indigo-700', accent: 'bg-indigo-500' },
   { value: 'Match/Tournoi', icon: '⚽', label: 'Match/Tournoi', bg: 'bg-blue-50', border: 'border-blue-300', text: 'text-blue-700', accent: 'bg-blue-500' },
   { value: 'Autre', icon: '✨', label: 'Autre', bg: 'bg-slate-50', border: 'border-slate-300', text: 'text-slate-700', accent: 'bg-slate-500' },
@@ -47,14 +47,15 @@ const OPTIONS_BY_TYPE = {
   },
   'Randonnée': {
     fields: [
+      { key: 'activite', label: 'Activité', placeholder: 'randonnée, plongée, parapente, VTT...' },
       { key: 'duree', label: 'Durée estimée', placeholder: 'ex : 3h' },
-      { key: 'denivele', label: 'Dénivelé', placeholder: 'ex : 600 m' },
-      { key: 'niveau', label: 'Niveau', placeholder: 'facile / moyen / difficile' },
-      { key: 'lien_rando', label: "Lien vers l'itinéraire (facultatif)", placeholder: 'Visorando, AllTrails, IGN...' },
+      { key: 'niveau', label: 'Niveau', placeholder: 'débutant / intermédiaire / confirmé' },
+      { key: 'point_ralliement', label: 'Point de rendez-vous', placeholder: 'Parking du col, gare...' },
+      { key: 'lien_sortie', label: "Lien vers l'itinéraire / le site de l'activité (facultatif)", placeholder: 'Visorando, AllTrails, site du club...' },
     ],
     checks: [
-      { key: 'enfants', label: "Présence d'enfants" },
-      { key: 'bivouac', label: 'Bivouac / nuit sur place' },
+      { key: 'enfants', label: "Présence d'enfants/débutants" },
+      { key: 'bivouac', label: 'Nuit sur place / bivouac' },
     ],
   },
   'Soirée': {
@@ -294,6 +295,10 @@ export default function CreateEvent() {
     }
     if (form.event_type === 'Match/Tournoi' && !eventOptions.tournoi_mode) {
       alert('Choisis le format : tournoi complet ou bénévoles uniquement.')
+      return
+    }
+    if (form.event_type === 'Randonnée' && !(eventOptions.activite || '').trim()) {
+      alert('Indique l\'activité (randonnée, plongée, parapente...) : elle pilote la checklist de sécurité.')
       return
     }
     setGenerating(true)

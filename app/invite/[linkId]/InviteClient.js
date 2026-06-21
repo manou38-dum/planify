@@ -662,8 +662,8 @@ export default function InviteClient({ linkId }) {
   const isTournoiComplet = event.event_type === 'Match/Tournoi' && event.event_options?.tournoi_mode === 'complet'
   // Vote repas : choix proposés par l'organisateur
   const mealChoices = Array.isArray(event.event_options?.meal_choices) ? event.event_options.meal_choices : []
-  // Randonnée : lien itinéraire (facultatif)
-  const lienRando = event.event_options?.lien_rando || ''
+  // Sortie / Activité : lien itinéraire ou site de l'activité (facultatif)
+  const lienRando = event.event_options?.lien_sortie || event.event_options?.lien_rando || ''
   const eventDateStr = new Date(event.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })
 
   // Vue récapitulatif (lien de rappel : ?recap=1) : on montre un récap en lecture seule avant le formulaire
@@ -739,7 +739,7 @@ export default function InviteClient({ linkId }) {
             {lienRando && (
               <a href={lienRando} target="_blank" rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 mt-2 bg-white/20 hover:bg-white/30 text-white text-sm font-medium px-3 py-1.5 rounded-full transition-colors">
-                🗺 Voir l'itinéraire
+                🗺 Voir l'itinéraire / le site
               </a>
             )}
             <p className="text-blue-50 text-sm mt-2">
@@ -990,7 +990,9 @@ export default function InviteClient({ linkId }) {
               {checklistItems.length > 0 && (
                 <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
                   <label className="block text-sm font-medium text-slate-700 mb-1">✅ Équipement & sécurité</label>
-                  <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mb-3">⚠️ Sécurité : assure-toi d'avoir l'essentiel avant de partir.</p>
+                  <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+                    ⚠️ Cette liste est indicative et générée automatiquement. Elle ne remplace pas les consignes de ta fédération, de ton club ou de ton encadrant. Vérifie toujours ton équipement de sécurité avec un professionnel.
+                  </p>
                   <div className="space-y-2">
                     {checklistItems.map((item) => {
                       const checked = !!checkedChecklist[item.id]
