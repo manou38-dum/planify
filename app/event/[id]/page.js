@@ -13,10 +13,11 @@ function parseCommentaire(raw) {
       return {
         accompagnants: Array.isArray(p.accompagnants) ? p.accompagnants : [],
         commentaire: typeof p.commentaire === 'string' ? p.commentaire : '',
+        repas: typeof p.repas === 'string' ? p.repas : '',
       }
     } catch { /* texte brut */ }
   }
-  return { accompagnants: [], commentaire: raw }
+  return { accompagnants: [], commentaire: raw, repas: '' }
 }
 
 export default function EventDashboard() {
@@ -434,6 +435,21 @@ export default function EventDashboard() {
       if (vols.length > 0) {
         const noms = vols.map(p => p.participant_name).filter(Boolean).join(', ')
         bilanLines.push(`🙋 ${vols.length} ${vols.length > 1 ? 'personnes prêtes' : 'personne prête'} à aider : ${noms}`)
+      }
+    }
+    // Décompte des votes repas (si l'organisateur a proposé des choix)
+    const mealChoices = Array.isArray(event.event_options?.meal_choices) ? event.event_options.meal_choices : []
+    if (mealChoices.length > 0) {
+      const counts = {}
+      participants.forEach(p => {
+        if (p.rsvp_status !== 'Confirmé') return
+        const r = parseCommentaire(p.commentaire).repas
+        if (r) counts[r] = (counts[r] || 0) + 1
+      })
+      const totalVotes = Object.values(counts).reduce((s, n) => s + n, 0)
+      if (totalVotes > 0) {
+        const detail = mealChoices.filter(c => counts[c]).map(c => `${c} ${counts[c]}`).join(' · ')
+        if (detail) bilanLines.push(`🍽 Repas : ${detail}`)
       }
     }
   }

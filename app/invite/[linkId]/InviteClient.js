@@ -20,6 +20,7 @@ export default function InviteClient({ linkId }) {
   const [selectedRestrictions, setSelectedRestrictions] = useState([])
   const [commentaire, setCommentaire] = useState('')
   const [isVolunteer, setIsVolunteer] = useState(false)
+  const [mealChoice, setMealChoice] = useState('')
   const [companionNames, setCompanionNames] = useState([])
   const [selectedItems, setSelectedItems] = useState({})
   const [selectedItemDetails, setSelectedItemDetails] = useState([])
@@ -101,6 +102,7 @@ export default function InviteClient({ linkId }) {
     if (parsed) {
       setCompanionNames(parsed.accompagnants)
       setCommentaire(parsed.commentaire || '')
+      if (typeof parsed.repas === 'string') setMealChoice(parsed.repas)
     } else {
       setCompanionNames([])
       setCommentaire(rawComment)
@@ -338,10 +340,13 @@ export default function InviteClient({ linkId }) {
       }
     }
 
-    // Commentaire final : JSON {accompagnants, commentaire} s'il y a des accompagnants, sinon texte brut
+    // Commentaire final : JSON {accompagnants, commentaire, repas} si nécessaire, sinon texte brut.
+    // Le choix de repas (vote tournoi) est stocké dans ce JSON sous la clé "repas" (sans migration).
     const comps = (nbPersonnes > 1 ? companionNames : []).map(s => s.trim()).filter(Boolean)
-    const finalCommentaire = comps.length > 0
-      ? JSON.stringify({ accompagnants: comps, commentaire: commentaire.trim() })
+    const hasMealVote = Array.isArray(event.event_options?.meal_choices) && event.event_options.meal_choices.length > 0
+    const repas = (hasMealVote && rsvp === 'Confirmé') ? (mealChoice || '') : ''
+    const finalCommentaire = (comps.length > 0 || repas)
+      ? JSON.stringify({ accompagnants: comps, commentaire: commentaire.trim(), ...(repas ? { repas } : {}) })
       : (commentaire.trim() || null)
 
     try {
@@ -638,6 +643,8 @@ export default function InviteClient({ linkId }) {
   const isAnnivEnfant = event.event_options?.anniv_type === 'enfant'
   // Tournoi complet : on propose à l'invité de se déclarer prêt à aider comme bénévole
   const isTournoiComplet = event.event_type === 'Match/Tournoi' && event.event_options?.tournoi_mode === 'complet'
+  // Vote repas : choix proposés par l'organisateur
+  const mealChoices = Array.isArray(event.event_options?.meal_choices) ? event.event_options.meal_choices : []
   const eventDateStr = new Date(event.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })
 
   const allRestrictions = ['Végétarien', 'Vegan', 'Sans gluten', 'Sans porc', 'Sans lactose', 'Allergie noix']
@@ -1140,6 +1147,32 @@ export default function InviteClient({ linkId }) {
                   </div>
 
                   <p className="text-xs text-slate-400 mt-3">Ton numéro ne sera visible que par les invités de cet événement, et seulement si tu choisis de le partager.</p>
+                </div>
+              )}
+
+              {/* Vote repas : choix unique parmi les options proposées par l'organisateur */}
+              {mealChoices.length > 0 && (
+                <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+                  <label className="block text-sm font-medium text-slate-700 mb-3">🍽 Ton choix de repas</label>
+                  <div className="space-y-2">
+                    {mealChoices.map((choice) => (
+                      <button
+                        key={choice}
+                        type="button"
+                        onClick={() => setMealChoice(choice)}
+                        className={`w-full text-left rounded-xl border-2 px-3 py-3 transition-all flex items-center justify-between ${
+                          mealChoice === choice ? 'border-emerald-400 bg-emerald-50' : 'border-slate-100 hover:border-slate-200'
+                        }`}
+                      >
+                        <span className="text-sm font-medium text-slate-700">{choice}</span>
+                        <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center text-xs ${
+                          mealChoice === choice ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-300'
+                        }`}>
+                          {mealChoice === choice ? '✓' : ''}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 

@@ -66,12 +66,7 @@ STRUCTURE DES LISTES PAR TYPE :
   * liste "apport" "Boissons" : softs, eau, jus, et alcool (vin, bière) SEULEMENT si event_options.sans_alcool n'est pas coché. Prévois un peu plus que pour un repas (soirée souvent longue/dansante). Ratios et arrondi habituels.
   * liste "apport" "Apéro & snacks" (uniquement si la liste snacks/menu est demandée) : chips, cacahuètes, olives, charcuterie, fromage apéro, mini-pizzas, dips. PAS de plat principal. Vise ~150 g de snacks salés par personne.
   * liste "apport" "Matériel" (uniquement si demandée) : gobelets, assiettes, serviettes, glaçons, enceinte, déco. Objets physiques uniquement, jamais de tâches.
-- Match/Tournoi : lis event_options.tournoi_mode ('complet' ou 'benevoles') et event_options.sport.
-  * Si tournoi_mode = 'benevoles' : ne génère AUCUNE liste d'apports (les postes bénévoles sont gérés séparément via le planning).
-  * Si tournoi_mode = 'complet' : génère
-    - liste "apport" "Boissons" : hydratation avant tout (eau ++, softs) ; alcool seulement si autorisé.
-    - liste "apport" "Buvette & snacks" (si demandée) : snacks simples, barres de céréales, fruits.
-    - liste "apport" "Matériel sportif" (si demandée) : adapte au sport indiqué (ballons, plots, filets, dossards, sifflets, table de marque). Objets physiques uniquement, jamais de tâches.
+- Match/Tournoi : ne génère JAMAIS de liste d'apports (lists = []), quel que soit tournoi_mode. Un participant à un tournoi n'apporte rien : l'intendance est gérée par l'organisateur/club. Le tournoi ne produit QUE des postes bénévoles dans le champ "planning" (voir RÈGLES DE PLANNING TOURNOI).
 
 RÈGLES DE PLANNING :
 - Générer un planning UNIQUEMENT si l'organisateur a coché "aide montage/démontage" ou "aide logistique"
@@ -83,6 +78,18 @@ RÈGLES DE PLANNING :
 - Les heures dans le JSON doivent être des heures ABSOLUES (pas des offsets), dans un champ "start_time" au format "HH:MM".
 - Le champ offset_hours est supprimé, remplacé par start_time.
 - Chaque créneau : max_participants = nb_participants / 5 (arrondi sup, min 2)
+
+RÈGLES DE PLANNING TOURNOI (type Match/Tournoi uniquement) :
+- Remplis le champ "planning" avec des POSTES BÉNÉVOLES adaptés au sport (event_options.sport) et au nombre d'équipes (event_options.nb_equipes). Ce sont des rôles à pourvoir, PAS des créneaux de cuisine.
+- Chaque poste : slot_name clair, description courte des tâches, start_time (HH:MM absolu calculé depuis l'heure de début), duration_minutes, et max_participants = quota réaliste CHIFFRÉ en fonction du sport et du nb d'équipes.
+- Adapte les postes au sport. Exemples (à ajuster, pas à copier) :
+  * Foot : arbitres (1 central + 2 touches par terrain ; estime le nb de terrains à partir du nb d'équipes), table de marque, buvette, secouriste, montage des terrains, accueil/parking, rangement.
+  * Basket / hand / volley : arbitres + table de marque (chrono + feuille) par terrain, buvette, secours, montage, accueil, rangement.
+  * Padel / tennis : juges-arbitres, gestion des courts/planning, buvette, accueil, rangement.
+- Calcule les quotas à l'échelle : plus il y a d'équipes/terrains, plus il faut d'arbitres et de bénévoles buvette. Reste réaliste (pas 50 arbitres).
+- Inclus toujours un poste "Montage" avant le début et un poste "Rangement" après la fin (départs échelonnés).
+- Si le sport n'est pas renseigné, génère un jeu de postes génériques de tournoi (montage, arbitrage, table de marque, buvette, accueil/parking, secours, rangement) avec des quotas raisonnables.
+- Ces postes sont une PROPOSITION : l'organisateur pourra les modifier, en ajouter ou en supprimer.
 
 CONTRAINTES ALIMENTAIRES :
 - Si halal : uniquement viandes halal (pas de porc), le mentionner dans les noms (ex: "Merguez halal", "Poulet halal")
@@ -209,12 +216,38 @@ Correspondance :
         { slot_name: 'Rangement', description: 'Rangement et nettoyage', start_time: fmt(startMin + 180), duration_minutes: 60, max_participants: maxP },
       ]
     }
+    // Normalise une liste de créneaux proposée par l'IA (postes tournoi)
+    function sanitizePlanning(arr) {
+      if (!Array.isArray(arr)) return []
+      return arr
+        .filter(p => p && typeof p.slot_name === 'string' && p.slot_name.trim())
+        .map(p => ({
+          slot_name: p.slot_name.trim(),
+          description: typeof p.description === 'string' ? p.description : '',
+          start_time: typeof p.start_time === 'string' ? p.start_time : (heureDebut || ''),
+          duration_minutes: Number(p.duration_minutes) || 60,
+          max_participants: Math.max(1, Number(p.max_participants) || 2),
+        }))
+    }
+
     const wantsPlanning = !!(selected_lists?.planning || event_options?.aide_montage || event_options?.aide_logistique)
-    const planningFinal = wantsPlanning ? buildPlanning(heureDebut, nb_participants, event_type) : []
+    let planningFinal = []
+    if (wantsPlanning) {
+      if (event_type === 'Match/Tournoi') {
+        // Tournoi : postes adaptés au sport proposés par l'IA, repli sur le jeu générique déterministe
+        const aiPostes = sanitizePlanning(data.planning)
+        planningFinal = aiPostes.length > 0 ? aiPostes : buildPlanning(heureDebut, nb_participants, event_type)
+      } else {
+        planningFinal = buildPlanning(heureDebut, nb_participants, event_type)
+      }
+    }
+
+    // Le tournoi ne produit jamais de liste d'apports
+    const finalLists = event_type === 'Match/Tournoi' ? [] : (Array.isArray(data.lists) ? data.lists : [])
 
     return Response.json({
       menu_resume: typeof data.menu_resume === 'string' ? data.menu_resume : '',
-      lists: Array.isArray(data.lists) ? data.lists : [],
+      lists: finalLists,
       planning: planningFinal,
     })
   } catch (err) {

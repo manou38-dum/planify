@@ -70,7 +70,6 @@ const OPTIONS_BY_TYPE = {
       { key: 'sport', label: 'Sport', placeholder: 'Foot, padel...' },
       { key: 'nb_equipes', label: "Nb d'équipes", placeholder: '4' },
     ],
-    checks: [{ key: 'snacks', label: 'Snacks post-match' }],
   },
   'Autre': {
     textarea: { key: 'description', label: "Décris ton événement pour que l'IA génère les bonnes listes" },
@@ -114,9 +113,11 @@ const DEFAULT_LISTS = {
 function annivLists(annivType) {
   return annivType === 'enfant' ? ['cadeaux'] : ['menu', 'boissons', 'cadeaux']
 }
-// Pour le Tournoi, les listes dépendent du format : complet (apports + postes) ou bénévoles seuls.
-function tournoiLists(tournoiMode) {
-  return tournoiMode === 'benevoles' ? ['planning'] : ['boissons', 'menu', 'materiel', 'planning']
+// Pour le Tournoi, un participant n'apporte rien (intendance gérée par l'orga/club) :
+// les deux formats ne produisent que le planning des postes bénévoles. Le vote repas
+// (mode 'complet') est géré à part via event_options.meal_choices.
+function tournoiLists() {
+  return ['planning']
 }
 function availableListsFor(type, options) {
   if (type === 'Anniversaire') return options?.anniv_type ? annivLists(options.anniv_type) : []
@@ -229,6 +230,17 @@ export default function CreateEvent() {
   function chooseTournoiMode(tournoiMode) {
     updateOption('tournoi_mode', tournoiMode)
     setSelectedLists(Object.fromEntries(tournoiLists(tournoiMode).map(k => [k, true])))
+  }
+
+  // Vote repas (tournoi complet) : l'organisateur saisit les choix proposés (tableau de chaînes)
+  function addMealChoice() {
+    setEventOptions(prev => ({ ...prev, meal_choices: [...(prev.meal_choices || []), ''] }))
+  }
+  function updateMealChoice(idx, value) {
+    setEventOptions(prev => ({ ...prev, meal_choices: (prev.meal_choices || []).map((c, i) => i === idx ? value : c) }))
+  }
+  function removeMealChoice(idx) {
+    setEventOptions(prev => ({ ...prev, meal_choices: (prev.meal_choices || []).filter((_, i) => i !== idx) }))
   }
 
   function toggleList(key) {
@@ -398,6 +410,14 @@ export default function CreateEvent() {
     try {
       const supabase = getSupabase()
 
+      // Nettoie les choix de repas (retire les vides) avant l'enregistrement
+      const cleanedOptions = { ...eventOptions }
+      if (Array.isArray(cleanedOptions.meal_choices)) {
+        const cleaned = cleanedOptions.meal_choices.map(c => (c || '').trim()).filter(Boolean)
+        if (cleaned.length) cleanedOptions.meal_choices = cleaned
+        else delete cleanedOptions.meal_choices
+      }
+
       // 1. Événement
       const { data: event, error } = await supabase
         .from('events')
@@ -413,7 +433,7 @@ export default function CreateEvent() {
           photo_url: photoUrl || null,
           mode: form.mode,
           carpool_enabled: form.carpool_enabled,
-          event_options: { ...eventOptions, selected_lists: selectedLists, ...(menuResume ? { menu_resume: menuResume } : {}) },
+          event_options: { ...cleanedOptions, selected_lists: selectedLists, ...(menuResume ? { menu_resume: menuResume } : {}) },
         })
         .select()
         .single()
@@ -775,6 +795,29 @@ export default function CreateEvent() {
                     onChange={(e) => updateOption(opts.textarea.key, e.target.value)}
                     className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm resize-none bg-white" />
                 )}
+              </div>
+            )}
+
+            {/* Vote repas (tournoi complet) : l'organisateur définit les choix proposés */}
+            {form.event_type === 'Match/Tournoi' && eventOptions.tournoi_mode === 'complet' && (
+              <div className="rounded-2xl p-4 border border-slate-200 bg-white">
+                <p className="text-sm font-semibold text-slate-700 mb-1">🍽 Vote repas (optionnel)</p>
+                <p className="text-xs text-slate-400 mb-3">Propose des choix de repas, les participants voteront depuis leur invitation.</p>
+                <div className="space-y-2">
+                  {(eventOptions.meal_choices || []).map((choice, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <input type="text" value={choice} placeholder="Merguez, Steak-frites, Végétarien..."
+                        onChange={(e) => updateMealChoice(i, e.target.value)}
+                        className="flex-1 px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm bg-white" />
+                      <button type="button" onClick={() => removeMealChoice(i)}
+                        className="shrink-0 w-8 h-8 rounded-lg text-red-400 hover:bg-red-50 transition-colors">✕</button>
+                    </div>
+                  ))}
+                </div>
+                <button type="button" onClick={addMealChoice}
+                  className="mt-2 w-full py-2 rounded-lg border-2 border-dashed border-slate-200 text-slate-400 text-sm hover:border-blue-300 hover:text-blue-500 transition-colors">
+                  + ajouter un choix
+                </button>
               </div>
             )}
 
