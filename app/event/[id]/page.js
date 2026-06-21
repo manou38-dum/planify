@@ -82,14 +82,18 @@ export default function EventDashboard() {
   }
 
   // ── Temps 2 du tournoi : préparer le planning bénévole ──
-  // Demande à l'IA des postes adaptés au sport / nb d'équipes / nb de confirmés,
+  // Nombre de présents confirmés (invité + accompagnants)
+  function countConfirmed() {
+    return participants
+      .filter(p => p.rsvp_status === 'Confirmé')
+      .reduce((s, p) => s + (p.nb_personnes || 1), 0)
+  }
+
+  // Appelle l'IA pour des postes adaptés au sport / nb d'équipes / nb de confirmés,
   // puis les propose en cartes éditables avant insertion comme slots.
-  async function generateVolunteerPlanning() {
+  async function runPlanningGeneration(confirmedCount) {
     setPreparingPlanning(true)
     try {
-      const confirmedCount = participants
-        .filter(p => p.rsvp_status === 'Confirmé')
-        .reduce((s, p) => s + (p.nb_personnes || 1), 0)
       const res = await fetch('/api/generate-list', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -117,6 +121,40 @@ export default function EventDashboard() {
       alert('Erreur IA: ' + err.message)
     }
     setPreparingPlanning(false)
+  }
+
+  // Clic sur "Préparer le planning" : garde-fou si moins de 50% de réponses
+  function prepareVolunteerPlanning() {
+    const confirmedCount = countConfirmed()
+    const attendus = event.nb_participants || 0
+    if (attendus > 0 && confirmedCount < attendus * 0.5) {
+      const ok = window.confirm(
+        `Tu n'as que ${confirmedCount} réponses sur ${attendus}. Le planning sera dimensionné pour ${confirmedCount} présents. Générer quand même, ou attendre plus de réponses ?`
+      )
+      if (!ok) return
+    }
+    runPlanningGeneration(confirmedCount)
+  }
+
+  // Régénère le planning : supprime postes + inscriptions existants puis relance la génération
+  async function regenerateVolunteerPlanning() {
+    const confirmedCount = countConfirmed()
+    const ok = window.confirm(
+      `Régénérer va recréer les postes selon les ${confirmedCount} réponses actuelles et SUPPRIMER les inscriptions bénévoles déjà enregistrées. Continuer ?`
+    )
+    if (!ok) return
+    try {
+      const supabase = getSupabase()
+      const slotIds = slots.map(s => s.id)
+      if (slotIds.length > 0) {
+        await supabase.from('slot_signups').delete().in('slot_id', slotIds)
+        await supabase.from('slots').delete().eq('event_id', event.id)
+      }
+      await loadAll()
+      await runPlanningGeneration(confirmedCount)
+    } catch (err) {
+      alert('Erreur: ' + err.message)
+    }
   }
   function updateDraftSlot(idx, field, value) {
     setDraftSlots(prev => prev.map((s, i) => (i === idx ? { ...s, [field]: value } : s)))
@@ -1149,11 +1187,13 @@ export default function EventDashboard() {
           {draftSlots === null ? (
             <div className="p-5">
               <button
-                onClick={generateVolunteerPlanning}
+                onClick={prepareVolunteerPlanning}
                 disabled={preparingPlanning}
                 className="w-full bg-amber-500 hover:bg-amber-600 disabled:bg-amber-300 text-white font-semibold py-3 rounded-xl transition-colors text-sm"
               >
-                {preparingPlanning ? '✨ Génération des postes...' : '⚙️ Préparer le planning bénévole'}
+                {preparingPlanning
+                  ? '✨ Génération des postes...'
+                  : `⚙️ Préparer le planning bénévole (${totalPersonnes} réponses sur ${event.nb_participants} attendus)`}
               </button>
             </div>
           ) : (
@@ -1263,6 +1303,19 @@ export default function EventDashboard() {
               )
             })}
           </div>
+
+          {/* Régénérer le planning (tournoi uniquement) */}
+          {event.event_type === 'Match/Tournoi' && (
+            <div className="px-5 py-3 border-t border-slate-100">
+              <button
+                onClick={regenerateVolunteerPlanning}
+                disabled={preparingPlanning}
+                className="w-full text-center text-sm font-medium text-slate-500 hover:text-amber-600 disabled:text-slate-300 transition-colors"
+              >
+                {preparingPlanning ? '✨ Régénération...' : '🔄 Régénérer le planning (selon les réponses actuelles)'}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
