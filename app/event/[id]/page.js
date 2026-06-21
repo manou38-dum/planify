@@ -410,6 +410,16 @@ export default function EventDashboard() {
   // Inscriptions fermées : soit complet, soit date limite dépassée
   const isClosed = isFull || isExpired
 
+  // Proximité de l'événement (rappel J-2) : nombre de jours calendaires jusqu'au jour J
+  const eventStart = new Date(event.date)
+  const nowDate = new Date()
+  const startDay = new Date(eventStart.getFullYear(), eventStart.getMonth(), eventStart.getDate())
+  const todayDay = new Date(nowDate.getFullYear(), nowDate.getMonth(), nowDate.getDate())
+  const daysUntilEvent = Math.round((startDay - todayDay) / 86400000)
+  const eventPassed = eventStart < nowDate
+  const showReminderBanner = !eventPassed && daysUntilEvent >= 0 && daysUntilEvent <= 2
+  const reminderDelai = daysUntilEvent === 0 ? "aujourd'hui" : `dans ${daysUntilEvent} jour${daysUntilEvent > 1 ? 's' : ''}`
+
   // Créneaux d'aide non complets (pour le récap de fin)
   const slotStatuses = slots.map(s => {
     const inscrits = signups.filter(su => su.slot_id === s.id).length
@@ -496,6 +506,32 @@ export default function EventDashboard() {
     return { url, text: lines.join('\n') }
   }
 
+  // Message de rappel J-2 : l'app le prépare, l'organisateur l'envoie (WhatsApp/SMS)
+  function buildReminder() {
+    const url = `${window.location.origin}/invite/${event.invite_link_id}`
+    const dateStr = new Date(event.date).toLocaleDateString('fr-FR', {
+      weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
+    })
+    const mealChoices = Array.isArray(event.event_options?.meal_choices) ? event.event_options.meal_choices : []
+    const lines = [
+      `🔔 Rappel : ${event.event_name} dans 2 jours !`,
+      `📅 ${dateStr}${event.location ? ` · 📍 ${event.location}` : ''}`,
+    ]
+    let urlIncluded = false
+    if (apportItems.length > 0) {
+      lines.push(`Pense à apporter ce que tu as réservé. Liste complète : ${url}`)
+      urlIncluded = true
+    }
+    if (slots.length > 0) lines.push(`N'oublie pas ton créneau d'aide.`)
+    if (mealChoices.length > 0) {
+      lines.push(`Tu n'as pas encore voté pour le repas ? C'est ici : ${url}`)
+      urlIncluded = true
+    }
+    if (!urlIncluded) lines.push(`Toutes les infos : ${url}`)
+    lines.push(`À très vite !`)
+    return { url, text: lines.join('\n') }
+  }
+
   function copyShareMsg() {
     if (!shareMsg) return
     navigator.clipboard?.writeText(shareMsg.text)
@@ -505,6 +541,10 @@ export default function EventDashboard() {
   function shareMsgWhatsApp() {
     if (!shareMsg) return
     window.open(`https://wa.me/?text=${encodeURIComponent(shareMsg.text)}`, '_blank')
+  }
+  function shareMsgSMS() {
+    if (!shareMsg) return
+    openWithFallback(`sms:?&body=${encodeURIComponent(shareMsg.text)}`, shareMsg.text)
   }
 
   // ─── Bilan rédigé en phrases, toujours visible, évolue au fil des réponses ───
@@ -585,6 +625,21 @@ export default function EventDashboard() {
       >
         ← Mes evenements
       </button>
+
+      {/* === BANDEAU RAPPEL J-2 === */}
+      {showReminderBanner && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4">
+          <p className="text-sm font-semibold text-amber-900">
+            ⏰ Ton événement est {reminderDelai} — pense à envoyer le rappel aux invités
+          </p>
+          <button
+            onClick={() => setShareMsg({ title: 'Rappel aux invités', text: buildReminder().text })}
+            className="mt-3 w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm"
+          >
+            📣 Envoyer le rappel
+          </button>
+        </div>
+      )}
 
       {/* === EN-TÊTE RÉSUMÉ === */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 mb-4">
@@ -995,6 +1050,14 @@ export default function EventDashboard() {
         </p>
       )}
 
+      {/* Tester le rappel J-2 sans attendre la date */}
+      <button
+        onClick={() => setShareMsg({ title: 'Rappel aux invités', text: buildReminder().text })}
+        className="w-full mb-4 text-center text-sm font-medium text-slate-500 hover:text-amber-600 transition-colors"
+      >
+        🔔 Tester le rappel maintenant
+      </button>
+
       {/* === MODAL MESSAGE À PARTAGER (relance / récap) === */}
       {shareMsg && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4" onClick={() => setShareMsg(null)}>
@@ -1007,7 +1070,7 @@ export default function EventDashboard() {
               rows={8}
               className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-700 bg-slate-50 resize-none focus:outline-none"
             />
-            <div className="grid grid-cols-2 gap-2 mt-3">
+            <div className="grid grid-cols-3 gap-2 mt-3">
               <button
                 onClick={copyShareMsg}
                 className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold py-2.5 rounded-xl transition-colors text-sm"
@@ -1019,6 +1082,12 @@ export default function EventDashboard() {
                 className="bg-green-500 hover:bg-green-600 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm"
               >
                 💬 WhatsApp
+              </button>
+              <button
+                onClick={shareMsgSMS}
+                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold py-2.5 rounded-xl transition-colors text-sm"
+              >
+                📱 SMS
               </button>
             </div>
             <button
