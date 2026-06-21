@@ -1173,6 +1173,7 @@ export default function InviteClient({ linkId }) {
                       </button>
                     ))}
                   </div>
+                  <p className="text-xs text-slate-400 mt-2">Choisis une préférence pour tout ton groupe (toi + accompagnants). C'est une indication, le repas sera décidé à la majorité.</p>
                 </div>
               )}
 

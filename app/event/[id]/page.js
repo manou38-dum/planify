@@ -565,7 +565,8 @@ export default function EventDashboard() {
       participants.forEach(p => {
         if (p.rsvp_status !== 'Confirmé') return
         const r = parseCommentaire(p.commentaire).repas
-        if (r) counts[r] = (counts[r] || 0) + 1
+        // Chaque participant compte pour son groupe entier (lui + accompagnants)
+        if (r) counts[r] = (counts[r] || 0) + (p.nb_personnes || 1)
       })
       const totalVotes = Object.values(counts).reduce((s, n) => s + n, 0)
       if (totalVotes > 0) {
