@@ -720,7 +720,9 @@ export default function InviteClient({ linkId }) {
               </p>
             )}
             <p className="text-blue-100 text-sm flex items-center gap-2">👥 {event.nb_participants} personnes attendues</p>
-            <p className="text-blue-50 text-sm mt-2">Confirme ta venue et participe à l'événement en remplissant les infos</p>
+            <p className="text-blue-50 text-sm mt-2">
+              {isRecap ? "Voici où en est l'événement" : "Confirme ta venue et participe à l'événement en remplissant les infos"}
+            </p>
           </div>
           {isExpired && (
             <div className="mt-3 bg-red-500/20 text-red-100 text-sm px-3 py-2 rounded-lg">
@@ -739,6 +741,9 @@ export default function InviteClient({ linkId }) {
               <p className="text-sm text-slate-600 mt-1">{event.event_name}</p>
               <p className="text-sm text-slate-500 mt-0.5">📅 {eventDateLong}</p>
               {event.location && <p className="text-sm text-slate-500 mt-0.5">📍 {event.location}</p>}
+              <p className="text-sm text-slate-500 mt-0.5">
+                👥 {confirmedTotal} personne{confirmedTotal > 1 ? 's' : ''} confirmée{confirmedTotal > 1 ? 's' : ''} sur {event.nb_participants} attendues
+              </p>
             </div>
 
             {/* Qui apporte quoi */}
@@ -794,6 +799,46 @@ export default function InviteClient({ linkId }) {
                 </p>
               </div>
             )}
+          </div>
+
+          {/* Retrouve ta réponse */}
+          <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm mt-3">
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Retrouve ta réponse</label>
+            <input
+              type="text"
+              value={guestName}
+              onChange={(e) => setGuestName(e.target.value)}
+              onBlur={(e) => checkExistingGuest(e.target.value)}
+              placeholder="Ton prénom"
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none"
+            />
+            {existingParticipant && (() => {
+              const monApport = items.filter(i =>
+                i.status === 'Réservé' &&
+                (i.assigned_participant_id === existingParticipant.id || i.assigned_to === existingParticipant.participant_name)
+              )
+              const mesCreneaux = signups.filter(su => su.participant_id === existingParticipant.id)
+              const monRepas = extractRepas(existingParticipant.commentaire)
+              const presence = existingParticipant.rsvp_status === 'Confirmé' ? 'Présent(e) ✅'
+                : existingParticipant.rsvp_status === 'Refusé' ? 'Absent(e)'
+                : 'Peut-être'
+              return (
+                <div className="mt-3 bg-emerald-50 border border-emerald-200 rounded-xl p-3 space-y-1.5">
+                  <p className="text-sm font-semibold text-emerald-800">✅ Ta réponse</p>
+                  <p className="text-sm text-slate-600">Présence : {presence}</p>
+                  <p className="text-sm text-slate-600">Nombre de personnes : {existingParticipant.nb_personnes || 1}</p>
+                  {monApport.length > 0 && (
+                    <p className="text-sm text-slate-600">Tu apportes : {monApport.map(i => i.item_name).join(', ')}</p>
+                  )}
+                  {mesCreneaux.length > 0 && (
+                    <p className="text-sm text-slate-600">Tes créneaux : {mesCreneaux.map(su => su.slot_name || (slots.find(s => s.id === su.slot_id)?.slot_name) || 'créneau').join(', ')}</p>
+                  )}
+                  {monRepas && (
+                    <p className="text-sm text-slate-600">Ton choix de repas : {monRepas}</p>
+                  )}
+                </div>
+              )
+            })()}
           </div>
 
           {/* Accès discret au formulaire */}
