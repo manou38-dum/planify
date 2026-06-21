@@ -991,7 +991,7 @@ export default function InviteClient({ linkId }) {
                 <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
                   <label className="block text-sm font-medium text-slate-700 mb-1">✅ Équipement & sécurité</label>
                   <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
-                    ⚠️ Cette liste est indicative et générée automatiquement. Elle ne remplace pas les consignes de ta fédération, de ton club ou de ton encadrant. Vérifie toujours ton équipement de sécurité avec un professionnel.
+                    ⚠️ Cette liste est indicative et générée automatiquement. Elle ne remplace pas les consignes de ta fédération, de ton club ou de ton encadrant. Vérifie toujours ton équipement de sécurité avec un professionnel. Sers-toi-en comme mémo : coche au fur et à mesure pour t'assurer, toi et le groupe, de ne rien oublier avant de partir.
                   </p>
                   <div className="space-y-2">
                     {checklistItems.map((item) => {

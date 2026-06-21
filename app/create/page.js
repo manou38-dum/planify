@@ -214,8 +214,8 @@ export default function CreateEvent() {
     setForm(prev => ({
       ...prev,
       event_type: type,
-      // Anniversaire, Soirée et Tournoi sont toujours collaboratifs en interne : la distinction se fait via les listes cochées
-      mode: (type === 'Anniversaire' || type === 'Soirée' || type === 'Match/Tournoi') ? 'collaboratif' : prev.mode,
+      // Anniversaire, Soirée, Tournoi et Sortie/Activité sont toujours collaboratifs en interne : la distinction se fait via les listes cochées
+      mode: (type === 'Anniversaire' || type === 'Soirée' || type === 'Match/Tournoi' || type === 'Randonnée') ? 'collaboratif' : prev.mode,
     }))
     setEventOptions({})
     // Anniversaire et Tournoi : la pré-sélection dépend d'un sous-format choisi à l'étape 2
@@ -645,8 +645,8 @@ export default function CreateEvent() {
               </div>
             )}
 
-            {/* Mode d'organisation (masqué pour anniversaire, soirée et tournoi : la distinction se fait via les listes cochées) */}
-            {form.event_type !== 'Anniversaire' && form.event_type !== 'Soirée' && form.event_type !== 'Match/Tournoi' && (
+            {/* Mode d'organisation (masqué pour anniversaire, soirée, tournoi et sortie/activité : la distinction se fait via les listes cochées) */}
+            {form.event_type !== 'Anniversaire' && form.event_type !== 'Soirée' && form.event_type !== 'Match/Tournoi' && form.event_type !== 'Randonnée' && (
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Comment veux-tu organiser ?</label>
                 <div className="grid grid-cols-2 gap-3">

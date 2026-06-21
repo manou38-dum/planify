@@ -14,10 +14,11 @@ function parseCommentaire(raw) {
         accompagnants: Array.isArray(p.accompagnants) ? p.accompagnants : [],
         commentaire: typeof p.commentaire === 'string' ? p.commentaire : '',
         repas: typeof p.repas === 'string' ? p.repas : '',
+        checklist: Array.isArray(p.checklist) ? p.checklist : [],
       }
     } catch { /* texte brut */ }
   }
-  return { accompagnants: [], commentaire: raw, repas: '' }
+  return { accompagnants: [], commentaire: raw, repas: '', checklist: [] }
 }
 
 export default function EventDashboard() {
@@ -379,11 +380,12 @@ export default function EventDashboard() {
   const totalPersonnes = confirmed.reduce((sum, p) => sum + (p.nb_personnes || 1), 0)
   const totalInvites = confirmed.length + refused.length + pending.length
 
-  // Séparation apports / cadeaux via le behavior des listes
+  // Séparation apports / cadeaux / checklist via le behavior des listes
   const listBehavior = {}
   lists.forEach(l => { listBehavior[l.id] = l.behavior })
-  const apportItems = items.filter(i => listBehavior[i.list_id] !== 'cadeau')
   const giftItems = items.filter(i => listBehavior[i.list_id] === 'cadeau')
+  const checklistItems = items.filter(i => listBehavior[i.list_id] === 'checklist')
+  const apportItems = items.filter(i => listBehavior[i.list_id] !== 'cadeau' && listBehavior[i.list_id] !== 'checklist')
 
   const disponibles = apportItems.filter(i => i.status === 'Disponible')
   const reserves = apportItems.filter(i => i.status === 'Réservé')
@@ -1386,6 +1388,38 @@ export default function EventDashboard() {
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* === ÉQUIPEMENT DES PARTICIPANTS (listes checklist) === */}
+      {checklistItems.length > 0 && confirmed.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mt-4">
+          <div className="px-5 py-3 border-b border-slate-100">
+            <h3 className="text-sm font-bold text-slate-800">✅ Équipement des participants</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Qui a coché quoi sur la checklist de sécurité.</p>
+          </div>
+          <div className="divide-y divide-slate-50">
+            {confirmed.map((p) => {
+              const ids = parseCommentaire(p.commentaire).checklist
+              const coches = checklistItems.filter(it => ids.includes(it.id))
+              const manques = checklistItems.filter(it => !ids.includes(it.id))
+              return (
+                <div key={p.id} className="px-5 py-3">
+                  <p className="text-sm font-medium text-slate-700">{p.participant_name}</p>
+                  {coches.length === 0 ? (
+                    <p className="text-sm text-slate-400 italic mt-0.5">n'a pas encore rempli sa checklist</p>
+                  ) : (
+                    <>
+                      <p className="text-sm text-emerald-600 mt-0.5">✅ {coches.map(it => it.item_name).join(', ')}</p>
+                      {manques.length > 0 && (
+                        <p className="text-sm text-orange-600 mt-0.5">⚠️ manque : {manques.map(it => it.item_name).join(', ')}</p>
+                      )}
+                    </>
+                  )}
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
 
