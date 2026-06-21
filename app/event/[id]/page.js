@@ -41,6 +41,9 @@ export default function EventDashboard() {
   const [shareMsg, setShareMsg] = useState(null)
   const [msgCopied, setMsgCopied] = useState(false)
 
+  // Équipement : participants dont le détail de checklist est déplié
+  const [expandedEquip, setExpandedEquip] = useState({})
+
   // Temps 2 du tournoi : préparation du planning bénévole par l'organisateur
   const [preparingPlanning, setPreparingPlanning] = useState(false)
   const [draftSlots, setDraftSlots] = useState(null) // null = pas encore généré ; [] = en cours d'édition
@@ -1392,36 +1395,69 @@ export default function EventDashboard() {
       )}
 
       {/* === ÉQUIPEMENT DES PARTICIPANTS (listes checklist) === */}
-      {checklistItems.length > 0 && confirmed.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mt-4">
-          <div className="px-5 py-3 border-b border-slate-100">
-            <h3 className="text-sm font-bold text-slate-800">✅ Équipement des participants</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Qui a coché quoi sur la checklist de sécurité.</p>
+      {checklistItems.length > 0 && confirmed.length > 0 && (() => {
+        const total = checklistItems.length
+        // Statut par participant confirmé
+        const rows = confirmed.map(p => {
+          const ids = parseCommentaire(p.commentaire).checklist
+          const coches = checklistItems.filter(it => ids.includes(it.id))
+          const manques = checklistItems.filter(it => !ids.includes(it.id))
+          let statut = 'encours'
+          if (coches.length === 0) statut = 'pas'
+          else if (manques.length === 0) statut = 'pret'
+          return { p, coches, manques, statut }
+        })
+        const nbPret = rows.filter(r => r.statut === 'pret').length
+        const nbEnCours = rows.filter(r => r.statut === 'encours').length
+        const nbPas = rows.filter(r => r.statut === 'pas').length
+        return (
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mt-4">
+            <div className="px-5 py-3 border-b border-slate-100">
+              <h3 className="text-sm font-bold text-slate-800">✅ Équipement des participants</h3>
+              <p className="text-xs text-slate-400 mt-0.5">{nbPret} prêt{nbPret > 1 ? 's' : ''} · {nbEnCours} en cours · {nbPas} pas commencé</p>
+            </div>
+            <div className="divide-y divide-slate-50">
+              {rows.map(({ p, coches, manques, statut }) => {
+                const open = !!expandedEquip[p.id]
+                return (
+                  <div key={p.id}>
+                    <button
+                      type="button"
+                      onClick={() => setExpandedEquip(prev => ({ ...prev, [p.id]: !prev[p.id] }))}
+                      className="w-full flex items-center justify-between gap-2 px-5 py-3 text-left hover:bg-slate-50 transition-colors"
+                    >
+                      <span className="text-sm font-medium text-slate-700 min-w-0 truncate">{p.participant_name}</span>
+                      <span className="shrink-0 flex items-center gap-2">
+                        {statut === 'pret' && <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">✅ Prêt</span>}
+                        {statut === 'encours' && (
+                          <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-700">⚠️ Presque ({coches.length}/{total})</span>
+                        )}
+                        {statut === 'pas' && <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-500">⛔ Pas commencé</span>}
+                        <span className="text-slate-300 text-xs">{open ? '▲' : '▼'}</span>
+                      </span>
+                    </button>
+                    {statut === 'encours' && !open && manques.length > 0 && (
+                      <p className="px-5 -mt-1 pb-2 text-xs text-orange-600">manque : {manques.map(it => it.item_name).join(', ')}</p>
+                    )}
+                    {open && (
+                      <div className="px-5 pb-3 space-y-1">
+                        {checklistItems.map(it => {
+                          const ok = coches.some(c => c.id === it.id)
+                          return (
+                            <p key={it.id} className={`text-sm ${ok ? 'text-emerald-600' : 'text-orange-600'}`}>
+                              {ok ? '✅' : '⬜'} {it.item_name}
+                            </p>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           </div>
-          <div className="divide-y divide-slate-50">
-            {confirmed.map((p) => {
-              const ids = parseCommentaire(p.commentaire).checklist
-              const coches = checklistItems.filter(it => ids.includes(it.id))
-              const manques = checklistItems.filter(it => !ids.includes(it.id))
-              return (
-                <div key={p.id} className="px-5 py-3">
-                  <p className="text-sm font-medium text-slate-700">{p.participant_name}</p>
-                  {coches.length === 0 ? (
-                    <p className="text-sm text-slate-400 italic mt-0.5">n'a pas encore rempli sa checklist</p>
-                  ) : (
-                    <>
-                      <p className="text-sm text-emerald-600 mt-0.5">✅ {coches.map(it => it.item_name).join(', ')}</p>
-                      {manques.length > 0 && (
-                        <p className="text-sm text-orange-600 mt-0.5">⚠️ manque : {manques.map(it => it.item_name).join(', ')}</p>
-                      )}
-                    </>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* Si personne n'a repondu */}
       {participants.length === 0 && (

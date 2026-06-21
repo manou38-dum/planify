@@ -993,6 +993,18 @@ export default function InviteClient({ linkId }) {
                   <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
                     ⚠️ Cette liste est indicative et générée automatiquement. Elle ne remplace pas les consignes de ta fédération, de ton club ou de ton encadrant. Vérifie toujours ton équipement de sécurité avec un professionnel. Sers-toi-en comme mémo : coche au fur et à mesure pour t'assurer, toi et le groupe, de ne rien oublier avant de partir.
                   </p>
+                  <div className="flex gap-2 mb-3">
+                    <button type="button"
+                      onClick={() => setCheckedChecklist(Object.fromEntries(checklistItems.map(it => [it.id, true])))}
+                      className="flex-1 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold transition-colors">
+                      ✅ J'ai tout
+                    </button>
+                    <button type="button"
+                      onClick={() => setCheckedChecklist({})}
+                      className="flex-1 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors">
+                      Tout décocher
+                    </button>
+                  </div>
                   <div className="space-y-2">
                     {checklistItems.map((item) => {
                       const checked = !!checkedChecklist[item.id]
