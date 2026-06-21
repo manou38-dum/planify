@@ -522,17 +522,10 @@ export default function EventDashboard() {
       `🔔 Rappel : ${event.event_name} dans 2 jours !`,
       `📅 ${dateStr}${event.location ? ` · 📍 ${event.location}` : ''}`,
     ]
-    let urlIncluded = false
-    if (apportItems.length > 0) {
-      lines.push(`Pense à apporter ce que tu as réservé. Liste complète : ${url}`)
-      urlIncluded = true
-    }
+    if (apportItems.length > 0) lines.push(`Pense à apporter ce que tu as réservé.`)
     if (slots.length > 0) lines.push(`N'oublie pas ton créneau d'aide.`)
-    if (mealChoices.length > 0) {
-      lines.push(`Tu n'as pas encore voté pour le repas ? C'est ici : ${url}`)
-      urlIncluded = true
-    }
-    if (!urlIncluded) lines.push(`Toutes les infos : ${url}`)
+    if (mealChoices.length > 0) lines.push(`Pense à voter pour le repas si ce n'est pas fait.`)
+    lines.push(`👉 Retrouve ce que tu avais prévu (apports, créneau, checklist) en cliquant ici : ${url}`)
     lines.push(`À très vite !`)
     return { url, text: lines.join('\n') }
   }

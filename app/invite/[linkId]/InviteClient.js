@@ -676,6 +676,11 @@ export default function InviteClient({ linkId }) {
     if (!raw || !raw.trim().startsWith('{')) return ''
     try { const p = JSON.parse(raw); return typeof p.repas === 'string' ? p.repas : '' } catch { return '' }
   }
+  // Ids de checklist cochés par un participant (stockés dans le JSON commentaire)
+  function extractChecklist(raw) {
+    if (!raw || !raw.trim().startsWith('{')) return []
+    try { const p = JSON.parse(raw); return Array.isArray(p.checklist) ? p.checklist : [] } catch { return [] }
+  }
   const mealVoteCounts = {}
   if (mealChoices.length > 0) {
     confirmedParticipants.forEach(p => {
@@ -841,6 +846,9 @@ export default function InviteClient({ linkId }) {
               )
               const mesCreneaux = signups.filter(su => su.participant_id === existingParticipant.id)
               const monRepas = extractRepas(existingParticipant.commentaire)
+              const mesIdsChecklist = extractChecklist(existingParticipant.commentaire)
+              const checklistCoches = checklistItems.filter(it => mesIdsChecklist.includes(it.id))
+              const checklistManques = checklistItems.filter(it => !mesIdsChecklist.includes(it.id))
               const presence = existingParticipant.rsvp_status === 'Confirmé' ? 'Présent(e) ✅'
                 : existingParticipant.rsvp_status === 'Refusé' ? 'Absent(e)'
                 : 'Peut-être'
@@ -857,6 +865,18 @@ export default function InviteClient({ linkId }) {
                   )}
                   {monRepas && (
                     <p className="text-sm text-slate-600">Ton choix de repas : {monRepas}</p>
+                  )}
+                  {checklistItems.length > 0 && (
+                    <div className="pt-1.5 border-t border-emerald-200/60">
+                      {checklistManques.length === 0 ? (
+                        <p className="text-sm font-medium text-emerald-700">✅ Checklist complète</p>
+                      ) : (
+                        <p className="text-sm font-medium text-orange-600">⚠️ Il te manque : {checklistManques.map(it => it.item_name).join(', ')}</p>
+                      )}
+                      {checklistCoches.length > 0 && (
+                        <p className="text-sm text-slate-600 mt-0.5">Tu as coché : {checklistCoches.map(it => it.item_name).join(', ')}</p>
+                      )}
+                    </div>
                   )}
                 </div>
               )
