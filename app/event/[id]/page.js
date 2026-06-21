@@ -807,6 +807,33 @@ export default function EventDashboard() {
           {totalPersonnes === 0 && apportItems.length === 0 && (
             <p className="text-xs text-slate-400 mt-2 text-center">En attente des premiers partants…</p>
           )}
+
+          {/* Transparence des dépenses : qui prend quoi, avec montants (pas de calcul de dette) */}
+          {apportItems.length > 0 && (() => {
+            const rows = confirmed
+              .map(p => {
+                const pris = getItemsForParticipant(p)
+                const montant = Math.round(pris.reduce((s, it) => s + (Number(it.estimated_price) || 0), 0))
+                return { p, pris, montant }
+              })
+              .filter(r => r.pris.length > 0)
+            if (rows.length === 0) {
+              return <p className="text-xs text-slate-400 mt-3">Personne n'a encore réservé d'article.</p>
+            }
+            return (
+              <div className="mt-3 pt-3 border-t border-slate-100">
+                <p className="text-xs font-semibold text-slate-500 mb-2">Qui prend quoi</p>
+                <ul className="space-y-1.5">
+                  {rows.map(({ p, pris, montant }) => (
+                    <li key={p.id} className="text-sm text-slate-600">
+                      <span className="font-medium text-slate-700">{p.participant_name}</span> → {pris.map(it => it.item_name).join(', ')}
+                      <span className="text-amber-600 font-medium"> ({montant} €)</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )
+          })()}
         </div>
       )}
 

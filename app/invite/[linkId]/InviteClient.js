@@ -667,6 +667,16 @@ export default function InviteClient({ linkId }) {
   // Apéro participatif : mise indicative par personne (€)
   const isApero = event.event_type === 'Apero'
   const contributionAmount = event.contribution_amount || event.event_options?.contribution_amount || null
+  // Compteur de part personnelle : ce que représente la part de ce contributeur et ce qu'il a déjà pris
+  const aperoPart = Math.round(Number(contributionAmount || 0) * (nbPersonnes || 1))
+  const aperoPris = Math.round(Object.entries(selectedItems).reduce((sum, [id, q]) => {
+    const it = items.find(i => i.id === id)
+    if (!it || it.estimated_price == null) return sum
+    const total = Number(it.quantity) || 1
+    const qty = Math.max(1, Math.min(q, total))
+    return sum + Number(it.estimated_price) * (qty / total)
+  }, 0))
+  const aperoReste = aperoPart - aperoPris
   const eventDateStr = new Date(event.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })
 
   // Vue récapitulatif (lien de rappel : ?recap=1) : on montre un récap en lecture seule avant le formulaire
@@ -1096,6 +1106,17 @@ export default function InviteClient({ linkId }) {
                   <p className="text-xs text-emerald-600 bg-emerald-50 rounded-lg px-3 py-2 mb-3">
                     {isApero ? 'Réserve une partie des courses (chacun avance sa part) 👇' : 'Plus on partage, plus la fête est réussie ! Choisis ce que tu apportes 👇'}
                   </p>
+                  {isApero && contributionAmount && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 mb-3 text-sm">
+                      <p className="text-amber-900">Ta part : <span className="font-semibold">~{aperoPart} €</span> <span className="text-amber-700 text-xs">(toi + {Math.max(0, nbPersonnes - 1)} accompagnant{nbPersonnes - 1 > 1 ? 's' : ''})</span></p>
+                      <p className="text-amber-900">Tu as pris : <span className="font-semibold">{aperoPris} €</span></p>
+                      {aperoReste > 0 ? (
+                        <p className="text-amber-700">Reste à prendre pour ta part : ~{aperoReste} €</p>
+                      ) : (
+                        <p className="text-emerald-700">Tu as pris un peu plus que ta part, merci 🙌</p>
+                      )}
+                    </div>
+                  )}
                   <div className="space-y-4">
                     {[...new Set(disponibles.map(i => i.category || 'Autre'))].map((cat) => (
                       <div key={cat}>
