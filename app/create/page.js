@@ -10,6 +10,7 @@ const EVENT_TYPES = [
   { value: 'Randonnée', icon: '🧭', label: 'Sortie / Activité', bg: 'bg-green-50', border: 'border-green-300', text: 'text-green-700', accent: 'bg-green-500' },
   { value: 'Soirée', icon: '🎶', label: 'Soirée', bg: 'bg-indigo-50', border: 'border-indigo-300', text: 'text-indigo-700', accent: 'bg-indigo-500' },
   { value: 'Match/Tournoi', icon: '⚽', label: 'Match/Tournoi', bg: 'bg-blue-50', border: 'border-blue-300', text: 'text-blue-700', accent: 'bg-blue-500' },
+  { value: 'Apero', icon: '🥂', label: 'Apéro participatif', bg: 'bg-amber-50', border: 'border-amber-300', text: 'text-amber-700', accent: 'bg-amber-500' },
   { value: 'Autre', icon: '✨', label: 'Autre', bg: 'bg-slate-50', border: 'border-slate-300', text: 'text-slate-700', accent: 'bg-slate-500' },
 ]
 
@@ -74,6 +75,14 @@ const OPTIONS_BY_TYPE = {
       { key: 'nb_equipes', label: "Nb d'équipes", placeholder: '4' },
     ],
   },
+  'Apero': {
+    fields: [
+      { key: 'contribution_amount', label: 'Mise indicative par personne en €', placeholder: 'ex : 10' },
+    ],
+    checks: [
+      { key: 'sans_alcool', label: 'Sans alcool' },
+    ],
+  },
   'Autre': {
     textarea: { key: 'description', label: "Décris ton événement pour que l'IA génère les bonnes listes" },
   },
@@ -97,6 +106,7 @@ const AVAILABLE_LISTS = {
   'Mariage': ['cadeaux', 'planning', 'materiel'],
   'Randonnée': ['checklist', 'menu'],
   'Match/Tournoi': ['boissons', 'menu', 'materiel', 'planning'],
+  'Apero': [],
   'Autre': ['menu', 'boissons', 'materiel', 'cadeaux', 'planning', 'checklist'],
 }
 
@@ -108,6 +118,7 @@ const DEFAULT_LISTS = {
   'Randonnée': ['checklist'],
   'Soirée': ['boissons', 'menu'],
   'Match/Tournoi': ['boissons', 'menu'],
+  'Apero': [],
   'Autre': ['menu'],
 }
 
@@ -214,8 +225,10 @@ export default function CreateEvent() {
     setForm(prev => ({
       ...prev,
       event_type: type,
-      // Anniversaire, Soirée, Tournoi et Sortie/Activité sont toujours collaboratifs en interne : la distinction se fait via les listes cochées
-      mode: (type === 'Anniversaire' || type === 'Soirée' || type === 'Match/Tournoi' || type === 'Randonnée') ? 'collaboratif' : prev.mode,
+      // Anniversaire, Soirée, Tournoi, Sortie/Activité et Apéro sont toujours collaboratifs en interne : la distinction se fait via les listes cochées
+      mode: (type === 'Anniversaire' || type === 'Soirée' || type === 'Match/Tournoi' || type === 'Randonnée' || type === 'Apero') ? 'collaboratif' : prev.mode,
+      // Apéro : pas de jauge fixe → nb_participants neutre (0) pour désactiver toute fermeture à la jauge
+      nb_participants: type === 'Apero' ? 0 : (prev.nb_participants || 20),
     }))
     setEventOptions({})
     // Anniversaire et Tournoi : la pré-sélection dépend d'un sous-format choisi à l'étape 2
@@ -303,9 +316,9 @@ export default function CreateEvent() {
     }
     setGenerating(true)
     try {
-      // Tournoi : logique en 2 temps. À la création, on ne génère RIEN (ni apports, ni planning).
-      // Le planning des postes bénévoles sera préparé plus tard par l'organisateur depuis le dashboard.
-      if (form.event_type === 'Match/Tournoi') {
+      // Tournoi et Apéro : logique en 2 temps. À la création, on ne génère RIEN.
+      // (Tournoi → postes bénévoles ; Apéro → liste de courses) préparés plus tard depuis le dashboard.
+      if (form.event_type === 'Match/Tournoi' || form.event_type === 'Apero') {
         setGeneratedLists([])
         setPlanning([])
         setEditedPlanning([])
@@ -454,6 +467,7 @@ export default function CreateEvent() {
           photo_url: photoUrl || null,
           mode: form.mode,
           carpool_enabled: form.carpool_enabled,
+          contribution_amount: cleanedOptions.contribution_amount ? Number(cleanedOptions.contribution_amount) || null : null,
           event_options: { ...cleanedOptions, selected_lists: selectedLists, ...(menuResume ? { menu_resume: menuResume } : {}) },
         })
         .select()
@@ -645,8 +659,8 @@ export default function CreateEvent() {
               </div>
             )}
 
-            {/* Mode d'organisation (masqué pour anniversaire, soirée, tournoi et sortie/activité : la distinction se fait via les listes cochées) */}
-            {form.event_type !== 'Anniversaire' && form.event_type !== 'Soirée' && form.event_type !== 'Match/Tournoi' && form.event_type !== 'Randonnée' && (
+            {/* Mode d'organisation (masqué pour anniversaire, soirée, tournoi, sortie/activité et apéro : la distinction se fait via les listes cochées) */}
+            {form.event_type !== 'Anniversaire' && form.event_type !== 'Soirée' && form.event_type !== 'Match/Tournoi' && form.event_type !== 'Randonnée' && form.event_type !== 'Apero' && (
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Comment veux-tu organiser ?</label>
                 <div className="grid grid-cols-2 gap-3">
@@ -753,23 +767,26 @@ export default function CreateEvent() {
               )}
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Nombre de personnes attendues (accompagnants compris) : <span className="text-blue-500 font-bold">{form.nb_participants}</span>
-              </label>
-              <input type="range" min="2" max="200" value={Math.min(Number(form.nb_participants) || 2, 200)}
-                onChange={(e) => updateForm('nb_participants', parseInt(e.target.value))}
-                className="w-full accent-blue-500" />
-              <div className="flex justify-between text-xs text-slate-400 mt-1">
-                <span>2</span><span>200</span>
+            {/* Pas de jauge fixe pour l'apéro participatif : on masque le nombre de personnes attendues */}
+            {form.event_type !== 'Apero' && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Nombre de personnes attendues (accompagnants compris) : <span className="text-blue-500 font-bold">{form.nb_participants}</span>
+                </label>
+                <input type="range" min="2" max="200" value={Math.min(Number(form.nb_participants) || 2, 200)}
+                  onChange={(e) => updateForm('nb_participants', parseInt(e.target.value))}
+                  className="w-full accent-blue-500" />
+                <div className="flex justify-between text-xs text-slate-400 mt-1">
+                  <span>2</span><span>200</span>
+                </div>
+                <div className="flex items-center gap-2 mt-2">
+                  <input type="number" min={2} max={200} value={form.nb_participants}
+                    onChange={(e) => updateForm('nb_participants', e.target.value === '' ? '' : Number(e.target.value))}
+                    className="w-24 px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm text-center" />
+                  <span className="text-xs text-slate-400">ou saisis le nombre exact</span>
+                </div>
               </div>
-              <div className="flex items-center gap-2 mt-2">
-                <input type="number" min={2} max={200} value={form.nb_participants}
-                  onChange={(e) => updateForm('nb_participants', e.target.value === '' ? '' : Number(e.target.value))}
-                  className="w-24 px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm text-center" />
-                <span className="text-xs text-slate-400">ou saisis le nombre exact</span>
-              </div>
-            </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Date limite de réponse (optionnel)</label>

@@ -664,6 +664,9 @@ export default function InviteClient({ linkId }) {
   const mealChoices = Array.isArray(event.event_options?.meal_choices) ? event.event_options.meal_choices : []
   // Sortie / Activité : lien itinéraire ou site de l'activité (facultatif)
   const lienRando = event.event_options?.lien_sortie || event.event_options?.lien_rando || ''
+  // Apéro participatif : mise indicative par personne (€)
+  const isApero = event.event_type === 'Apero'
+  const contributionAmount = event.contribution_amount || event.event_options?.contribution_amount || null
   const eventDateStr = new Date(event.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })
 
   // Vue récapitulatif (lien de rappel : ?recap=1) : on montre un récap en lecture seule avant le formulaire
@@ -740,7 +743,13 @@ export default function InviteClient({ linkId }) {
                 </a>
               </p>
             )}
-            <p className="text-blue-100 text-sm flex items-center gap-2">👥 {event.nb_participants} personnes attendues</p>
+            {isApero ? (
+              <p className="text-blue-50 text-sm flex items-center gap-2">
+                🥂 {event.organizer_name} propose un apéro participatif{contributionAmount ? `, ~${contributionAmount} €/pers.` : ''} Tu es partant ?
+              </p>
+            ) : (
+              <p className="text-blue-100 text-sm flex items-center gap-2">👥 {event.nb_participants} personnes attendues</p>
+            )}
             {lienRando && (
               <a href={lienRando} target="_blank" rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 mt-2 bg-white/20 hover:bg-white/30 text-white text-sm font-medium px-3 py-1.5 rounded-full transition-colors">
@@ -967,6 +976,13 @@ export default function InviteClient({ linkId }) {
             </div>
           </div>
 
+          {/* Apéro participatif : règle d'or sur l'argent */}
+          {isApero && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-900 text-sm px-4 py-3 rounded-2xl">
+              💶 Chacun avance sa part en faisant une partie des courses. L'organisateur veille à ce que tout s'équilibre entre vous. Planify ne gère pas l'argent.
+            </div>
+          )}
+
           {/* Si confirmé → détails */}
           {rsvp === 'Confirmé' && (
             <>
@@ -1064,13 +1080,22 @@ export default function InviteClient({ linkId }) {
                 </div>
               )}
 
+              {/* Apéro : liste de courses pas encore générée */}
+              {isApero && apportItems.length === 0 && (
+                <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm text-center">
+                  <p className="text-sm text-slate-500">🛒 La liste de courses arrivera une fois qu'on saura qui est partant.</p>
+                </div>
+              )}
+
               {/* Liste d'apports (masquée en mode solo et en anniversaire enfant) */}
               {event.mode !== 'solo' && !isAnnivEnfant && disponibles.length > 0 && (
                 <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
                   <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Qu'est-ce que tu apportes ?
+                    {isApero ? 'Tu prends quoi en charge ?' : "Qu'est-ce que tu apportes ?"}
                   </label>
-                  <p className="text-xs text-emerald-600 bg-emerald-50 rounded-lg px-3 py-2 mb-3">Plus on partage, plus la fête est réussie ! Choisis ce que tu apportes 👇</p>
+                  <p className="text-xs text-emerald-600 bg-emerald-50 rounded-lg px-3 py-2 mb-3">
+                    {isApero ? 'Réserve une partie des courses (chacun avance sa part) 👇' : 'Plus on partage, plus la fête est réussie ! Choisis ce que tu apportes 👇'}
+                  </p>
                   <div className="space-y-4">
                     {[...new Set(disponibles.map(i => i.category || 'Autre'))].map((cat) => (
                       <div key={cat}>
@@ -1104,6 +1129,9 @@ export default function InviteClient({ linkId }) {
                               <div>
                                 <span className="text-sm font-medium text-slate-700">{item.item_name}</span>
                                 <span className="text-xs text-slate-400 ml-2">{item.quantity} {item.unit}</span>
+                                {isApero && item.estimated_price != null && (
+                                  <span className="text-xs text-amber-600 font-medium ml-2">~{Math.round(Number(item.estimated_price))} €</span>
+                                )}
                               </div>
                             </div>
                             <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center text-xs ${

@@ -44,6 +44,9 @@ export default function EventDashboard() {
   // Équipement : participants dont le détail de checklist est déplié
   const [expandedEquip, setExpandedEquip] = useState({})
 
+  // Temps 2 de l'apéro : génération de la liste de courses calée sur le budget
+  const [generatingApero, setGeneratingApero] = useState(false)
+
   // Temps 2 du tournoi : préparation du planning bénévole par l'organisateur
   const [preparingPlanning, setPreparingPlanning] = useState(false)
   const [draftSlots, setDraftSlots] = useState(null) // null = pas encore généré ; [] = en cours d'édition
@@ -199,6 +202,76 @@ export default function EventDashboard() {
       alert('Erreur: ' + err.message)
     }
     setSavingPlanning(false)
+  }
+
+  // ── Temps 2 de l'apéro : générer la liste de courses calée sur le budget ──
+  async function generateAperoList() {
+    setGeneratingApero(true)
+    try {
+      const supabase = getSupabase()
+      const partants = participants
+        .filter(p => p.rsvp_status === 'Confirmé')
+        .reduce((s, p) => s + (p.nb_personnes || 1), 0)
+      const amount = Number(event.contribution_amount || event.event_options?.contribution_amount || 0)
+      const budget = Math.round(partants * amount)
+      const res = await fetch('/api/generate-list', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event_type: 'Apero',
+          event_name: event.event_name,
+          nb_participants: partants,
+          event_options: { ...(event.event_options || {}), contribution_amount: amount, budget_total: budget },
+          location: event.location,
+          date: event.date,
+          selected_lists: { menu: true },
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Génération impossible')
+      const L = (data.lists || [])[0]
+      if (L) {
+        const { data: list, error: lErr } = await supabase
+          .from('lists')
+          .insert({
+            event_id: event.id,
+            behavior: 'apport',
+            list_name: L.list_name || 'Liste de courses apéro',
+            icon: L.icon || '🛒',
+            description: L.description || null,
+            sort_order: 0,
+          })
+          .select()
+          .single()
+        if (lErr) throw lErr
+        const itemsToInsert = (L.items || [])
+          .filter(it => (it.item_name || '').trim())
+          .map(it => ({
+            event_id: event.id,
+            list_id: list.id,
+            item_name: it.item_name,
+            category: it.category || null,
+            quantity: it.quantity ?? null,
+            unit: it.unit || null,
+            estimated_price: it.estimated_price ?? null,
+            status: 'Disponible',
+            ai_generated: true,
+          }))
+        if (itemsToInsert.length) {
+          const { error: iErr } = await supabase.from('items').insert(itemsToInsert)
+          if (iErr) throw iErr
+        }
+      }
+      await loadAll()
+    } catch (err) {
+      alert('Erreur IA: ' + err.message)
+    }
+    setGeneratingApero(false)
+  }
+  // Message invitant les partants à se répartir les achats
+  function buildAperoShareList() {
+    const url = `${window.location.origin}/invite/${event.invite_link_id}`
+    return `🛒 La liste de courses pour ${event.event_name} est prête ! Choisis ce que tu prends en charge (chacun avance sa part, l'orga équilibre) : ${url}`
   }
 
   // Annule la participation : libère ses items, supprime le participant, recharge
@@ -402,7 +475,7 @@ export default function EventDashboard() {
   const categories = ['Nourriture', 'Boissons', 'Matériel', 'Décoration', 'Service']
 
   // Emoji du type d'événement (pour l'en-tête résumé)
-  const TYPE_EMOJIS = { 'BBQ': '🔥', 'Anniversaire': '🎂', 'Mariage': '💍', 'Randonnée': '🥾', 'Soirée': '🎶', 'Match/Tournoi': '⚽', 'Autre': '✨' }
+  const TYPE_EMOJIS = { 'BBQ': '🔥', 'Anniversaire': '🎂', 'Mariage': '💍', 'Randonnée': '🧭', 'Soirée': '🎶', 'Match/Tournoi': '⚽', 'Apero': '🥂', 'Autre': '✨' }
   const typeEmoji = TYPE_EMOJIS[event.event_type] || '🎉'
 
   // Date limite valable jusqu'à la FIN de la journée (même logique que côté invité)
@@ -414,6 +487,11 @@ export default function EventDashboard() {
   const isFull = event.nb_participants > 0 && totalPersonnes >= event.nb_participants
   // Inscriptions fermées : soit complet, soit date limite dépassée
   const isClosed = isFull || isExpired
+
+  // Apéro participatif : nb de partants + budget estimé (l'argent ne transite jamais par l'app)
+  const isApero = event.event_type === 'Apero'
+  const aperoAmount = Number(event.contribution_amount || event.event_options?.contribution_amount || 0)
+  const aperoBudget = Math.round(totalPersonnes * aperoAmount)
 
   // Proximité de l'événement (rappel J-2) : nombre de jours calendaires jusqu'au jour J
   const eventStart = new Date(event.date)
@@ -560,9 +638,13 @@ export default function EventDashboard() {
         : isExpired ? 'Les inscriptions sont closes, voici le bilan final.'
         : 'Les inscriptions sont ouvertes.'
     )
-    bilanLines.push(`${totalPersonnes} personne${totalPersonnes > 1 ? 's' : ''} sur ${event.nb_participants} ont confirmé${
-      totalPersonnes >= event.nb_participants ? ", c'est complet ✅." : ', il reste de la place.'
-    }`)
+    if (isApero) {
+      bilanLines.push(`${totalPersonnes} personne${totalPersonnes > 1 ? 's' : ''} partante${totalPersonnes > 1 ? 's' : ''}${aperoAmount > 0 ? ` · budget estimé ${aperoBudget} €` : ''}.`)
+    } else {
+      bilanLines.push(`${totalPersonnes} personne${totalPersonnes > 1 ? 's' : ''} sur ${event.nb_participants} ont confirmé${
+        totalPersonnes >= event.nb_participants ? ", c'est complet ✅." : ', il reste de la place.'
+      }`)
+    }
     if (apportItems.length > 0) {
       if (reserves.length === apportItems.length) {
         bilanLines.push('Côté apports : tout est couvert ✅.')
@@ -672,8 +754,11 @@ export default function EventDashboard() {
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="inline-flex items-center bg-blue-100 text-blue-700 text-sm font-bold px-3 py-1.5 rounded-full">
-            {totalPersonnes} / {event.nb_participants}
-            <span className="font-normal text-xs ml-1.5">confirmés / attendus</span>
+            {isApero ? (
+              <>{totalPersonnes}<span className="font-normal text-xs ml-1.5">partant{totalPersonnes > 1 ? 's' : ''}</span></>
+            ) : (
+              <>{totalPersonnes} / {event.nb_participants}<span className="font-normal text-xs ml-1.5">confirmés / attendus</span></>
+            )}
           </span>
           <span className={`inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-full ${
             allCovered ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'
@@ -692,6 +777,38 @@ export default function EventDashboard() {
           </button>
         )}
       </div>
+
+      {/* === APÉRO PARTICIPATIF : partants, budget, liste de courses === */}
+      {isApero && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 mb-4">
+          <h3 className="text-sm font-bold text-slate-800 mb-1">🥂 Apéro participatif</h3>
+          <p className="text-sm text-slate-600">
+            {totalPersonnes} personne{totalPersonnes > 1 ? 's' : ''} partante{totalPersonnes > 1 ? 's' : ''}
+            {aperoAmount > 0 && <> · budget estimé : <span className="font-semibold text-slate-800">{aperoBudget} €</span></>}
+          </p>
+          <p className="text-xs text-slate-400 mt-1">Tu es le garant de la répartition de l'argent entre les participants. Planify n'encaisse rien.</p>
+
+          {apportItems.length === 0 ? (
+            <button
+              onClick={generateAperoList}
+              disabled={generatingApero || totalPersonnes === 0}
+              className="mt-3 w-full bg-amber-500 hover:bg-amber-600 disabled:bg-amber-300 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm"
+            >
+              {generatingApero ? '✨ Génération de la liste...' : '🛒 Générer la liste de courses'}
+            </button>
+          ) : (
+            <button
+              onClick={() => setShareMsg({ title: 'Partager la liste de courses', text: buildAperoShareList() })}
+              className="mt-3 w-full bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm"
+            >
+              🛒 Partager la liste de courses
+            </button>
+          )}
+          {totalPersonnes === 0 && apportItems.length === 0 && (
+            <p className="text-xs text-slate-400 mt-2 text-center">En attente des premiers partants…</p>
+          )}
+        </div>
+      )}
 
       {/* === BILAN (rédigé, toujours visible) — coloré selon l'état === */}
       <div className={`rounded-2xl shadow-sm border p-5 mb-4 ${

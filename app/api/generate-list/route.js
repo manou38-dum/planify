@@ -77,6 +77,11 @@ STRUCTURE DES LISTES PAR TYPE :
     Adapte intelligemment à l'activité indiquée. Si bivouac : ajoute lampe frontale, sac de couchage, tente, réchaud. Si enfants/débutants : matériel adapté. Chaque élément est coché individuellement par chaque participant : quantity = 1, PAS de quantité partagée, PAS de prix nécessaire.
   * liste behavior 'apport' "Pique-nique partagé" (UNIQUEMENT si la liste menu est demandée) : nourriture à se répartir entre participants (sandwichs, fruits, fromage, gâteaux...), anti-doublon classique.
   * Hydratation et sécurité prioritaires, NE mets PAS d'alcool en avant.
+- Apéro participatif (type "Apero") : UNE seule liste behavior 'apport' "Liste de courses apéro", DIMENSIONNÉE PAR LE BUDGET. Lis event_options.budget_total (budget total en €) et nb_participants (nombre de partants).
+  * Compose un apéro cohérent et complet : boissons (softs, jus, eau ; alcool type bière/vin SAUF si event_options.sans_alcool est coché), charcuterie, fromages, chips/crackers, olives, pain/gressins, dips (houmous, tapenade), fruits secs, crudités à grignoter.
+  * RÈGLE BUDGET STRICTE : la somme des estimated_price de tous les articles doit rester PROCHE du budget_total SANS LE DÉPASSER. Si le budget est serré, privilégie l'essentiel (boissons + quelques planches) ; s'il est large, enrichis (plus de variété, produits un peu meilleurs).
+  * Chaque article : item_name clair, quantity réaliste pour le nombre de partants, unit, estimated_price réaliste (prix supermarché France). Arrondi habituel.
+  * Le champ menu_resume résume l'apéro en une ligne.
 
 RÈGLES DE PLANNING :
 - Générer un planning UNIQUEMENT si l'organisateur a coché "aide montage/démontage" ou "aide logistique"
