@@ -9,6 +9,8 @@ export default function InviteClient({ linkId }) {
   const [items, setItems] = useState([])
   const [lists, setLists] = useState([])
   const [confirmedTotal, setConfirmedTotal] = useState(0)
+  const [confirmedParticipants, setConfirmedParticipants] = useState([])
+  const [formRevealed, setFormRevealed] = useState(false)
   const [reservingGiftId, setReservingGiftId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [submitted, setSubmitted] = useState(false)
@@ -159,12 +161,13 @@ export default function InviteClient({ linkId }) {
         .eq('event_id', evt.id)
       setLists(lsts || [])
 
-      // Total de personnes déjà confirmées (pour fermer les inscriptions à la jauge)
+      // Participants confirmés : total de personnes (jauge) + commentaires (décompte repas du récap)
       const { data: confParts } = await supabase
         .from('participants')
-        .select('nb_personnes')
+        .select('participant_name, nb_personnes, commentaire')
         .eq('event_id', evt.id)
         .eq('rsvp_status', 'Confirmé')
+      setConfirmedParticipants(confParts || [])
       setConfirmedTotal((confParts || []).reduce((s, p) => s + (p.nb_personnes || 1), 0))
 
       // Charger les créneaux d'aide et les inscriptions existantes
@@ -647,6 +650,24 @@ export default function InviteClient({ linkId }) {
   const mealChoices = Array.isArray(event.event_options?.meal_choices) ? event.event_options.meal_choices : []
   const eventDateStr = new Date(event.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })
 
+  // Vue récapitulatif (lien de rappel : ?recap=1) : on montre un récap en lecture seule avant le formulaire
+  const isRecap = searchParams.get('recap') === '1'
+  const eventDateLong = new Date(event.date).toLocaleDateString('fr-FR', {
+    weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
+  })
+  // Décompte des votes repas (par nombre de personnes), à partir des participants confirmés
+  function extractRepas(raw) {
+    if (!raw || !raw.trim().startsWith('{')) return ''
+    try { const p = JSON.parse(raw); return typeof p.repas === 'string' ? p.repas : '' } catch { return '' }
+  }
+  const mealVoteCounts = {}
+  if (mealChoices.length > 0) {
+    confirmedParticipants.forEach(p => {
+      const r = extractRepas(p.commentaire)
+      if (r) mealVoteCounts[r] = (mealVoteCounts[r] || 0) + (p.nb_personnes || 1)
+    })
+  }
+
   const allRestrictions = ['Végétarien', 'Vegan', 'Sans gluten', 'Sans porc', 'Sans lactose', 'Allergie noix']
   // Si l'événement est halal, "Sans porc" est redondant
   const restrictions = event.event_options?.halal ? allRestrictions.filter(r => r !== 'Sans porc') : allRestrictions
@@ -709,6 +730,86 @@ export default function InviteClient({ linkId }) {
         </div>
       </div>
 
+      {/* === VUE RÉCAPITULATIF (lien de rappel ?recap=1) === */}
+      {isRecap && (
+        <div className="max-w-lg mx-auto px-4 -mt-4">
+          <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm space-y-4">
+            <div>
+              <h2 className="text-base font-bold text-slate-800">📋 Récapitulatif de l'événement</h2>
+              <p className="text-sm text-slate-600 mt-1">{event.event_name}</p>
+              <p className="text-sm text-slate-500 mt-0.5">📅 {eventDateLong}</p>
+              {event.location && <p className="text-sm text-slate-500 mt-0.5">📍 {event.location}</p>}
+            </div>
+
+            {/* Qui apporte quoi */}
+            {(reserves.length > 0 || disponibles.length > 0) && (
+              <div className="border-t border-slate-100 pt-3">
+                <p className="text-sm font-semibold text-slate-700 mb-2">Qui apporte quoi</p>
+                {reserves.length > 0 && (
+                  <ul className="space-y-1">
+                    {reserves.map(it => (
+                      <li key={it.id} className="text-sm text-slate-600 flex items-center gap-2">
+                        ✅ <span className="font-medium">{it.item_name}</span>
+                        <span className="text-emerald-600">— {it.assigned_to || 'pris en charge'}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {disponibles.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-xs text-amber-600 mb-1">Il reste à prendre :</p>
+                    <p className="text-sm text-slate-500">{disponibles.map(i => i.item_name).join(', ')}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Planning / créneaux */}
+            {slots.length > 0 && (
+              <div className="border-t border-slate-100 pt-3">
+                <p className="text-sm font-semibold text-slate-700 mb-2">Planning</p>
+                <ul className="space-y-1.5">
+                  {slots.map(s => {
+                    const inscrits = signups.filter(su => su.slot_id === s.id)
+                    return (
+                      <li key={s.id} className="text-sm text-slate-600">
+                        <span className="font-medium">{s.slot_name}</span>
+                        <span className="text-slate-400"> · {formatHeure(s.slot_date)}</span>
+                        <span className="text-slate-500">
+                          {' — '}{inscrits.length > 0 ? inscrits.map(i => i.participant_name).join(', ') : 'personne inscrit'}
+                        </span>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+            )}
+
+            {/* Décompte vote repas */}
+            {mealChoices.length > 0 && Object.keys(mealVoteCounts).length > 0 && (
+              <div className="border-t border-slate-100 pt-3">
+                <p className="text-sm font-semibold text-slate-700 mb-2">🍽 Vote repas</p>
+                <p className="text-sm text-slate-600">
+                  {mealChoices.filter(c => mealVoteCounts[c]).map(c => `${c} ${mealVoteCounts[c]}`).join(' · ')}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Accès discret au formulaire */}
+          {!formRevealed && (
+            <button
+              type="button"
+              onClick={() => setFormRevealed(true)}
+              className="w-full mt-3 mb-2 text-center text-sm font-medium text-blue-500 hover:text-blue-600 transition-colors"
+            >
+              Modifier ma réponse / m'inscrire
+            </button>
+          )}
+        </div>
+      )}
+
+      {(!isRecap || formRevealed) && (
       <div className="max-w-lg mx-auto px-4 -mt-4">
         <form onSubmit={handleSubmit} className="space-y-4">
           {existingParticipant && (
@@ -1246,6 +1347,7 @@ export default function InviteClient({ linkId }) {
           </div>
         )}
       </div>
+      )}
     </div>
   )
 }

@@ -492,7 +492,7 @@ export default function EventDashboard() {
 
   // Message de récap final (date limite atteinte) : confirmation de l'événement
   function buildRecapFinal() {
-    const url = `${window.location.origin}/invite/${event.invite_link_id}`
+    const url = `${window.location.origin}/invite/${event.invite_link_id}?recap=1`
     const d = new Date(event.date)
     const dateStr = d.toLocaleDateString('fr-FR', {
       weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
@@ -508,7 +508,7 @@ export default function EventDashboard() {
 
   // Message de rappel J-2 : l'app le prépare, l'organisateur l'envoie (WhatsApp/SMS)
   function buildReminder() {
-    const url = `${window.location.origin}/invite/${event.invite_link_id}`
+    const url = `${window.location.origin}/invite/${event.invite_link_id}?recap=1`
     const dateStr = new Date(event.date).toLocaleDateString('fr-FR', {
       weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
     })
