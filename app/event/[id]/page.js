@@ -40,6 +40,11 @@ export default function EventDashboard() {
   const [shareMsg, setShareMsg] = useState(null)
   const [msgCopied, setMsgCopied] = useState(false)
 
+  // Temps 2 du tournoi : préparation du planning bénévole par l'organisateur
+  const [preparingPlanning, setPreparingPlanning] = useState(false)
+  const [draftSlots, setDraftSlots] = useState(null) // null = pas encore généré ; [] = en cours d'édition
+  const [savingPlanning, setSavingPlanning] = useState(false)
+
   // Edition items
   const [editMode, setEditMode] = useState(false)
   const [editingItem, setEditingItem] = useState(null)
@@ -74,6 +79,84 @@ export default function EventDashboard() {
       setSignups([])
     }
     setLoading(false)
+  }
+
+  // ── Temps 2 du tournoi : préparer le planning bénévole ──
+  // Demande à l'IA des postes adaptés au sport / nb d'équipes / nb de confirmés,
+  // puis les propose en cartes éditables avant insertion comme slots.
+  async function generateVolunteerPlanning() {
+    setPreparingPlanning(true)
+    try {
+      const confirmedCount = participants
+        .filter(p => p.rsvp_status === 'Confirmé')
+        .reduce((s, p) => s + (p.nb_personnes || 1), 0)
+      const res = await fetch('/api/generate-list', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event_type: event.event_type,
+          event_name: event.event_name,
+          nb_participants: confirmedCount || event.nb_participants,
+          event_options: event.event_options || {},
+          location: event.location,
+          date: event.date,
+          selected_lists: { planning: true },
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Génération impossible')
+      const postes = (data.planning || []).map(p => ({
+        slot_name: p.slot_name || '',
+        start_time: p.start_time || '',
+        duration_minutes: p.duration_minutes ?? 60,
+        max_participants: p.max_participants ?? 4,
+        description: p.description || '',
+      }))
+      setDraftSlots(postes)
+    } catch (err) {
+      alert('Erreur IA: ' + err.message)
+    }
+    setPreparingPlanning(false)
+  }
+  function updateDraftSlot(idx, field, value) {
+    setDraftSlots(prev => prev.map((s, i) => (i === idx ? { ...s, [field]: value } : s)))
+  }
+  function deleteDraftSlot(idx) {
+    setDraftSlots(prev => prev.filter((_, i) => i !== idx))
+  }
+  function addDraftSlot() {
+    setDraftSlots(prev => [...(prev || []), { slot_name: '', start_time: '', duration_minutes: 60, max_participants: 4, description: '' }])
+  }
+  // Insère les postes édités comme slots de l'événement (heure absolue le jour de l'événement)
+  async function saveVolunteerPlanning() {
+    const valid = (draftSlots || []).filter(s => (s.slot_name || '').trim())
+    if (valid.length === 0) { alert('Ajoute au moins un poste avant d\'enregistrer.'); return }
+    setSavingPlanning(true)
+    try {
+      const supabase = getSupabase()
+      const dayPart = (event.date || '').slice(0, 10)
+      const rows = valid.map(s => {
+        let slotDate
+        if (s.start_time && dayPart) slotDate = new Date(`${dayPart}T${s.start_time}`).toISOString()
+        else if (event.date) slotDate = new Date(event.date).toISOString()
+        else slotDate = new Date().toISOString()
+        return {
+          event_id: event.id,
+          slot_name: s.slot_name || 'Poste',
+          slot_date: slotDate,
+          duration_minutes: Number(s.duration_minutes) || 60,
+          max_participants: Number(s.max_participants) || 4,
+          description: s.description || null,
+        }
+      })
+      const { error } = await supabase.from('slots').insert(rows)
+      if (error) throw error
+      setDraftSlots(null)
+      await loadAll()
+    } catch (err) {
+      alert('Erreur: ' + err.message)
+    }
+    setSavingPlanning(false)
   }
 
   // Annule la participation : libère ses items, supprime le participant, recharge
@@ -808,21 +891,23 @@ export default function EventDashboard() {
         </div>
       )}
 
-      {/* === PARTAGE CIBLÉ TOURNOI : familles vs bénévoles === */}
+      {/* === PARTAGE CIBLÉ TOURNOI : familles toujours, bénévoles une fois les postes créés === */}
       {event.event_type === 'Match/Tournoi' && (
-        <div className="grid grid-cols-2 gap-2 mb-4">
+        <div className={`grid gap-2 mb-4 ${slots.length > 0 ? 'grid-cols-2' : 'grid-cols-1'}`}>
           <button
             onClick={() => setShareMsg({ title: 'Inviter les familles', text: buildInviteFamilies() })}
             className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 rounded-xl transition-colors text-sm"
           >
             📣 Inviter les familles
           </button>
-          <button
-            onClick={() => setShareMsg({ title: 'Mobiliser les bénévoles', text: buildMobilizeVolunteers() })}
-            className="bg-amber-500 hover:bg-amber-600 text-white font-semibold py-3 rounded-xl transition-colors text-sm"
-          >
-            🙋 Mobiliser les bénévoles
-          </button>
+          {slots.length > 0 && (
+            <button
+              onClick={() => setShareMsg({ title: 'Mobiliser les bénévoles', text: buildMobilizeVolunteers() })}
+              className="bg-amber-500 hover:bg-amber-600 text-white font-semibold py-3 rounded-xl transition-colors text-sm"
+            >
+              🙋 Mobiliser les bénévoles
+            </button>
+          )}
         </div>
       )}
 
@@ -1045,6 +1130,90 @@ export default function EventDashboard() {
             >
               {showAllParticipants ? 'Reduire' : `Voir les ${participants.length - 5} autres`}
             </button>
+          )}
+        </div>
+      )}
+
+      {/* === TEMPS 2 TOURNOI : préparer le planning bénévole === */}
+      {event.event_type === 'Match/Tournoi' && slots.length === 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mt-4">
+          <div className="px-5 py-3 border-b border-slate-100">
+            <h3 className="text-sm font-bold text-slate-800">Planning bénévole</h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {draftSlots === null
+                ? "Quand tu as assez de réponses, génère les postes à pourvoir. Tu pourras les ajuster avant de les publier."
+                : "Ajuste les postes proposés (nom, horaire, quota, description), puis enregistre. Les bénévoles pourront ensuite s'y inscrire."}
+            </p>
+          </div>
+
+          {draftSlots === null ? (
+            <div className="p-5">
+              <button
+                onClick={generateVolunteerPlanning}
+                disabled={preparingPlanning}
+                className="w-full bg-amber-500 hover:bg-amber-600 disabled:bg-amber-300 text-white font-semibold py-3 rounded-xl transition-colors text-sm"
+              >
+                {preparingPlanning ? '✨ Génération des postes...' : '⚙️ Préparer le planning bénévole'}
+              </button>
+            </div>
+          ) : (
+            <div className="p-4 space-y-3">
+              {draftSlots.map((p, i) => (
+                <div key={i} className="bg-slate-50 rounded-xl border border-slate-100 p-3 space-y-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Nom du poste</label>
+                    <input type="text" value={p.slot_name} onChange={(e) => updateDraftSlot(i, 'slot_name', e.target.value)}
+                      placeholder="Arbitrage, Buvette, Montage..."
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm bg-white" />
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Début</label>
+                      <input type="time" value={p.start_time} onChange={(e) => updateDraftSlot(i, 'start_time', e.target.value)}
+                        className="w-full px-2 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm bg-white" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Durée (min)</label>
+                      <input type="number" min="0" value={p.duration_minutes}
+                        onChange={(e) => updateDraftSlot(i, 'duration_minutes', e.target.value === '' ? '' : Number(e.target.value))}
+                        className="w-full px-2 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm text-center bg-white" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Quota</label>
+                      <input type="number" min="1" value={p.max_participants}
+                        onChange={(e) => updateDraftSlot(i, 'max_participants', e.target.value === '' ? '' : Number(e.target.value))}
+                        className="w-full px-2 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm text-center bg-white" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Description</label>
+                    <textarea value={p.description} onChange={(e) => updateDraftSlot(i, 'description', e.target.value)} rows={2}
+                      placeholder="Tâches du poste..."
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm resize-none bg-white" />
+                  </div>
+                  <button type="button" onClick={() => deleteDraftSlot(i)}
+                    className="w-full py-2 rounded-lg border border-red-200 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors">
+                    Supprimer ce poste
+                  </button>
+                </div>
+              ))}
+
+              <button type="button" onClick={addDraftSlot}
+                className="w-full py-2.5 rounded-xl border-2 border-dashed border-slate-200 text-slate-400 text-sm font-medium hover:border-blue-300 hover:text-blue-500 transition-colors">
+                + Ajouter un poste
+              </button>
+
+              <div className="flex gap-2 pt-1">
+                <button type="button" onClick={() => setDraftSlots(null)}
+                  className="px-4 py-3 rounded-xl border-2 border-slate-200 text-slate-600 font-semibold text-sm hover:border-slate-300 transition-colors">
+                  Annuler
+                </button>
+                <button type="button" onClick={saveVolunteerPlanning} disabled={savingPlanning}
+                  className="flex-1 bg-emerald-500 hover:bg-emerald-600 disabled:bg-emerald-300 text-white font-semibold py-3 rounded-xl transition-colors text-sm">
+                  {savingPlanning ? '⏳ Enregistrement...' : 'Enregistrer le planning'}
+                </button>
+              </div>
+            </div>
           )}
         </div>
       )}

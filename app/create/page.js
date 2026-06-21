@@ -113,11 +113,12 @@ const DEFAULT_LISTS = {
 function annivLists(annivType) {
   return annivType === 'enfant' ? ['cadeaux'] : ['menu', 'boissons', 'cadeaux']
 }
-// Pour le Tournoi, un participant n'apporte rien (intendance gérée par l'orga/club) :
-// les deux formats ne produisent que le planning des postes bénévoles. Le vote repas
-// (mode 'complet') est géré à part via event_options.meal_choices.
+// Pour le Tournoi, l'invitation ne contient AUCUNE liste à la création :
+// pas d'apports (intendance gérée par l'orga/club) et le planning des postes
+// bénévoles est créé dans un 2e temps par l'organisateur, après réception des réponses.
+// Le vote repas (mode 'complet') est géré à part via event_options.meal_choices.
 function tournoiLists() {
-  return ['planning']
+  return []
 }
 function availableListsFor(type, options) {
   if (type === 'Anniversaire') return options?.anniv_type ? annivLists(options.anniv_type) : []
@@ -295,6 +296,19 @@ export default function CreateEvent() {
     }
     setGenerating(true)
     try {
+      // Tournoi : logique en 2 temps. À la création, on ne génère RIEN (ni apports, ni planning).
+      // Le planning des postes bénévoles sera préparé plus tard par l'organisateur depuis le dashboard.
+      if (form.event_type === 'Match/Tournoi') {
+        setGeneratedLists([])
+        setPlanning([])
+        setEditedPlanning([])
+        setMenuResume('')
+        setActiveTab(0)
+        setStep(3)
+        setGenerating(false)
+        return
+      }
+
       // Mode solo : aucune liste d'apports. On récupère uniquement le planning
       // bénévoles si une aide montage/logistique est demandée.
       if (form.mode === 'solo') {
