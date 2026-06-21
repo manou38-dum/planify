@@ -336,7 +336,7 @@ export default function EventDashboard() {
       window.removeEventListener('blur', onHide)
       if (!left && !document.hidden) {
         navigator.clipboard?.writeText(text)
-        setShareNotice('Sur ordinateur ? Le texte a été copié, colle-le dans ton SMS ou email.')
+        setShareNotice('Sur mobile, ton app Messages devrait s\'ouvrir ; sinon le texte est copié, colle-le.')
         setTimeout(() => setShareNotice(''), 6000)
       }
     }, 1000)
@@ -345,7 +345,7 @@ export default function EventDashboard() {
   function shareSMS() {
     if (!event) return
     const { text } = buildInvitation()
-    openWithFallback(`sms:?&body=${encodeURIComponent(text)}`, text)
+    openWithFallback(`sms:?body=${encodeURIComponent(text)}`, text)
   }
 
   function shareEmail() {
@@ -544,7 +544,7 @@ export default function EventDashboard() {
   }
   function shareMsgSMS() {
     if (!shareMsg) return
-    openWithFallback(`sms:?&body=${encodeURIComponent(shareMsg.text)}`, shareMsg.text)
+    openWithFallback(`sms:?body=${encodeURIComponent(shareMsg.text)}`, shareMsg.text)
   }
 
   // ─── Bilan rédigé en phrases, toujours visible, évolue au fil des réponses ───

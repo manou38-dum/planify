@@ -104,20 +104,6 @@ export default async function Image({ params }) {
           </>
         )}
 
-        {/* Bandeau "TU ES INVITÉ(E)" */}
-        <div
-          style={{
-            display: 'flex',
-            fontSize: 30,
-            letterSpacing: 8,
-            fontWeight: 700,
-            color: 'rgba(255,255,255,0.75)',
-            marginBottom: 28,
-          }}
-        >
-          TU ES INVITÉ(E)
-        </div>
-
         {/* Nom de l'événement */}
         <div
           style={{
