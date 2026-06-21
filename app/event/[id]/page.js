@@ -808,29 +808,48 @@ export default function EventDashboard() {
             <p className="text-xs text-slate-400 mt-2 text-center">En attente des premiers partants…</p>
           )}
 
-          {/* Transparence des dépenses : qui prend quoi, avec montants (pas de calcul de dette) */}
+          {/* Indicateur d'équilibre par contributeur (transparence, PAS de moteur de dette) */}
           {apportItems.length > 0 && (() => {
-            const rows = confirmed
-              .map(p => {
-                const pris = getItemsForParticipant(p)
-                const montant = Math.round(pris.reduce((s, it) => s + (Number(it.estimated_price) || 0), 0))
-                return { p, pris, montant }
-              })
-              .filter(r => r.pris.length > 0)
-            if (rows.length === 0) {
-              return <p className="text-xs text-slate-400 mt-3">Personne n'a encore réservé d'article.</p>
-            }
+            const SEUIL = 5 // tolérance en € pour considérer la part "équilibrée"
+            const rows = confirmed.map(p => {
+              const pris = getItemsForParticipant(p)
+              const montant = Math.round(pris.reduce((s, it) => s + (Number(it.estimated_price) || 0), 0))
+              const part = Math.round(aperoAmount * (p.nb_personnes || 1))
+              const ecart = montant - part
+              let statut = 'ok'
+              if (ecart > SEUIL) statut = 'plus'
+              else if (ecart < -SEUIL) statut = 'moins'
+              return { p, pris, montant, part, ecart, statut }
+            })
+            const totalCotis = rows.reduce((s, r) => s + r.part, 0)
+            const totalPris = rows.reduce((s, r) => s + r.montant, 0)
             return (
               <div className="mt-3 pt-3 border-t border-slate-100">
-                <p className="text-xs font-semibold text-slate-500 mb-2">Qui prend quoi</p>
-                <ul className="space-y-1.5">
-                  {rows.map(({ p, pris, montant }) => (
-                    <li key={p.id} className="text-sm text-slate-600">
-                      <span className="font-medium text-slate-700">{p.participant_name}</span> → {pris.map(it => it.item_name).join(', ')}
-                      <span className="text-amber-600 font-medium"> ({montant} €)</span>
+                <p className="text-xs font-semibold text-slate-500 mb-2">🛒 Répartition des courses</p>
+                <ul className="space-y-2">
+                  {rows.map(({ p, pris, montant, part, ecart, statut }) => (
+                    <li key={p.id} className="text-sm">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium text-slate-700 min-w-0 truncate">
+                          {p.participant_name}{p.nb_personnes > 1 ? ` (+${p.nb_personnes - 1})` : ''}
+                        </span>
+                        <span className="shrink-0 text-xs font-semibold">
+                          {statut === 'ok' && <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">✅ équilibré</span>}
+                          {statut === 'plus' && <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">⚠️ a avancé {ecart} € de plus</span>}
+                          {statut === 'moins' && <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">⚠️ n'a pas encore pris sa part</span>}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        part : {part} € · a pris : {montant} €
+                        {pris.length > 0 && <span className="text-slate-400"> — {pris.map(it => it.item_name).join(', ')}</span>}
+                      </p>
                     </li>
                   ))}
                 </ul>
+                <p className="text-xs text-slate-600 mt-3 pt-2 border-t border-slate-100">
+                  Cotisations cumulées : <span className="font-semibold">{totalCotis} €</span> · Courses prises : <span className="font-semibold">{totalPris} €</span>
+                </p>
+                <p className="text-xs text-slate-400 mt-1">Indicateur de transparence. Planify ne calcule pas les remboursements et n'encaisse rien — la régularisation se fait entre vous.</p>
               </div>
             )
           })()}
