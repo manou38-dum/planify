@@ -67,6 +67,10 @@ STRUCTURE DES LISTES PAR TYPE :
   * liste "apport" "Apéro & snacks" (uniquement si la liste snacks/menu est demandée) : chips, cacahuètes, olives, charcuterie, fromage apéro, mini-pizzas, dips. PAS de plat principal. Vise ~150 g de snacks salés par personne.
   * liste "apport" "Matériel" (uniquement si demandée) : gobelets, assiettes, serviettes, glaçons, enceinte, déco. Objets physiques uniquement, jamais de tâches.
 - Match/Tournoi : ne génère JAMAIS de liste d'apports (lists = []), quel que soit tournoi_mode. Un participant à un tournoi n'apporte rien : l'intendance est gérée par l'organisateur/club. Le tournoi ne produit QUE des postes bénévoles dans le champ "planning" (voir RÈGLES DE PLANNING TOURNOI).
+- Randonnée : lis event_options.duree, event_options.denivele, event_options.niveau, event_options.bivouac, event_options.enfants.
+  * liste behavior 'checklist' "Équipement & sécurité" : l'équipement INDIVIDUEL que CHAQUE participant doit avoir, ADAPTÉ à la durée / dénivelé / niveau / bivouac / enfants. Items types : eau (minimum 1,5 L, davantage si longue ou par forte chaleur), chaussures de randonnée, vêtement de pluie / coupe-vent, trousse de secours, en-cas / barres énergétiques, crème solaire, casquette, et si bivouac : lampe frontale, sac de couchage, tente, réchaud. Si enfants : prévoir de quoi les couvrir/alimenter. Ce sont des éléments que chacun coche POUR LUI : quantity = 1, PAS de quantité partagée, PAS de prix nécessaire.
+  * liste behavior 'apport' "Pique-nique partagé" (UNIQUEMENT si la liste menu est demandée) : nourriture à se répartir entre participants (sandwichs, fruits, fromage, gâteaux...), anti-doublon classique.
+  * Hydratation prioritaire, NE mets PAS d'alcool en avant.
 
 RÈGLES DE PLANNING :
 - Générer un planning UNIQUEMENT si l'organisateur a coché "aide montage/démontage" ou "aide logistique"

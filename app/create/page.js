@@ -47,12 +47,14 @@ const OPTIONS_BY_TYPE = {
   },
   'Randonnée': {
     fields: [
-      { key: 'duree', label: 'Durée estimée', placeholder: '4h, journée...' },
-      { key: 'denivele', label: 'Dénivelé', placeholder: '800 m' },
+      { key: 'duree', label: 'Durée estimée', placeholder: 'ex : 3h' },
+      { key: 'denivele', label: 'Dénivelé', placeholder: 'ex : 600 m' },
+      { key: 'niveau', label: 'Niveau', placeholder: 'facile / moyen / difficile' },
+      { key: 'lien_rando', label: "Lien vers l'itinéraire (facultatif)", placeholder: 'Visorando, AllTrails, IGN...' },
     ],
     checks: [
-      { key: 'enfants', label: 'Enfants présents' },
-      { key: 'checklist_securite', label: 'Checklist sécurité obligatoire' },
+      { key: 'enfants', label: "Présence d'enfants" },
+      { key: 'bivouac', label: 'Bivouac / nuit sur place' },
     ],
   },
   'Soirée': {
@@ -92,7 +94,7 @@ const AVAILABLE_LISTS = {
   'Anniversaire': ['menu', 'boissons', 'cadeaux', 'planning'],
   'Soirée': ['boissons', 'menu', 'materiel', 'planning'],
   'Mariage': ['cadeaux', 'planning', 'materiel'],
-  'Randonnée': ['checklist', 'menu', 'materiel'],
+  'Randonnée': ['checklist', 'menu'],
   'Match/Tournoi': ['boissons', 'menu', 'materiel', 'planning'],
   'Autre': ['menu', 'boissons', 'materiel', 'cadeaux', 'planning', 'checklist'],
 }
@@ -102,7 +104,7 @@ const DEFAULT_LISTS = {
   'BBQ': ['menu', 'boissons', 'materiel', 'planning'],
   'Anniversaire': ['menu', 'boissons', 'cadeaux'],
   'Mariage': ['menu', 'boissons', 'cadeaux', 'planning'],
-  'Randonnée': ['menu', 'checklist'],
+  'Randonnée': ['checklist'],
   'Soirée': ['boissons', 'menu'],
   'Match/Tournoi': ['boissons', 'menu'],
   'Autre': ['menu'],

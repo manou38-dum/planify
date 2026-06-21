@@ -25,6 +25,7 @@ export default function InviteClient({ linkId }) {
   const [mealChoice, setMealChoice] = useState('')
   const [companionNames, setCompanionNames] = useState([])
   const [selectedItems, setSelectedItems] = useState({})
+  const [checkedChecklist, setCheckedChecklist] = useState({}) // checklist perso (rando) : id -> true
   const [selectedItemDetails, setSelectedItemDetails] = useState([])
   const [existingParticipant, setExistingParticipant] = useState(null)
 
@@ -105,6 +106,7 @@ export default function InviteClient({ linkId }) {
       setCompanionNames(parsed.accompagnants)
       setCommentaire(parsed.commentaire || '')
       if (typeof parsed.repas === 'string') setMealChoice(parsed.repas)
+      if (Array.isArray(parsed.checklist)) setCheckedChecklist(Object.fromEntries(parsed.checklist.map(id => [id, true])))
     } else {
       setCompanionNames([])
       setCommentaire(rawComment)
@@ -294,6 +296,16 @@ export default function InviteClient({ linkId }) {
     })
   }
 
+  // Checklist personnelle (rando) : chacun coche POUR LUI, sans verrouillage anti-doublon
+  function toggleChecklistItem(itemId) {
+    setCheckedChecklist(prev => {
+      const next = { ...prev }
+      if (next[itemId]) delete next[itemId]
+      else next[itemId] = true
+      return next
+    })
+  }
+
   function setItemQty(itemId, qty, max) {
     const clamped = Math.max(1, Math.min(qty, max))
     setSelectedItems(prev => ({ ...prev, [itemId]: clamped }))
@@ -343,13 +355,14 @@ export default function InviteClient({ linkId }) {
       }
     }
 
-    // Commentaire final : JSON {accompagnants, commentaire, repas} si nécessaire, sinon texte brut.
-    // Le choix de repas (vote tournoi) est stocké dans ce JSON sous la clé "repas" (sans migration).
+    // Commentaire final : JSON {accompagnants, commentaire, repas, checklist} si nécessaire, sinon texte brut.
+    // Le vote repas et la checklist perso (rando) sont stockés dans ce JSON, par participant (sans migration).
     const comps = (nbPersonnes > 1 ? companionNames : []).map(s => s.trim()).filter(Boolean)
     const hasMealVote = Array.isArray(event.event_options?.meal_choices) && event.event_options.meal_choices.length > 0
     const repas = (hasMealVote && rsvp === 'Confirmé') ? (mealChoice || '') : ''
-    const finalCommentaire = (comps.length > 0 || repas)
-      ? JSON.stringify({ accompagnants: comps, commentaire: commentaire.trim(), ...(repas ? { repas } : {}) })
+    const checklist = rsvp === 'Confirmé' ? Object.keys(checkedChecklist).filter(id => checkedChecklist[id]) : []
+    const finalCommentaire = (comps.length > 0 || repas || checklist.length > 0)
+      ? JSON.stringify({ accompagnants: comps, commentaire: commentaire.trim(), ...(repas ? { repas } : {}), ...(checklist.length ? { checklist } : {}) })
       : (commentaire.trim() || null)
 
     try {
@@ -613,11 +626,12 @@ export default function InviteClient({ linkId }) {
     )
   }
 
-  // Map list_id -> behavior pour séparer les apports des cadeaux
+  // Map list_id -> behavior pour séparer apports, cadeaux et checklist
   const listBehavior = {}
   lists.forEach(l => { listBehavior[l.id] = l.behavior })
-  const apportItems = items.filter(i => listBehavior[i.list_id] !== 'cadeau')
   const giftItems = items.filter(i => listBehavior[i.list_id] === 'cadeau')
+  const checklistItems = items.filter(i => listBehavior[i.list_id] === 'checklist')
+  const apportItems = items.filter(i => listBehavior[i.list_id] !== 'cadeau' && listBehavior[i.list_id] !== 'checklist')
 
   const disponibles = apportItems.filter(i => i.status === 'Disponible')
   const reserves = apportItems.filter(i => i.status === 'Réservé')
@@ -648,6 +662,8 @@ export default function InviteClient({ linkId }) {
   const isTournoiComplet = event.event_type === 'Match/Tournoi' && event.event_options?.tournoi_mode === 'complet'
   // Vote repas : choix proposés par l'organisateur
   const mealChoices = Array.isArray(event.event_options?.meal_choices) ? event.event_options.meal_choices : []
+  // Randonnée : lien itinéraire (facultatif)
+  const lienRando = event.event_options?.lien_rando || ''
   const eventDateStr = new Date(event.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })
 
   // Vue récapitulatif (lien de rappel : ?recap=1) : on montre un récap en lecture seule avant le formulaire
@@ -720,6 +736,12 @@ export default function InviteClient({ linkId }) {
               </p>
             )}
             <p className="text-blue-100 text-sm flex items-center gap-2">👥 {event.nb_participants} personnes attendues</p>
+            {lienRando && (
+              <a href={lienRando} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 mt-2 bg-white/20 hover:bg-white/30 text-white text-sm font-medium px-3 py-1.5 rounded-full transition-colors">
+                🗺 Voir l'itinéraire
+              </a>
+            )}
             <p className="text-blue-50 text-sm mt-2">
               {isRecap ? "Voici où en est l'événement" : "Confirme ta venue et participe à l'événement en remplissant les infos"}
             </p>
@@ -963,6 +985,37 @@ export default function InviteClient({ linkId }) {
                   </div>
                 )}
               </div>
+
+              {/* Checklist personnelle (rando) : chacun coche ce qu'il prend POUR LUI, sans verrouillage */}
+              {checklistItems.length > 0 && (
+                <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">✅ Équipement & sécurité</label>
+                  <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mb-3">⚠️ Sécurité : assure-toi d'avoir l'essentiel avant de partir.</p>
+                  <div className="space-y-2">
+                    {checklistItems.map((item) => {
+                      const checked = !!checkedChecklist[item.id]
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => toggleChecklistItem(item.id)}
+                          className={`w-full flex items-center justify-between rounded-xl border-2 px-3 py-3 text-left transition-all ${
+                            checked ? 'border-emerald-400 bg-emerald-50' : 'border-slate-100 hover:border-slate-200'
+                          }`}
+                        >
+                          <span className="text-sm font-medium text-slate-700">{item.item_name}</span>
+                          <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center text-xs ${
+                            checked ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-300'
+                          }`}>
+                            {checked ? '✓' : ''}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <p className="text-xs text-slate-400 mt-2">Coche ce que tu as / prends pour toi. Plusieurs personnes peuvent cocher le même élément.</p>
+                </div>
+              )}
 
               {/* Tout est déjà couvert : message bienveillant à la place des listes */}
               {event.mode !== 'solo' && allReserved && (
