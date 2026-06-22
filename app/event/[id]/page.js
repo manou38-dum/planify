@@ -374,20 +374,37 @@ export default function EventDashboard() {
       const updated = Array.isArray(data.items) ? data.items : []
       const norm = s => (s || '').toString().trim().toLowerCase()
       // id de l'item → nouvelle quantité (priorité au même ordre, repli sur le nom)
+      // + nouveau prix proportionnel (prix unitaire constant)
       const newQty = {}
+      const newPrice = {}
       toRecalc.forEach((it, idx) => {
         const cand = (updated[idx] && norm(updated[idx].item_name) === norm(it.item_name))
           ? updated[idx]
           : updated.find(u => norm(u.item_name) === norm(it.item_name))
         const q = cand ? Number(cand.quantity) : NaN
-        if (Number.isFinite(q) && q > 0) newQty[it.id] = q
+        if (!Number.isFinite(q) || q <= 0) return
+        newQty[it.id] = q
+        // Prix proportionnel : prix unitaire = prix actuel / quantité actuelle.
+        // Si quantité actuelle 0/null ou prix absent/0, on garde le prix existant.
+        const oldQty = Number(it.quantity)
+        const oldPrice = Number(it.estimated_price)
+        if (Number.isFinite(oldQty) && oldQty > 0 && Number.isFinite(oldPrice) && oldPrice > 0) {
+          newPrice[it.id] = Math.round((oldPrice / oldQty) * q)
+        }
       })
       const supabase = getSupabase()
       for (const it of toRecalc) {
         if (!(it.id in newQty) || newQty[it.id] === Number(it.quantity)) continue
-        await supabase.from('items').update({ quantity: newQty[it.id] }).eq('id', it.id)
+        const patch = { quantity: newQty[it.id] }
+        if (it.id in newPrice) patch.estimated_price = newPrice[it.id]
+        await supabase.from('items').update(patch).eq('id', it.id)
       }
-      setItems(prev => prev.map(i => (i.id in newQty ? { ...i, quantity: newQty[i.id] } : i)))
+      setItems(prev => prev.map(i => {
+        if (!(i.id in newQty)) return i
+        const next = { ...i, quantity: newQty[i.id] }
+        if (i.id in newPrice) next.estimated_price = newPrice[i.id]
+        return next
+      }))
       setRecalcNotice(`Quantités mises à jour pour ${nb} personnes`)
       setTimeout(() => setRecalcNotice(''), 5000)
     } catch (err) {
