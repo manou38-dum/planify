@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation'
 const EVENT_TYPES = [
   { value: 'BBQ', icon: '🔥', label: 'BBQ', bg: 'bg-orange-50', border: 'border-orange-300', text: 'text-orange-700', accent: 'bg-orange-500' },
   { value: 'Anniversaire', icon: '🎂', label: 'Anniversaire', bg: 'bg-pink-50', border: 'border-pink-300', text: 'text-pink-700', accent: 'bg-pink-500' },
-  { value: 'Mariage', icon: '💍', label: 'Mariage', bg: 'bg-violet-50', border: 'border-violet-300', text: 'text-violet-700', accent: 'bg-violet-500' },
   { value: 'Randonnée', icon: '🧭', label: 'Sortie / Activité', bg: 'bg-green-50', border: 'border-green-300', text: 'text-green-700', accent: 'bg-green-500' },
   { value: 'Soirée', icon: '🎶', label: 'Soirée', bg: 'bg-indigo-50', border: 'border-indigo-300', text: 'text-indigo-700', accent: 'bg-indigo-500' },
   { value: 'Match/Tournoi', icon: '⚽', label: 'Match/Tournoi', bg: 'bg-blue-50', border: 'border-blue-300', text: 'text-blue-700', accent: 'bg-blue-500' },
@@ -37,13 +36,6 @@ const OPTIONS_BY_TYPE = {
     ],
     conditionals: [
       { showIf: 'theme', key: 'theme_detail', label: 'Thème', placeholder: 'Princesse, Super-héros, Années 80...' },
-    ],
-  },
-  'Mariage': {
-    fields: [{ key: 'prenoms_maries', label: 'Prénoms des mariés', placeholder: 'Marie & Thomas' }],
-    checks: [
-      { key: 'liste_cadeaux', label: 'Liste cadeaux' },
-      { key: 'aide_logistique', label: 'Aide logistique' },
     ],
   },
   'Randonnée': {
@@ -103,7 +95,6 @@ const AVAILABLE_LISTS = {
   'BBQ': ['menu', 'boissons', 'materiel', 'planning'],
   'Anniversaire': ['menu', 'boissons', 'cadeaux', 'planning'],
   'Soirée': ['boissons', 'menu', 'materiel', 'planning'],
-  'Mariage': ['cadeaux', 'planning', 'materiel'],
   'Randonnée': ['checklist', 'menu'],
   'Match/Tournoi': ['boissons', 'menu', 'materiel', 'planning'],
   'Apero': [],
@@ -114,7 +105,6 @@ const AVAILABLE_LISTS = {
 const DEFAULT_LISTS = {
   'BBQ': ['menu', 'boissons', 'materiel', 'planning'],
   'Anniversaire': ['menu', 'boissons', 'cadeaux'],
-  'Mariage': ['menu', 'boissons', 'cadeaux', 'planning'],
   'Randonnée': ['checklist'],
   'Soirée': ['boissons', 'menu'],
   'Match/Tournoi': ['boissons', 'menu'],
@@ -332,7 +322,7 @@ export default function CreateEvent() {
       // Mode solo : aucune liste d'apports. On récupère uniquement le planning
       // bénévoles si une aide montage/logistique est demandée.
       if (form.mode === 'solo') {
-        const PLANNING_TYPES = ['BBQ', 'Mariage', 'Match/Tournoi']
+        const PLANNING_TYPES = ['BBQ', 'Match/Tournoi']
         const wantsPlanning = PLANNING_TYPES.includes(form.event_type)
         let planningData = []
         if (wantsPlanning) {

@@ -52,6 +52,10 @@ export default function EventDashboard() {
   const [draftSlots, setDraftSlots] = useState(null) // null = pas encore généré ; [] = en cours d'édition
   const [savingPlanning, setSavingPlanning] = useState(false)
 
+  // Recalcul des quantités après modification manuelle de la liste
+  const [recalculating, setRecalculating] = useState(false)
+  const [recalcNotice, setRecalcNotice] = useState('')
+
   // Edition items
   const [editMode, setEditMode] = useState(false)
   const [editingItem, setEditingItem] = useState(null)
@@ -339,6 +343,59 @@ export default function EventDashboard() {
     setSaving(false)
   }
 
+  // Recalcule les quantités des articles d'apport RESTANTS pour le nombre de personnes.
+  // Utile après que l'organisateur a supprimé des articles (ex : ne garde qu'1 viande
+  // sur 3) : l'IA réajuste chaque quantité restante aux ratios habituels.
+  // On ne touche QUE la quantité — jamais le statut ni les réservations des invités.
+  async function recalculateQuantities() {
+    const behavior = {}
+    lists.forEach(l => { behavior[l.id] = l.behavior })
+    const toRecalc = items.filter(i => behavior[i.list_id] !== 'cadeau' && behavior[i.list_id] !== 'checklist')
+    if (toRecalc.length === 0) return
+    const partants = participants
+      .filter(p => p.rsvp_status === 'Confirmé')
+      .reduce((s, p) => s + (p.nb_personnes || 1), 0)
+    const nb = event.event_type === 'Apero' ? partants : (event.nb_participants || partants)
+    if (!nb || nb < 1) { alert('Nombre de personnes inconnu pour le recalcul.'); return }
+    setRecalculating(true)
+    try {
+      const res = await fetch('/api/recalculate-list', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event_type: event.event_type,
+          nb_participants: nb,
+          event_options: event.event_options || {},
+          items: toRecalc.map(i => ({ item_name: i.item_name, unit: i.unit || '', category: i.category || '', quantity: i.quantity })),
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Recalcul impossible')
+      const updated = Array.isArray(data.items) ? data.items : []
+      const norm = s => (s || '').toString().trim().toLowerCase()
+      // id de l'item → nouvelle quantité (priorité au même ordre, repli sur le nom)
+      const newQty = {}
+      toRecalc.forEach((it, idx) => {
+        const cand = (updated[idx] && norm(updated[idx].item_name) === norm(it.item_name))
+          ? updated[idx]
+          : updated.find(u => norm(u.item_name) === norm(it.item_name))
+        const q = cand ? Number(cand.quantity) : NaN
+        if (Number.isFinite(q) && q > 0) newQty[it.id] = q
+      })
+      const supabase = getSupabase()
+      for (const it of toRecalc) {
+        if (!(it.id in newQty) || newQty[it.id] === Number(it.quantity)) continue
+        await supabase.from('items').update({ quantity: newQty[it.id] }).eq('id', it.id)
+      }
+      setItems(prev => prev.map(i => (i.id in newQty ? { ...i, quantity: newQty[i.id] } : i)))
+      setRecalcNotice(`Quantités mises à jour pour ${nb} personnes`)
+      setTimeout(() => setRecalcNotice(''), 5000)
+    } catch (err) {
+      alert('Erreur: ' + err.message)
+    }
+    setRecalculating(false)
+  }
+
   function copyInviteLink() {
     if (!event) return
     const url = `${window.location.origin}/invite/${event.invite_link_id}`
@@ -473,6 +530,12 @@ export default function EventDashboard() {
 
   const missingNames = disponibles.map(i => i.item_name)
   const categories = ['Nourriture', 'Boissons', 'Matériel', 'Décoration', 'Service']
+
+  // Recalcul des quantités : seulement pour les types où les quantités dépendent
+  // du nombre de personnes (pas les listes cadeaux/checklist, traitées à part).
+  const QTY_SCALE_TYPES = ['BBQ', 'Soirée', 'Apero', 'Anniversaire', 'Mariage', 'Randonnée', 'Autre']
+  const recalcPeople = event.event_type === 'Apero' ? totalPersonnes : (event.nb_participants || totalPersonnes)
+  const canRecalc = QTY_SCALE_TYPES.includes(event.event_type) && apportItems.length > 0
 
   // Emoji du type d'événement (pour l'en-tête résumé)
   const TYPE_EMOJIS = { 'BBQ': '🔥', 'Anniversaire': '🎂', 'Mariage': '💍', 'Randonnée': '🧭', 'Soirée': '🎶', 'Match/Tournoi': '⚽', 'Apero': '🥂', 'Autre': '✨' }
@@ -808,8 +871,8 @@ export default function EventDashboard() {
             <p className="text-xs text-slate-400 mt-2 text-center">En attente des premiers partants…</p>
           )}
 
-          {/* Indicateur d'équilibre par contributeur (transparence, PAS de moteur de dette) */}
-          {apportItems.length > 0 && (() => {
+          {/* Pavé unique : qui vient + qui prend quoi + équilibre (transparence, PAS de moteur de dette) */}
+          {confirmed.length > 0 && (() => {
             const SEUIL = 5 // tolérance en € pour considérer la part "équilibrée"
             const rows = confirmed.map(p => {
               const pris = getItemsForParticipant(p)
@@ -825,7 +888,7 @@ export default function EventDashboard() {
             const totalPris = rows.reduce((s, r) => s + r.montant, 0)
             return (
               <div className="mt-3 pt-3 border-t border-slate-100">
-                <p className="text-xs font-semibold text-slate-500 mb-2">🛒 Répartition des courses</p>
+                <p className="text-xs font-semibold text-slate-500 mb-2">🥂 Qui vient et qui prend quoi</p>
                 <ul className="space-y-2">
                   {rows.map(({ p, pris, montant, part, ecart, statut }) => (
                     <li key={p.id} className="text-sm">
@@ -998,6 +1061,25 @@ export default function EventDashboard() {
             <h3 className="text-sm font-bold text-blue-800">Liste de courses</h3>
             <p className="text-xs text-blue-500">Supprime, modifie ou ajoute des articles</p>
           </div>
+
+          {/* Recalcul des quantités après suppression d'articles */}
+          {canRecalc && (
+            <div className="px-4 py-3 border-b border-slate-100 bg-amber-50">
+              <button
+                onClick={recalculateQuantities}
+                disabled={recalculating}
+                className="w-full bg-amber-500 hover:bg-amber-600 disabled:bg-amber-300 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm"
+              >
+                {recalculating ? '✨ Recalcul en cours...' : '🔄 Recalculer les quantités'}
+              </button>
+              <p className="text-xs text-amber-700 mt-2">
+                Réajuste les quantités des articles restants pour {recalcPeople} personne{recalcPeople > 1 ? 's' : ''} (utile après avoir supprimé des articles). Les réservations des invités sont conservées.
+              </p>
+              {recalcNotice && (
+                <p className="text-xs font-semibold text-emerald-700 mt-2">✅ {recalcNotice}</p>
+              )}
+            </div>
+          )}
 
           {/* Items existants */}
           <div className="divide-y divide-slate-50">
@@ -1294,8 +1376,8 @@ export default function EventDashboard() {
         </div>
       )}
 
-      {/* === PARTICIPANTS === */}
-      {participants.length > 0 && (
+      {/* === PARTICIPANTS === (masqué pour l'apéro : fusionné dans "Qui vient et qui prend quoi") */}
+      {participants.length > 0 && !isApero && (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
           <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100">
             <h3 className="text-sm font-bold text-slate-800">Participants</h3>

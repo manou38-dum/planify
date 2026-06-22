@@ -10,7 +10,6 @@ export const alt = 'Invitation'
 const GRADIENTS = {
   'BBQ': 'linear-gradient(135deg, #fb923c 0%, #ea580c 55%, #9a3412 100%)',
   'Anniversaire': 'linear-gradient(135deg, #f472b6 0%, #d946ef 55%, #7c3aed 100%)',
-  'Mariage': 'linear-gradient(135deg, #c8a04a 0%, #b8860b 50%, #8c6d1f 100%)',
   'Randonnée': 'linear-gradient(135deg, #34d399 0%, #16a34a 55%, #15803d 100%)',
   'Soirée': 'linear-gradient(135deg, #818cf8 0%, #6d28d9 55%, #4c1d95 100%)',
   'Match/Tournoi': 'linear-gradient(135deg, #60a5fa 0%, #2563eb 55%, #1e3a8a 100%)',

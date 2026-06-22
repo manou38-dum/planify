@@ -40,7 +40,6 @@ export default function Home() {
     'BBQ': '🍖',
     'Anniversaire': '🎂',
     'Tournoi': '⚽',
-    'Mariage': '💍',
     'Créneau récurrent': '📅',
     'Autre': '🎉',
   }
