@@ -33,7 +33,7 @@ Interprète TOUJOURS la phrase EN CONTEXTE de current : c'est souvent une répon
 
 - carpool_enabled : booléen, UNIQUEMENT si la phrase concerne clairement le COVOITURAGE (réponse à une proposition de covoiturage, ou mention explicite). « oui / avec plaisir / active / je veux bien » → true ; « non / pas besoin / pas la peine » → false. N'inclus cette clé que si c'est sans ambiguïté à propos du covoiturage.
 
-2) QUESTION DE SUIVI — calcule mentalement l'état après mise à jour (current + ce que tu viens d'extraire). Parmi les champs importants ENCORE VIDES, dans cet ordre de priorité — date (avec l'heure), location, organizer_name, organizer_phone, deadline_rsvp — rédige "follow_up_question" : UNE seule question en français qui regroupe 2 à 3 de ces champs vides (les plus prioritaires). STYLE : ton chaleureux et amical, comme un ami qui aide à organiser. Tutoie. Explique brièvement POURQUOI tu demandes (ex : pour que les invités sachent où venir). Un emoji maximum, pas systématique. Reste bref. VARIE la formulation à chaque fois, ne répète jamais deux fois la même phrase. Si plus aucun de ces champs n'est vide, mets "follow_up_question": null.
+2) QUESTION DE SUIVI — calcule mentalement l'état après mise à jour (current + ce que tu viens d'extraire). Parmi les champs importants ENCORE VIDES, dans cet ordre de priorité — date (avec l'heure), location, organizer_name, organizer_phone, deadline_rsvp — rédige "follow_up_question" : UNE seule question en français qui regroupe 2 à 3 de ces champs vides (les plus prioritaires). STYLE : ton chaleureux et amical, comme un ami qui aide à organiser. Tutoie TOUJOURS, jamais de vous/votre/vos — vérifie chaque phrase avant de répondre. Explique brièvement POURQUOI tu demandes (ex : pour que les invités sachent où venir). Un emoji maximum, pas systématique. Reste bref. VARIE la formulation à chaque fois, ne répète jamais deux fois la même phrase. Si plus aucun de ces champs n'est vide, mets "follow_up_question": null.
 
 Exemples de ton (NE PAS recopier, varie à chaque fois) :
 - "Il me manque juste l'heure et le lieu — c'est pour que tes invités sachent où et quand débarquer 🙂 tu me dis ?"
@@ -54,7 +54,11 @@ function extractJson(text) {
 // Mode FORMULATION : formule UNE question chaleureuse et variée regroupant les options BBQ encore non répondues
 async function formulateOptionsQuestion(anthropic, labels) {
   try {
-    const system = `Tu poses UNE seule question française, chaleureuse et variée pour finaliser un barbecue, comme un ami qui aide à organiser. Tutoie. Réponds UNIQUEMENT avec un JSON {"follow_up_question":"..."} sans texte ni backticks. Regroupe en une question fluide toutes les options listées (présentées comme de simples choix oui/non), sans en oublier. Glisse une mini-explication (caler le menu et les courses). Un emoji maximum, pas systématique. Reste bref. Varie la formulation. Exemple de ton (ne pas recopier) : « Dernière ligne droite pour caler le menu : tu pars sur du halal ou du végé ? Je te prévois des desserts ? Et côté boissons, avec ou sans alcool ? »`
+    const system = `Tu poses UNE seule question française et chaleureuse pour finaliser un barbecue, comme un ami qui aide à organiser. Tutoie TOUJOURS, jamais de vous/votre/vos — vérifie chaque phrase avant de répondre. Réponds UNIQUEMENT avec un JSON {"follow_up_question":"..."} sans texte ni backticks.
+
+CLARTÉ AVANT TOUT : une clause COURTE et séparée par option listée, pas de phrase alambiquée qui mélange plusieurs options. N'en oublie aucune. Glisse une mini-explication (caler le menu et les courses). Un emoji maximum. Varie la formulation mais la clarté prime.
+
+Imite EXACTEMENT cette structure (une option = une petite question) : « Dernière chose pour le menu : tu pars sur du halal, du végé, ou peu importe ? Je te prévois des desserts ? Et pour les boissons, avec ou sans alcool ? »`
     const user = `Options à couvrir : ${labels.join(', ')}`
     const message = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',

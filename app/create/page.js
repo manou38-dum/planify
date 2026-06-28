@@ -158,6 +158,14 @@ function fallbackFollowUpQuestion(labels) {
 // Question conversationnelle sur le covoiturage (explicative, un seul emoji)
 const CARPOOL_QUESTION = "Petit plus pratique : je peux activer une option covoiturage 🚗 — tes invités pourront se regrouper pour venir ensemble, moins de galère de parking. Je l'active ?"
 
+// Question conversationnelle sur la date limite d'inscription (optionnelle, un seul emoji)
+const DEADLINE_QUESTION = "Tu veux fixer une date limite pour que tes invités confirment ? 🗓️ Ça t'aide à savoir combien vous serez. Sinon je cale ça sur le jour J."
+
+// Réponse "pas de date limite" → on calera sur le jour J
+function isDeadlineEvasive(text) {
+  return isNegative(text) || /peu importe|comme tu veux|[ée]gal|n['’ ]?importe|jour j|pas de date|t['’ ]?as qu['’ ]?à/i.test(text || '')
+}
+
 function isAffirmative(text) {
   return /^\s*(oui|ouais|ouai|yes|ok|d['’ ]?accord|avec plaisir|carr[ée]ment|active|vas-?y|volontiers|bien s[ûu]r|pourquoi pas|je veux bien|grave|carrement)\b/i.test(text || '')
 }
@@ -243,6 +251,9 @@ export default function CreateEvent() {
   // Covoiturage : "traité" une fois répondu (ne le demander qu'une fois) ; ref = la dernière question portait dessus
   const [carpoolHandled, setCarpoolHandled] = useState(false)
   const carpoolAskedRef = useRef(false)
+  // Date limite d'inscription : même mécanisme (optionnelle), traitée une seule fois
+  const [deadlineHandled, setDeadlineHandled] = useState(false)
+  const deadlineAskedRef = useRef(false)
 
   // Détection du support Web Speech (côté client uniquement)
   useEffect(() => {
@@ -387,6 +398,7 @@ export default function CreateEvent() {
     // À quelle question l'utilisateur répond-il ? (on lit les drapeaux avant de les remettre à jour)
     const wasOptionsPhase = optionsAskedRef.current
     const wasCarpoolPhase = carpoolAskedRef.current
+    const wasDeadlinePhase = deadlineAskedRef.current
     try {
       const res = await fetch('/api/parse-voice', {
         method: 'POST',
@@ -427,6 +439,21 @@ export default function CreateEvent() {
         carpoolDone = true
       }
 
+      // Réponse à la question date limite (date donnée → route ; négatif/évasif → jour J), ou mention spontanée
+      let deadlineDone = deadlineHandled
+      if (wasDeadlinePhase) {
+        deadlineAskedRef.current = false
+        if (data.deadline_rsvp) updateForm('deadline_rsvp', data.deadline_rsvp)
+        else if (isDeadlineEvasive(clean) && form.date) updateForm('deadline_rsvp', form.date)
+        // sinon (réponse vague sans date) : on laisse vide, deadline_rsvp est optionnel
+        setDeadlineHandled(true)
+        deadlineDone = true
+      } else if (data.deadline_rsvp) {
+        updateForm('deadline_rsvp', data.deadline_rsvp)
+        setDeadlineHandled(true)
+        deadlineDone = true
+      }
+
       // Essentiels encore manquants, calculés de façon DÉTERMINISTE (jamais d'après le modèle)
       const effective = {}
       for (const key of ['organizer_name', 'date', 'location']) {
@@ -440,6 +467,7 @@ export default function CreateEvent() {
       if (missing.length > 0) {
         optionsAskedRef.current = false
         carpoolAskedRef.current = false
+        deadlineAskedRef.current = false
         const q = (data.follow_up_question && String(data.follow_up_question).trim())
           ? data.follow_up_question
           : fallbackFollowUpQuestion(missing)
@@ -463,6 +491,7 @@ export default function CreateEvent() {
           optionsRoundsRef.current += 1
           optionsAskedRef.current = true
           carpoolAskedRef.current = false
+          deadlineAskedRef.current = false
           const q = await fetchOptionsQuestion(pending.map(o => o.label))
           setMessages(prev => [...prev, { role: 'ai', text: q }])
           setChatReady(false)
@@ -473,15 +502,27 @@ export default function CreateEvent() {
       // c) Covoiturage (tous types) : une seule fois, après les options
       if (!carpoolDone) {
         optionsAskedRef.current = false
+        deadlineAskedRef.current = false
         carpoolAskedRef.current = true
         setMessages(prev => [...prev, { role: 'ai', text: CARPOOL_QUESTION }])
         setChatReady(false)
         return
       }
 
-      // d) Plus rien à demander → c'est bon
+      // d) Date limite d'inscription (tous types, optionnelle) : une seule fois, après le covoiturage
+      if (!deadlineDone) {
+        optionsAskedRef.current = false
+        carpoolAskedRef.current = false
+        deadlineAskedRef.current = true
+        setMessages(prev => [...prev, { role: 'ai', text: DEADLINE_QUESTION }])
+        setChatReady(false)
+        return
+      }
+
+      // e) Plus rien à demander → c'est bon
       optionsAskedRef.current = false
       carpoolAskedRef.current = false
+      deadlineAskedRef.current = false
       setMessages(prev => [...prev, { role: 'ai', text: "Parfait, j'ai tout ce qu'il me faut !" }])
       setChatReady(true)
     } catch (err) {
@@ -531,6 +572,8 @@ export default function CreateEvent() {
     optionsAskedRef.current = false
     setCarpoolHandled(false)
     carpoolAskedRef.current = false
+    setDeadlineHandled(false)
+    deadlineAskedRef.current = false
     // Anniversaire et Tournoi : la pré-sélection dépend d'un sous-format choisi à l'étape 2
     const needsSubFormat = type === 'Anniversaire' || type === 'Match/Tournoi'
     setSelectedLists(needsSubFormat ? {} : Object.fromEntries((DEFAULT_LISTS[type] || ['menu']).map(k => [k, true])))
