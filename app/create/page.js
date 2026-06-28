@@ -147,12 +147,22 @@ function computeMissingVoiceFields(f) {
   return missing
 }
 
-// Question de repli déterministe quand la route ne fournit pas de formulation
+// Question de repli déterministe quand la route ne fournit pas de formulation (ton chaleureux + explicatif)
 function fallbackFollowUpQuestion(labels) {
   const liste = labels.length <= 1
     ? (labels[0] || '')
     : labels.slice(0, -1).join(', ') + ' et ' + labels[labels.length - 1]
-  return `Il me manque encore ${liste} — tu peux me les dire ?`
+  return `Il me manque juste ${liste} — c'est pour que tes invités sachent quoi prévoir 🙂 tu me dis ?`
+}
+
+// Question conversationnelle sur le covoiturage (explicative, un seul emoji)
+const CARPOOL_QUESTION = "Petit plus pratique : je peux activer une option covoiturage 🚗 — tes invités pourront se regrouper pour venir ensemble, moins de galère de parking. Je l'active ?"
+
+function isAffirmative(text) {
+  return /^\s*(oui|ouais|ouai|yes|ok|d['’ ]?accord|avec plaisir|carr[ée]ment|active|vas-?y|volontiers|bien s[ûu]r|pourquoi pas|je veux bien|grave|carrement)\b/i.test(text || '')
+}
+function isNegative(text) {
+  return /^\s*(non|nan|no|pas besoin|pas la peine|laisse tomber|inutile|non merci|sans)\b/i.test(text || '')
 }
 
 // Options BBQ posées en conversation une fois les essentiels captés (clé + libellé FR pour la question)
@@ -230,6 +240,9 @@ export default function CreateEvent() {
   const [answeredOptions, setAnsweredOptions] = useState([])
   const optionsRoundsRef = useRef(0)   // anti-boucle : max 3 tours de questions d'options
   const optionsAskedRef = useRef(false) // vrai quand la dernière question portait sur les options
+  // Covoiturage : "traité" une fois répondu (ne le demander qu'une fois) ; ref = la dernière question portait dessus
+  const [carpoolHandled, setCarpoolHandled] = useState(false)
+  const carpoolAskedRef = useRef(false)
 
   // Détection du support Web Speech (côté client uniquement)
   useEffect(() => {
@@ -371,8 +384,9 @@ export default function CreateEvent() {
     if (!clean) return
     setMessages(prev => [...prev, { role: 'user', text: clean }])
     setParsingVoice(true)
-    // L'utilisateur répond-il à une question d'options ? (avant de remettre le drapeau à jour)
+    // À quelle question l'utilisateur répond-il ? (on lit les drapeaux avant de les remettre à jour)
     const wasOptionsPhase = optionsAskedRef.current
+    const wasCarpoolPhase = carpoolAskedRef.current
     try {
       const res = await fetch('/api/parse-voice', {
         method: 'POST',
@@ -397,6 +411,22 @@ export default function CreateEvent() {
         }
       }
 
+      // Réponse à la question covoiturage (oui/non), ou mention spontanée du covoiturage
+      let carpoolDone = carpoolHandled
+      if (wasCarpoolPhase) {
+        carpoolAskedRef.current = false
+        if (typeof data.carpool_enabled === 'boolean') updateForm('carpool_enabled', data.carpool_enabled)
+        else if (isNegative(clean)) updateForm('carpool_enabled', false)
+        else if (isAffirmative(clean)) updateForm('carpool_enabled', true)
+        // sinon : on garde la valeur par défaut, et on n'insiste pas
+        setCarpoolHandled(true)
+        carpoolDone = true
+      } else if (typeof data.carpool_enabled === 'boolean') {
+        updateForm('carpool_enabled', data.carpool_enabled)
+        setCarpoolHandled(true)
+        carpoolDone = true
+      }
+
       // Essentiels encore manquants, calculés de façon DÉTERMINISTE (jamais d'après le modèle)
       const effective = {}
       for (const key of ['organizer_name', 'date', 'location']) {
@@ -409,6 +439,7 @@ export default function CreateEvent() {
       // a) Il reste des essentiels → on les demande en priorité
       if (missing.length > 0) {
         optionsAskedRef.current = false
+        carpoolAskedRef.current = false
         const q = (data.follow_up_question && String(data.follow_up_question).trim())
           ? data.follow_up_question
           : fallbackFollowUpQuestion(missing)
@@ -431,6 +462,7 @@ export default function CreateEvent() {
         if (pending.length > 0 && !capped) {
           optionsRoundsRef.current += 1
           optionsAskedRef.current = true
+          carpoolAskedRef.current = false
           const q = await fetchOptionsQuestion(pending.map(o => o.label))
           setMessages(prev => [...prev, { role: 'ai', text: q }])
           setChatReady(false)
@@ -438,8 +470,18 @@ export default function CreateEvent() {
         }
       }
 
-      // c) Plus rien à demander → c'est bon
+      // c) Covoiturage (tous types) : une seule fois, après les options
+      if (!carpoolDone) {
+        optionsAskedRef.current = false
+        carpoolAskedRef.current = true
+        setMessages(prev => [...prev, { role: 'ai', text: CARPOOL_QUESTION }])
+        setChatReady(false)
+        return
+      }
+
+      // d) Plus rien à demander → c'est bon
       optionsAskedRef.current = false
+      carpoolAskedRef.current = false
       setMessages(prev => [...prev, { role: 'ai', text: "Parfait, j'ai tout ce qu'il me faut !" }])
       setChatReady(true)
     } catch (err) {
@@ -483,10 +525,12 @@ export default function CreateEvent() {
       nb_participants: type === 'Apero' ? 0 : (prev.nb_participants || 20),
     }))
     setEventOptions({})
-    // Nouveau type → on repart de zéro sur les options de conversation
+    // Nouveau type → on repart de zéro sur les options et le covoiturage de la conversation
     setAnsweredOptions([])
     optionsRoundsRef.current = 0
     optionsAskedRef.current = false
+    setCarpoolHandled(false)
+    carpoolAskedRef.current = false
     // Anniversaire et Tournoi : la pré-sélection dépend d'un sous-format choisi à l'étape 2
     const needsSubFormat = type === 'Anniversaire' || type === 'Match/Tournoi'
     setSelectedLists(needsSubFormat ? {} : Object.fromEntries((DEFAULT_LISTS[type] || ['menu']).map(k => [k, true])))

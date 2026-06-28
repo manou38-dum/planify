@@ -31,11 +31,13 @@ On te fournit : la date du jour (pour les dates relatives), l'état actuel des c
 
 Interprète TOUJOURS la phrase EN CONTEXTE de current : c'est souvent une réponse courte à une question (juste une heure, un lieu, un numéro...).
 
-2) QUESTION DE SUIVI — calcule mentalement l'état après mise à jour (current + ce que tu viens d'extraire). Parmi les champs importants ENCORE VIDES, dans cet ordre de priorité — date (avec l'heure), location, organizer_name, organizer_phone, deadline_rsvp — rédige "follow_up_question" : UNE seule question en français, naturelle, chaleureuse et conversationnelle, qui regroupe 2 à 3 de ces champs vides (les plus prioritaires). VARIE la formulation à chaque fois, ne répète jamais deux fois la même phrase. Si plus aucun de ces champs n'est vide, mets "follow_up_question": null.
+- carpool_enabled : booléen, UNIQUEMENT si la phrase concerne clairement le COVOITURAGE (réponse à une proposition de covoiturage, ou mention explicite). « oui / avec plaisir / active / je veux bien » → true ; « non / pas besoin / pas la peine » → false. N'inclus cette clé que si c'est sans ambiguïté à propos du covoiturage.
+
+2) QUESTION DE SUIVI — calcule mentalement l'état après mise à jour (current + ce que tu viens d'extraire). Parmi les champs importants ENCORE VIDES, dans cet ordre de priorité — date (avec l'heure), location, organizer_name, organizer_phone, deadline_rsvp — rédige "follow_up_question" : UNE seule question en français qui regroupe 2 à 3 de ces champs vides (les plus prioritaires). STYLE : ton chaleureux et amical, comme un ami qui aide à organiser. Tutoie. Explique brièvement POURQUOI tu demandes (ex : pour que les invités sachent où venir). Un emoji maximum, pas systématique. Reste bref. VARIE la formulation à chaque fois, ne répète jamais deux fois la même phrase. Si plus aucun de ces champs n'est vide, mets "follow_up_question": null.
 
 Exemples de ton (NE PAS recopier, varie à chaque fois) :
-- "Super ! Il me manque juste l'heure et le lieu — ça se passe où et ça démarre à quelle heure ?"
-- "Génial 🎉 Dis-moi qui organise et à quel numéro on peut te joindre ?"
+- "Il me manque juste l'heure et le lieu — c'est pour que tes invités sachent où et quand débarquer 🙂 tu me dis ?"
+- "Et pour finaliser, qui organise et à quel numéro on peut te joindre si besoin ?"
 
 FORMAT (exemple) : {"date":"2026-07-04T18:00","location":"chez moi","follow_up_question":"..."}`
 
@@ -52,7 +54,7 @@ function extractJson(text) {
 // Mode FORMULATION : formule UNE question chaleureuse et variée regroupant les options BBQ encore non répondues
 async function formulateOptionsQuestion(anthropic, labels) {
   try {
-    const system = `Tu poses UNE seule question française, naturelle, chaleureuse et variée pour finaliser un barbecue. Réponds UNIQUEMENT avec un JSON {"follow_up_question":"..."} sans texte ni backticks. Regroupe en une question fluide toutes les options listées (présentées comme de simples choix oui/non), sans en oublier. Varie la formulation, reste bref et amical.`
+    const system = `Tu poses UNE seule question française, chaleureuse et variée pour finaliser un barbecue, comme un ami qui aide à organiser. Tutoie. Réponds UNIQUEMENT avec un JSON {"follow_up_question":"..."} sans texte ni backticks. Regroupe en une question fluide toutes les options listées (présentées comme de simples choix oui/non), sans en oublier. Glisse une mini-explication (caler le menu et les courses). Un emoji maximum, pas systématique. Reste bref. Varie la formulation. Exemple de ton (ne pas recopier) : « Dernière ligne droite pour caler le menu : tu pars sur du halal ou du végé ? Je te prévois des desserts ? Et côté boissons, avec ou sans alcool ? »`
     const user = `Options à couvrir : ${labels.join(', ')}`
     const message = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
@@ -139,6 +141,10 @@ export async function POST(request) {
     }
     if (typeof data.deadline_rsvp === 'string' && DATETIME_RE.test(data.deadline_rsvp)) {
       out.deadline_rsvp = data.deadline_rsvp.slice(0, 16)
+    }
+    // Covoiturage : seulement si la phrase concerne clairement le covoiturage
+    if (typeof data.carpool_enabled === 'boolean') {
+      out.carpool_enabled = data.carpool_enabled
     }
     // Options BBQ explicitement adressées (booléens uniquement)
     if (data.options && typeof data.options === 'object') {
