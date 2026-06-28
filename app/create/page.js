@@ -157,6 +157,7 @@ export default function CreateEvent() {
   const [eventDescription, setEventDescription] = useState('')
   const [selectedLists, setSelectedLists] = useState({})
   const [listening, setListening] = useState(false)
+  const [parsingVoice, setParsingVoice] = useState(false)
   const [speechSupported, setSpeechSupported] = useState(false)
   const recognitionRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -188,20 +189,66 @@ export default function CreateEvent() {
     rec.lang = 'fr-FR'
     rec.continuous = false
     rec.interimResults = true
+    // Accumule la transcription de la session (réutilisée pour l'analyse IA en fin de dictée)
+    let sessionTranscript = ''
     rec.onresult = (e) => {
       let finalText = ''
       for (let i = e.resultIndex; i < e.results.length; i++) {
         if (e.results[i].isFinal) finalText += e.results[i][0].transcript
       }
       if (finalText.trim()) {
+        sessionTranscript += (sessionTranscript ? ' ' : '') + finalText.trim()
         setEventDescription(prev => (prev ? prev.trimEnd() + ' ' : '') + finalText.trim())
       }
     }
-    rec.onend = () => setListening(false)
+    rec.onend = () => {
+      setListening(false)
+      // Si on a capté du texte, on l'analyse pour pré-remplir le formulaire
+      if (sessionTranscript.trim()) parseVoiceTranscript(sessionTranscript.trim())
+    }
     rec.onerror = () => setListening(false)
     recognitionRef.current = rec
     setListening(true)
     rec.start()
+  }
+
+  // Analyse la phrase dictée avec Claude pour pré-remplir les champs du formulaire
+  async function parseVoiceTranscript(transcript) {
+    setParsingVoice(true)
+    try {
+      const res = await fetch('/api/parse-voice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transcript }),
+      })
+      const data = await res.json()
+      applyVoiceData(data || {})
+    } catch (err) {
+      // Best-effort : la dictée a déjà alimenté la description, on n'alerte pas l'utilisateur
+    }
+    setParsingVoice(false)
+  }
+
+  // Pré-remplit le formulaire à partir des champs extraits : on ne remplit que le vide, jamais d'écrasement
+  function applyVoiceData(data) {
+    if (!data || typeof data !== 'object') return
+    // event_type : on bascule via chooseType (qui recale options/listes), uniquement si le type change
+    if (data.event_type && data.event_type !== form.event_type) {
+      chooseType(data.event_type)
+    }
+    setForm(prev => {
+      const next = { ...prev }
+      if (data.date && !prev.date) next.date = data.date
+      if (data.location && !prev.location) next.location = data.location
+      if (data.organizer_name && !prev.organizer_name) next.organizer_name = data.organizer_name
+      // Participants : on ne remplit que si la valeur est restée au défaut (pas de jauge pour l'apéro)
+      const def = prev.event_type === 'Apero' ? 0 : 20
+      const untouched = prev.nb_participants === '' || prev.nb_participants == null || prev.nb_participants === def
+      if (data.nb_participants != null && untouched && prev.event_type !== 'Apero') {
+        next.nb_participants = data.nb_participants
+      }
+      return next
+    })
   }
 
   function updateForm(field, value) {
@@ -684,14 +731,19 @@ export default function CreateEvent() {
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-sm font-medium text-slate-700">Description de l'événement</label>
-                {speechSupported && (
-                  <button type="button" onClick={toggleDictation}
-                    className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full transition-colors ${
-                      listening ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}>
-                    🎤 {listening ? 'Écoute...' : 'Dicter'}
-                  </button>
-                )}
+                <div className="flex items-center gap-2">
+                  {parsingVoice && (
+                    <span className="text-xs font-medium text-blue-500 animate-pulse">✨ Analyse…</span>
+                  )}
+                  {speechSupported && (
+                    <button type="button" onClick={toggleDictation} disabled={parsingVoice}
+                      className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full transition-colors disabled:opacity-50 ${
+                        listening ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}>
+                      🎤 {listening ? 'Écoute...' : 'Dicter'}
+                    </button>
+                  )}
+                </div>
               </div>
               <textarea value={eventDescription} onChange={(e) => setEventDescription(e.target.value)} rows={3}
                 placeholder="Décris ton événement : ambiance, thème, ce que tu prévois... L'IA s'en servira pour personnaliser les listes."
