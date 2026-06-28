@@ -6,16 +6,34 @@ export const maxDuration = 30
 // Valeurs autorisées pour le type d'événement (doivent coïncider avec EVENT_TYPES de create/page.js)
 const EVENT_TYPES = ['BBQ', 'Anniversaire', 'Randonnée', 'Soirée', 'Match/Tournoi', 'Apero', 'Autre']
 
-const SYSTEM_PROMPT = `Tu extrais des informations d'une phrase française décrivant un événement. Réponds UNIQUEMENT avec un objet JSON valide, sans texte ni backticks. N'invente jamais : tout champ non mentionné est absent.
+// Champs importants à compléter, par ordre de priorité (pilotent les questions de suivi)
+const IMPORTANT_FIELDS = ['date', 'location', 'organizer_name', 'organizer_phone', 'deadline_rsvp']
 
-Champs possibles (n'inclus QUE ceux réellement présents dans la phrase) :
+// Format des champs datetime-local du formulaire (date et deadline_rsvp)
+const DATETIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/
+
+const SYSTEM_PROMPT = `Tu aides à remplir le formulaire de création d'un événement à partir de phrases dictées en français. Réponds UNIQUEMENT avec un objet JSON valide, sans texte ni backticks.
+
+On te fournit : la date du jour (pour les dates relatives), l'état actuel des champs déjà connus (JSON "current", purement informatif — il peut contenir des valeurs par défaut), et une phrase dictée par l'organisateur.
+
+1) EXTRACTION — TON RÔLE PRINCIPAL. Extrais TOUJOURS de la phrase tous les champs qu'elle exprime, même si "current" contient déjà des valeurs. N'inclus QUE les champs réellement exprimés dans la phrase, n'invente jamais :
 - event_type : exactement une de ces valeurs : "BBQ", "Anniversaire", "Randonnée", "Soirée", "Match/Tournoi", "Apero", "Autre".
-- date : date et heure au format "YYYY-MM-DDTHH:MM" (ex : "2026-07-04T15:00"). Résous les dates relatives ("samedi prochain", "demain", "le 4 juillet") à partir de la date du jour fournie. Si une date est donnée sans heure, mets "12:00".
-- nb_participants : entier (nombre de personnes attendues).
-- location : chaîne (le lieu).
-- organizer_name : chaîne (le prénom de l'organisateur, s'il est mentionné).
+- date : date + heure de l'événement, format "YYYY-MM-DDTHH:MM". Résous les dates relatives ("samedi prochain", "demain") depuis la date du jour. Si l'organisateur ne donne QUE l'heure (ex : "18h", "à 15h30") et qu'une date existe déjà dans current.date, FUSIONNE : garde le jour de current.date et remplace seulement l'heure. Si une date est donnée SANS aucune heure précise, mets l'heure à "00:00" (minuit) pour signaler que l'heure n'a pas été dite.
+- nb_participants : entier (nombre de personnes).
+- location : chaîne (le lieu : "chez moi", "chez Thomas", une adresse, un parking...).
+- organizer_name : prénom de l'organisateur.
+- organizer_phone : numéro de téléphone de l'organisateur.
+- deadline_rsvp : date limite de réponse / relance des invités, format "YYYY-MM-DDTHH:MM". Souvent relative à la date de l'événement (ex : "2 jours avant", "une semaine avant" → date de l'événement moins ce délai ; utilise current.date ou la date que tu viens d'extraire). Si seule une date est donnée sans heure, mets "12:00".
 
-Exemple de réponse valide : {"event_type":"BBQ","nb_participants":25,"location":"chez Thomas"}`
+Interprète TOUJOURS la phrase EN CONTEXTE de current : c'est souvent une réponse courte à une question (juste une heure, un lieu, un numéro...).
+
+2) QUESTION DE SUIVI — calcule mentalement l'état après mise à jour (current + ce que tu viens d'extraire). Parmi les champs importants ENCORE VIDES, dans cet ordre de priorité — date (avec l'heure), location, organizer_name, organizer_phone, deadline_rsvp — rédige "follow_up_question" : UNE seule question en français, naturelle, chaleureuse et conversationnelle, qui regroupe 2 à 3 de ces champs vides (les plus prioritaires). VARIE la formulation à chaque fois, ne répète jamais deux fois la même phrase. Si plus aucun de ces champs n'est vide, mets "follow_up_question": null.
+
+Exemples de ton (NE PAS recopier, varie à chaque fois) :
+- "Super ! Il me manque juste l'heure et le lieu — ça se passe où et ça démarre à quelle heure ?"
+- "Génial 🎉 Dis-moi qui organise et à quel numéro on peut te joindre ?"
+
+FORMAT (exemple) : {"date":"2026-07-04T18:00","location":"chez moi","follow_up_question":"..."}`
 
 function extractJson(text) {
   let raw = (text || '').trim()
@@ -29,21 +47,36 @@ function extractJson(text) {
 
 export async function POST(request) {
   try {
-    const { transcript } = await request.json()
-    if (!transcript || !String(transcript).trim()) return Response.json({})
+    const { transcript, current } = await request.json()
+    if (!transcript || !String(transcript).trim()) return Response.json({ follow_up_question: null })
 
     const apiKey = process.env.ANTHROPIC_API_KEY
-    if (!apiKey) return Response.json({})
+    if (!apiKey) return Response.json({ follow_up_question: null })
 
     const anthropic = new Anthropic({ apiKey })
 
-    // On fournit la date du jour pour résoudre les dates relatives ("samedi prochain")
+    const cur = current && typeof current === 'object' ? current : {}
+    // On fournit la date du jour pour résoudre les dates relatives, et l'état courant pour le contexte
     const today = new Date().toISOString().slice(0, 10)
-    const userContent = `Date du jour : ${today}\nPhrase : ${String(transcript).trim()}`
+    const curForModel = {
+      event_type: cur.event_type || null,
+      date: cur.date || null,
+      nb_participants: cur.nb_participants ?? null,
+      location: cur.location || null,
+      organizer_name: cur.organizer_name || null,
+      organizer_phone: cur.organizer_phone || null,
+      deadline_rsvp: cur.deadline_rsvp || null,
+    }
+    const userContent = [
+      `Date du jour : ${today}`,
+      `current : ${JSON.stringify(curForModel)}`,
+      `Phrase : ${String(transcript).trim()}`,
+    ].join('\n')
 
     const message = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 1000,
+      temperature: 0.7,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userContent }],
     })
@@ -51,12 +84,12 @@ export async function POST(request) {
     const textBlock = message.content.find(b => b.type === 'text')
     const data = extractJson(textBlock ? textBlock.text : '')
 
-    // On ne renvoie que des champs propres et valides (le client ne remplit que le non-null)
+    // On ne renvoie que des champs propres et valides (le client gère l'écrasement)
     const out = {}
     if (typeof data.event_type === 'string' && EVENT_TYPES.includes(data.event_type)) {
       out.event_type = data.event_type
     }
-    if (typeof data.date === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(data.date)) {
+    if (typeof data.date === 'string' && DATETIME_RE.test(data.date)) {
       out.date = data.date.slice(0, 16)
     }
     if (data.nb_participants != null && Number.isFinite(Number(data.nb_participants))) {
@@ -69,10 +102,23 @@ export async function POST(request) {
     if (typeof data.organizer_name === 'string' && data.organizer_name.trim()) {
       out.organizer_name = data.organizer_name.trim()
     }
+    if (typeof data.organizer_phone === 'string' && data.organizer_phone.trim()) {
+      out.organizer_phone = data.organizer_phone.trim()
+    }
+    if (typeof data.deadline_rsvp === 'string' && DATETIME_RE.test(data.deadline_rsvp)) {
+      out.deadline_rsvp = data.deadline_rsvp.slice(0, 16)
+    }
+
+    // Garde-fou : on ne pose une question que s'il reste vraiment un champ important vide après mise à jour
+    const merged = { ...curForModel, ...out }
+    const stillEmpty = IMPORTANT_FIELDS.some(f => !merged[f])
+    out.follow_up_question = stillEmpty && typeof data.follow_up_question === 'string' && data.follow_up_question.trim()
+      ? data.follow_up_question.trim()
+      : null
 
     return Response.json(out)
   } catch (err) {
-    // Extraction best-effort : en cas d'erreur on ne pré-remplit rien
-    return Response.json({})
+    // Best-effort : en cas d'erreur on ne pré-remplit rien et on ne pose pas de question
+    return Response.json({ follow_up_question: null })
   }
 }

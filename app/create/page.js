@@ -135,6 +135,26 @@ function defaultListsFor(type, options) {
   return DEFAULT_LISTS[type] || ['menu']
 }
 
+// Calcule de façon DÉTERMINISTE les libellés des champs obligatoires encore vides.
+// Obligatoires : organizer_name, date (avec heure), location. organizer_phone/deadline_rsvp restent facultatifs.
+// L'heure "00:00" signale une date donnée sans heure → on réclame l'heure.
+function computeMissingVoiceFields(f) {
+  const missing = []
+  if (!f.organizer_name) missing.push('ton prénom')
+  if (!f.date) missing.push('la date')
+  else if (String(f.date).slice(11, 16) === '00:00') missing.push("l'heure")
+  if (!f.location) missing.push('le lieu')
+  return missing
+}
+
+// Question de repli déterministe quand la route ne fournit pas de formulation
+function fallbackFollowUpQuestion(labels) {
+  const liste = labels.length <= 1
+    ? (labels[0] || '')
+    : labels.slice(0, -1).join(', ') + ' et ' + labels[labels.length - 1]
+  return `Il me manque encore ${liste} — tu peux me les dire ?`
+}
+
 export default function CreateEvent() {
   const router = useRouter()
   const [step, setStep] = useState(1)
@@ -159,6 +179,12 @@ export default function CreateEvent() {
   const [listening, setListening] = useState(false)
   const [parsingVoice, setParsingVoice] = useState(false)
   const [speechSupported, setSpeechSupported] = useState(false)
+  // Dialogue vocal : question de suivi posée par l'IA + garde-fou anti-boucle (max 3 tours)
+  const [followUpQuestion, setFollowUpQuestion] = useState(null)
+  const [voiceUsed, setVoiceUsed] = useState(false)
+  // Champs obligatoires encore vides — calculés dans le CODE (déterministe), jamais d'après le modèle
+  const [missingVoiceFields, setMissingVoiceFields] = useState([])
+  const followUpCountRef = useRef(0)
   const recognitionRef = useRef(null)
   const fileInputRef = useRef(null)
 
@@ -171,6 +197,14 @@ export default function CreateEvent() {
   const [editedPlanning, setEditedPlanning] = useState([])
   const [menuResume, setMenuResume] = useState('')
   const [activeTab, setActiveTab] = useState(0)
+
+  // Deux phases sur le même écran : 'chat' (conversation guidée) puis 'recap' (formulaire complet pré-rempli)
+  const [phase, setPhase] = useState('chat')
+  const [messages, setMessages] = useState([
+    { role: 'ai', text: "Salut ! Raconte-moi ton événement : le type, quand, où, pour combien de personnes… je m'occupe du reste 🎉" },
+  ])
+  const [chatInput, setChatInput] = useState('')
+  const [chatReady, setChatReady] = useState(false)
 
   // Détection du support Web Speech (côté client uniquement)
   useEffect(() => {
@@ -198,13 +232,19 @@ export default function CreateEvent() {
       }
       if (finalText.trim()) {
         sessionTranscript += (sessionTranscript ? ' ' : '') + finalText.trim()
-        setEventDescription(prev => (prev ? prev.trimEnd() + ' ' : '') + finalText.trim())
+        // En phase 'chat', la voix devient un message de conversation (pas la description)
+        if (phase !== 'chat') {
+          setEventDescription(prev => (prev ? prev.trimEnd() + ' ' : '') + finalText.trim())
+        }
       }
     }
     rec.onend = () => {
       setListening(false)
-      // Si on a capté du texte, on l'analyse pour pré-remplir le formulaire
-      if (sessionTranscript.trim()) parseVoiceTranscript(sessionTranscript.trim())
+      const txt = sessionTranscript.trim()
+      if (!txt) return
+      // En phase 'chat' : la fin de dictée alimente la conversation ; sinon : pré-remplissage de la description (recap)
+      if (phase === 'chat') handleUtterance(txt)
+      else parseVoiceTranscript(txt)
     }
     rec.onerror = () => setListening(false)
     recognitionRef.current = rec
@@ -212,25 +252,52 @@ export default function CreateEvent() {
     rec.start()
   }
 
-  // Analyse la phrase dictée avec Claude pour pré-remplir les champs du formulaire
+  // Analyse la phrase dictée avec Claude pour pré-remplir les champs, puis pose la question suivante
   async function parseVoiceTranscript(transcript) {
     setParsingVoice(true)
+    // Si une question de suivi était affichée, cette dictée est une réponse → on autorise l'écrasement
+    const isFollowUpAnswer = followUpQuestion != null
     try {
       const res = await fetch('/api/parse-voice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcript }),
+        body: JSON.stringify({ transcript, current: form }),
       })
-      const data = await res.json()
-      applyVoiceData(data || {})
+      const data = (await res.json()) || {}
+      applyVoiceData(data, { overwrite: isFollowUpAnswer })
+      setVoiceUsed(true)
+
+      // Calcul DÉTERMINISTE des obligatoires encore vides (même règle d'écrasement qu'applyVoiceData).
+      // On ne se fie jamais au modèle pour décider ce qui manque.
+      const effective = {}
+      for (const key of ['organizer_name', 'date', 'location']) {
+        const incoming = data[key]
+        effective[key] = (incoming != null && (isFollowUpAnswer || !form[key])) ? incoming : form[key]
+      }
+      const missing = computeMissingVoiceFields(effective)
+      setMissingVoiceFields(missing)
+
+      // Anti-boucle : on compte les tours de questions, max 3, puis on laisse l'utilisateur finir à la main
+      if (isFollowUpAnswer) followUpCountRef.current += 1
+      else followUpCountRef.current = 0
+      const capped = followUpCountRef.current >= 3
+      // Une question apparaît TOUJOURS s'il manque un obligatoire (formulation IA si dispo, sinon repli)
+      let nextQuestion = null
+      if (missing.length > 0 && !capped) {
+        nextQuestion = (data.follow_up_question && String(data.follow_up_question).trim())
+          ? data.follow_up_question
+          : fallbackFollowUpQuestion(missing)
+      }
+      setFollowUpQuestion(nextQuestion)
     } catch (err) {
       // Best-effort : la dictée a déjà alimenté la description, on n'alerte pas l'utilisateur
     }
     setParsingVoice(false)
   }
 
-  // Pré-remplit le formulaire à partir des champs extraits : on ne remplit que le vide, jamais d'écrasement
-  function applyVoiceData(data) {
+  // Pré-remplit le formulaire à partir des champs extraits.
+  // overwrite=false (première dictée) : on ne remplit que le vide. overwrite=true (réponse à une question) : on écrase.
+  function applyVoiceData(data, { overwrite = false } = {}) {
     if (!data || typeof data !== 'object') return
     // event_type : on bascule via chooseType (qui recale options/listes), uniquement si le type change
     if (data.event_type && data.event_type !== form.event_type) {
@@ -238,17 +305,81 @@ export default function CreateEvent() {
     }
     setForm(prev => {
       const next = { ...prev }
-      if (data.date && !prev.date) next.date = data.date
-      if (data.location && !prev.location) next.location = data.location
-      if (data.organizer_name && !prev.organizer_name) next.organizer_name = data.organizer_name
+      const setField = (key) => {
+        if (data[key] == null) return
+        if (overwrite || !prev[key]) next[key] = data[key]
+      }
+      setField('date')
+      setField('location')
+      setField('organizer_name')
+      setField('organizer_phone')
+      setField('deadline_rsvp')
       // Participants : on ne remplit que si la valeur est restée au défaut (pas de jauge pour l'apéro)
       const def = prev.event_type === 'Apero' ? 0 : 20
       const untouched = prev.nb_participants === '' || prev.nb_participants == null || prev.nb_participants === def
-      if (data.nb_participants != null && untouched && prev.event_type !== 'Apero') {
+      if (data.nb_participants != null && prev.event_type !== 'Apero' && (overwrite || untouched)) {
         next.nb_participants = data.nb_participants
       }
       return next
     })
+  }
+
+  // Canal UNIQUE pour les deux entrées de la phase 'chat' : texte écrit ET fin de dictée vocale
+  async function handleUtterance(text) {
+    const clean = (text || '').trim()
+    if (!clean) return
+    setMessages(prev => [...prev, { role: 'user', text: clean }])
+    setParsingVoice(true)
+    try {
+      const res = await fetch('/api/parse-voice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transcript: clean, current: form }),
+      })
+      const data = (await res.json()) || {}
+      // En conversation, chaque message est une réponse intentionnelle → on autorise l'écrasement
+      applyVoiceData(data, { overwrite: true })
+
+      // Essentiels encore manquants, calculés de façon DÉTERMINISTE (jamais d'après le modèle)
+      const effective = {}
+      for (const key of ['organizer_name', 'date', 'location']) {
+        const incoming = data[key]
+        effective[key] = incoming != null ? incoming : form[key]
+      }
+      const missing = computeMissingVoiceFields(effective)
+      setMissingVoiceFields(missing)
+
+      if (missing.length > 0) {
+        const q = (data.follow_up_question && String(data.follow_up_question).trim())
+          ? data.follow_up_question
+          : fallbackFollowUpQuestion(missing)
+        setMessages(prev => [...prev, { role: 'ai', text: q }])
+        setChatReady(false)
+      } else {
+        setMessages(prev => [...prev, { role: 'ai', text: "Parfait, j'ai tout ce qu'il me faut !" }])
+        setChatReady(true)
+      }
+    } catch (err) {
+      setMessages(prev => [...prev, { role: 'ai', text: "Désolé, je n'ai pas bien saisi — tu peux reformuler ?" }])
+    }
+    setParsingVoice(false)
+  }
+
+  function submitChatInput() {
+    const t = chatInput.trim()
+    if (!t) return
+    setChatInput('')
+    handleUtterance(t)
+  }
+
+  // Passe de la conversation au formulaire complet (recap) ; génère un nom d'événement si l'utilisateur n'en a pas donné
+  function goToRecap() {
+    if (!form.event_name || !form.event_name.trim()) {
+      const auto = form.organizer_name ? `${form.event_type} de ${form.organizer_name}` : form.event_type
+      updateForm('event_name', auto)
+    }
+    setStep(s => (s < 2 ? 2 : s))
+    setPhase('recap')
   }
 
   function updateForm(field, value) {
@@ -592,11 +723,81 @@ export default function CreateEvent() {
 
   return (
     <div className="max-w-lg mx-auto px-4 py-8">
+      {phase === 'chat' ? (
+        /* ───────── PHASE CHAT : conversation guidée ───────── */
+        <div className="flex flex-col min-h-[75vh]">
+          <button onClick={() => router.push('/')}
+            className="text-slate-400 hover:text-slate-600 mb-6 flex items-center gap-1 self-start">
+            ← Retour
+          </button>
+
+          <h1 className="text-2xl font-bold text-slate-900 mb-1">Décris ton événement</h1>
+          <p className="text-slate-500 mb-6">Tu peux parler ou écrire (ex : un barbecue samedi pour 20 personnes chez moi)</p>
+
+          {/* Fil de conversation */}
+          <div className="flex-1 space-y-3 mb-4">
+            {messages.map((m, i) => (
+              <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-sm whitespace-pre-wrap ${
+                  m.role === 'user'
+                    ? 'bg-blue-500 text-white rounded-br-sm'
+                    : 'bg-slate-100 text-slate-800 rounded-bl-sm'
+                }`}>
+                  {m.text}
+                </div>
+              </div>
+            ))}
+            {parsingVoice && (
+              <div className="flex justify-start">
+                <div className="px-4 py-2.5 rounded-2xl bg-slate-100 text-slate-400 text-sm animate-pulse rounded-bl-sm">✨ Analyse…</div>
+              </div>
+            )}
+          </div>
+
+          {/* Bouton de validation, affiché quand plus aucun essentiel ne manque */}
+          {chatReady && (
+            <button type="button" onClick={goToRecap}
+              className="w-full mb-3 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-3.5 rounded-2xl transition-colors text-lg">
+              ✅ Valider mon événement
+            </button>
+          )}
+
+          {/* Zone de saisie : texte + envoyer + micro */}
+          <div className="flex items-end gap-2">
+            <textarea
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitChatInput() } }}
+              rows={1}
+              placeholder="Écris ta réponse…"
+              className="flex-1 px-4 py-3 rounded-2xl border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none resize-none text-slate-900 text-sm" />
+            <button type="button" onClick={submitChatInput} disabled={!chatInput.trim() || parsingVoice}
+              className="shrink-0 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 text-white font-semibold px-4 py-3 rounded-2xl transition-colors text-sm">
+              Envoyer
+            </button>
+            {speechSupported && (
+              <button type="button" onClick={toggleDictation} disabled={parsingVoice}
+                className={`shrink-0 px-4 py-3 rounded-2xl font-medium transition-colors disabled:opacity-50 ${
+                  listening ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}>
+                🎤
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
+      <>
       <button
         onClick={() => (step === 1 ? router.push('/') : setStep(step - 1))}
         className="text-slate-400 hover:text-slate-600 mb-6 flex items-center gap-1"
       >
         ← Retour
+      </button>
+
+      {/* Lien pour repasser à la conversation */}
+      <button type="button" onClick={() => setPhase('chat')}
+        className="block text-blue-500 hover:text-blue-600 text-sm mb-4">
+        ← Revenir à la description
       </button>
 
       {/* Barre de progression */}
@@ -748,6 +949,20 @@ export default function CreateEvent() {
               <textarea value={eventDescription} onChange={(e) => setEventDescription(e.target.value)} rows={3}
                 placeholder="Décris ton événement : ambiance, thème, ce que tu prévois... L'IA s'en servira pour personnaliser les listes."
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none resize-none text-slate-900 text-sm" />
+
+              {/* Dialogue vocal : le ✅ ne s'affiche QUE si le calcul client confirme qu'aucun obligatoire ne manque */}
+              {voiceUsed && (
+                missingVoiceFields.length === 0 ? (
+                  <p className="mt-2 text-xs font-medium text-emerald-600">✅ Tout est rempli, tu peux générer.</p>
+                ) : followUpQuestion ? (
+                  <div className="mt-2 rounded-xl bg-blue-50 border border-blue-200 px-3 py-2.5">
+                    <p className="text-sm text-blue-800">🎙️ {followUpQuestion}</p>
+                    <p className="text-xs text-blue-500 mt-1">Retape le micro pour répondre à la voix.</p>
+                  </div>
+                ) : (
+                  <p className="mt-2 text-xs text-slate-500">Complète les derniers champs manquants à la main.</p>
+                )
+              )}
             </div>
 
             <div>
@@ -1080,6 +1295,8 @@ export default function CreateEvent() {
             </button>
           </div>
         </>
+      )}
+      </>
       )}
     </div>
   )
