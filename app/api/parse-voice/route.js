@@ -9,6 +9,9 @@ const EVENT_TYPES = ['BBQ', 'Anniversaire', 'Randonnée', 'Soirée', 'Match/Tour
 // Champs importants à compléter, par ordre de priorité (pilotent les questions de suivi)
 const IMPORTANT_FIELDS = ['date', 'location', 'organizer_name', 'organizer_phone', 'deadline_rsvp']
 
+// Options booléennes du BBQ que l'on sait extraire
+const BBQ_OPTION_KEYS = ['halal', 'vegetarien', 'sans_alcool', 'desserts']
+
 // Format des champs datetime-local du formulaire (date et deadline_rsvp)
 const DATETIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/
 
@@ -24,6 +27,7 @@ On te fournit : la date du jour (pour les dates relatives), l'état actuel des c
 - organizer_name : prénom de l'organisateur.
 - organizer_phone : numéro de téléphone de l'organisateur.
 - deadline_rsvp : date limite de réponse / relance des invités, format "YYYY-MM-DDTHH:MM". Souvent relative à la date de l'événement (ex : "2 jours avant", "une semaine avant" → date de l'événement moins ce délai ; utilise current.date ou la date que tu viens d'extraire). Si seule une date est donnée sans heure, mets "12:00".
+- options : objet des options BBQ que l'utilisateur a EXPLICITEMENT adressées, en booléens, parmi : halal, vegetarien, sans_alcool, desserts. N'inclus QUE les clés réellement évoquées. Exemples : "oui halal" → {"halal":true} ; "pas de dessert" → {"desserts":false} ; "avec alcool" → {"sans_alcool":false} ; "que du végé" → {"vegetarien":true} ; "sans alcool" → {"sans_alcool":true} ; "on prévoit un dessert" → {"desserts":true}.
 
 Interprète TOUJOURS la phrase EN CONTEXTE de current : c'est souvent une réponse courte à une question (juste une heure, un lieu, un numéro...).
 
@@ -45,15 +49,43 @@ function extractJson(text) {
   return JSON.parse(raw)
 }
 
+// Mode FORMULATION : formule UNE question chaleureuse et variée regroupant les options BBQ encore non répondues
+async function formulateOptionsQuestion(anthropic, labels) {
+  try {
+    const system = `Tu poses UNE seule question française, naturelle, chaleureuse et variée pour finaliser un barbecue. Réponds UNIQUEMENT avec un JSON {"follow_up_question":"..."} sans texte ni backticks. Regroupe en une question fluide toutes les options listées (présentées comme de simples choix oui/non), sans en oublier. Varie la formulation, reste bref et amical.`
+    const user = `Options à couvrir : ${labels.join(', ')}`
+    const message = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 300,
+      temperature: 0.7,
+      system,
+      messages: [{ role: 'user', content: user }],
+    })
+    const tb = message.content.find(b => b.type === 'text')
+    const d = extractJson(tb ? tb.text : '')
+    if (typeof d.follow_up_question === 'string' && d.follow_up_question.trim()) return d.follow_up_question.trim()
+  } catch (err) {
+    // repli déterministe côté client
+  }
+  return null
+}
+
 export async function POST(request) {
   try {
-    const { transcript, current } = await request.json()
-    if (!transcript || !String(transcript).trim()) return Response.json({ follow_up_question: null })
+    const { transcript, current, pending_options } = await request.json()
 
     const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) return Response.json({ follow_up_question: null })
 
     const anthropic = new Anthropic({ apiKey })
+
+    // Mode FORMULATION : juste une question sur les options encore non répondues (pas d'extraction)
+    if (Array.isArray(pending_options) && pending_options.length > 0) {
+      const followUp = await formulateOptionsQuestion(anthropic, pending_options.map(String))
+      return Response.json({ follow_up_question: followUp })
+    }
+
+    if (!transcript || !String(transcript).trim()) return Response.json({ follow_up_question: null })
 
     const cur = current && typeof current === 'object' ? current : {}
     // On fournit la date du jour pour résoudre les dates relatives, et l'état courant pour le contexte
@@ -107,6 +139,14 @@ export async function POST(request) {
     }
     if (typeof data.deadline_rsvp === 'string' && DATETIME_RE.test(data.deadline_rsvp)) {
       out.deadline_rsvp = data.deadline_rsvp.slice(0, 16)
+    }
+    // Options BBQ explicitement adressées (booléens uniquement)
+    if (data.options && typeof data.options === 'object') {
+      const opts = {}
+      for (const k of BBQ_OPTION_KEYS) {
+        if (typeof data.options[k] === 'boolean') opts[k] = data.options[k]
+      }
+      if (Object.keys(opts).length) out.options = opts
     }
 
     // Garde-fou : on ne pose une question que s'il reste vraiment un champ important vide après mise à jour

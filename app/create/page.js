@@ -155,6 +155,27 @@ function fallbackFollowUpQuestion(labels) {
   return `Il me manque encore ${liste} — tu peux me les dire ?`
 }
 
+// Options BBQ posées en conversation une fois les essentiels captés (clé + libellé FR pour la question)
+const BBQ_OPTIONS = [
+  { key: 'halal', label: 'halal' },
+  { key: 'vegetarien', label: 'végétarien' },
+  { key: 'sans_alcool', label: 'sans alcool' },
+  { key: 'desserts', label: 'des desserts' },
+]
+
+// Question de repli déterministe sur les options BBQ encore non répondues
+function fallbackOptionsQuestion(labels) {
+  const liste = labels.length <= 1
+    ? (labels[0] || '')
+    : labels.slice(0, -1).join(', ') + ' et ' + labels[labels.length - 1]
+  return `Dernière ligne droite ! Côté menu : ${liste} ? (oui ou non pour chaque)`
+}
+
+// Détecte une réponse "rien de spécial" pendant la phase options (→ on met tout à false sans harceler)
+function isNothingSpecial(text) {
+  return /^\s*(non|nan|rien|rien de (sp[ée]cial|particulier)|classique|comme d['’ ]?habitude|standard|peu importe|aucune?( option)?)\b/i.test(text || '')
+}
+
 export default function CreateEvent() {
   const router = useRouter()
   const [step, setStep] = useState(1)
@@ -205,6 +226,10 @@ export default function CreateEvent() {
   ])
   const [chatInput, setChatInput] = useState('')
   const [chatReady, setChatReady] = useState(false)
+  // Options déjà répondues (oui OU non) — distingue "répondu" de "false par défaut". Vidée quand le type change.
+  const [answeredOptions, setAnsweredOptions] = useState([])
+  const optionsRoundsRef = useRef(0)   // anti-boucle : max 3 tours de questions d'options
+  const optionsAskedRef = useRef(false) // vrai quand la dernière question portait sur les options
 
   // Détection du support Web Speech (côté client uniquement)
   useEffect(() => {
@@ -324,12 +349,30 @@ export default function CreateEvent() {
     })
   }
 
+  // Demande à la route de formuler une question sur les options BBQ encore non répondues (repli déterministe sinon)
+  async function fetchOptionsQuestion(labels) {
+    try {
+      const res = await fetch('/api/parse-voice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pending_options: labels }),
+      })
+      const d = (await res.json()) || {}
+      if (d.follow_up_question && String(d.follow_up_question).trim()) return d.follow_up_question
+    } catch (err) {
+      // repli ci-dessous
+    }
+    return fallbackOptionsQuestion(labels)
+  }
+
   // Canal UNIQUE pour les deux entrées de la phase 'chat' : texte écrit ET fin de dictée vocale
   async function handleUtterance(text) {
     const clean = (text || '').trim()
     if (!clean) return
     setMessages(prev => [...prev, { role: 'user', text: clean }])
     setParsingVoice(true)
+    // L'utilisateur répond-il à une question d'options ? (avant de remettre le drapeau à jour)
+    const wasOptionsPhase = optionsAskedRef.current
     try {
       const res = await fetch('/api/parse-voice', {
         method: 'POST',
@@ -340,6 +383,20 @@ export default function CreateEvent() {
       // En conversation, chaque message est une réponse intentionnelle → on autorise l'écrasement
       applyVoiceData(data, { overwrite: true })
 
+      // Type effectif après cette phrase (l'utilisateur peut déclarer le type dans le même message)
+      const effectiveType = (typeof data.event_type === 'string' && data.event_type) ? data.event_type : form.event_type
+
+      // Applique les options BBQ explicitement adressées et marque-les "répondues"
+      let answered = answeredOptions
+      if (data.options && typeof data.options === 'object') {
+        const keys = Object.keys(data.options).filter(k => BBQ_OPTIONS.some(o => o.key === k))
+        for (const k of keys) updateOption(k, data.options[k])
+        if (keys.length) {
+          answered = Array.from(new Set([...answered, ...keys]))
+          setAnsweredOptions(answered)
+        }
+      }
+
       // Essentiels encore manquants, calculés de façon DÉTERMINISTE (jamais d'après le modèle)
       const effective = {}
       for (const key of ['organizer_name', 'date', 'location']) {
@@ -349,20 +406,47 @@ export default function CreateEvent() {
       const missing = computeMissingVoiceFields(effective)
       setMissingVoiceFields(missing)
 
+      // a) Il reste des essentiels → on les demande en priorité
       if (missing.length > 0) {
+        optionsAskedRef.current = false
         const q = (data.follow_up_question && String(data.follow_up_question).trim())
           ? data.follow_up_question
           : fallbackFollowUpQuestion(missing)
         setMessages(prev => [...prev, { role: 'ai', text: q }])
         setChatReady(false)
-      } else {
-        setMessages(prev => [...prev, { role: 'ai', text: "Parfait, j'ai tout ce qu'il me faut !" }])
-        setChatReady(true)
+        return
       }
+
+      // b) Essentiels OK + BBQ → on enchaîne sur les options non encore répondues
+      if (effectiveType === 'BBQ') {
+        let pending = BBQ_OPTIONS.filter(o => !answered.includes(o.key))
+        // « non / rien de spécial / classique » pendant la phase options → tout à false, on n'insiste plus
+        if (pending.length > 0 && wasOptionsPhase && isNothingSpecial(clean)) {
+          for (const o of pending) updateOption(o.key, false)
+          answered = Array.from(new Set([...answered, ...pending.map(o => o.key)]))
+          setAnsweredOptions(answered)
+          pending = []
+        }
+        const capped = optionsRoundsRef.current >= 3
+        if (pending.length > 0 && !capped) {
+          optionsRoundsRef.current += 1
+          optionsAskedRef.current = true
+          const q = await fetchOptionsQuestion(pending.map(o => o.label))
+          setMessages(prev => [...prev, { role: 'ai', text: q }])
+          setChatReady(false)
+          return
+        }
+      }
+
+      // c) Plus rien à demander → c'est bon
+      optionsAskedRef.current = false
+      setMessages(prev => [...prev, { role: 'ai', text: "Parfait, j'ai tout ce qu'il me faut !" }])
+      setChatReady(true)
     } catch (err) {
       setMessages(prev => [...prev, { role: 'ai', text: "Désolé, je n'ai pas bien saisi — tu peux reformuler ?" }])
+    } finally {
+      setParsingVoice(false)
     }
-    setParsingVoice(false)
   }
 
   function submitChatInput() {
@@ -399,6 +483,10 @@ export default function CreateEvent() {
       nb_participants: type === 'Apero' ? 0 : (prev.nb_participants || 20),
     }))
     setEventOptions({})
+    // Nouveau type → on repart de zéro sur les options de conversation
+    setAnsweredOptions([])
+    optionsRoundsRef.current = 0
+    optionsAskedRef.current = false
     // Anniversaire et Tournoi : la pré-sélection dépend d'un sous-format choisi à l'étape 2
     const needsSubFormat = type === 'Anniversaire' || type === 'Match/Tournoi'
     setSelectedLists(needsSubFormat ? {} : Object.fromEntries((DEFAULT_LISTS[type] || ['menu']).map(k => [k, true])))
