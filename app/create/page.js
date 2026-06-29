@@ -208,6 +208,42 @@ function isNothingSpecial(text) {
   return /^\s*(non|nan|rien|rien de (sp[ée]cial|particulier)|classique|comme d['’ ]?habitude|standard|peu importe|aucune?( option)?)\b/i.test(text || '')
 }
 
+// Libellés courts des options booléennes pour le résumé auto de la description
+const OPTION_SUMMARY_LABELS = {
+  halal: 'halal',
+  vegetarien: 'végétarien',
+  sans_alcool: 'sans alcool',
+  desserts: 'avec desserts',
+}
+
+// Construit un résumé naturel (1 à 3 phrases) à partir du form + options, pour pré-remplir la description
+function buildAutoDescription(form, options, typeLabel) {
+  const parts = []
+  // Phrase 1 : type + date lisible + lieu + nombre de personnes
+  let s1 = typeLabel || form.event_type
+  if (form.date) {
+    const d = new Date(form.date)
+    if (!isNaN(d.getTime())) {
+      const jour = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+      const hh = String(d.getHours()).padStart(2, '0')
+      const mm = String(d.getMinutes()).padStart(2, '0')
+      s1 += ` le ${jour} à ${hh}h${mm}`
+    }
+  }
+  if (form.location && form.location.trim()) s1 += `, ${form.location.trim()}`
+  const nb = Number(form.nb_participants)
+  if (nb > 0) s1 += `, pour ${nb} personne${nb > 1 ? 's' : ''}`
+  parts.push(s1 + '.')
+  // Phrase 2 : options menu réellement actives
+  const actives = ['halal', 'vegetarien', 'sans_alcool', 'desserts']
+    .filter(k => options && options[k])
+    .map(k => OPTION_SUMMARY_LABELS[k])
+  if (actives.length) parts.push(`Menu ${actives.join(', ')}.`)
+  // Phrase 3 : covoiturage (uniquement s'il est activé)
+  if (form.carpool_enabled) parts.push('Covoiturage activé.')
+  return parts.join(' ')
+}
+
 export default function CreateEvent() {
   const router = useRouter()
   const [step, setStep] = useState(1)
@@ -590,6 +626,11 @@ export default function CreateEvent() {
     if (!form.event_name || !form.event_name.trim()) {
       const auto = form.organizer_name ? `${form.event_type} de ${form.organizer_name}` : form.event_type
       updateForm('event_name', auto)
+    }
+    // Pré-remplit la description avec un résumé auto si l'utilisateur n'en a pas saisi (champ ensuite éditable)
+    if (!eventDescription || !eventDescription.trim()) {
+      const typeLabel = (EVENT_TYPES.find(t => t.value === form.event_type) || {}).label || form.event_type
+      setEventDescription(buildAutoDescription(form, eventOptions, typeLabel))
     }
     setStep(s => (s < 2 ? 2 : s))
     setPhase('recap')
@@ -1352,11 +1393,11 @@ export default function CreateEvent() {
 
             {/* Options spécifiques au type (masquées tant que le format du tournoi n'est pas choisi) */}
             {(opts.fields?.length || opts.checks?.length || opts.textarea) && !(form.event_type === 'Match/Tournoi' && !eventOptions.tournoi_mode) && (
-              <div className={`rounded-2xl p-4 border-2 ${currentType.bg} ${currentType.border}`}>
-                <p className={`text-sm font-semibold mb-3 ${currentType.text}`}>Options {currentType.label}</p>
+              <div className={`rounded-2xl p-3 border-2 ${currentType.bg} ${currentType.border}`}>
+                <p className={`text-xs font-semibold mb-2 ${currentType.text}`}>Options {currentType.label}</p>
 
                 {opts.fields?.map((f) => (
-                  <div key={f.key} className="mb-3">
+                  <div key={f.key} className="mb-2">
                     <label className="block text-xs font-medium text-slate-600 mb-1">{f.label}</label>
                     <input type="text" value={eventOptions[f.key] || ''} placeholder={f.placeholder || ''}
                       onChange={(e) => updateOption(f.key, e.target.value)}
@@ -1364,14 +1405,18 @@ export default function CreateEvent() {
                   </div>
                 ))}
 
-                {opts.checks?.map((c) => (
-                  <label key={c.key} className="flex items-center gap-2 py-1.5 cursor-pointer">
-                    <input type="checkbox" checked={!!eventOptions[c.key]}
-                      onChange={(e) => updateOption(c.key, e.target.checked)}
-                      className="w-4 h-4 accent-blue-500" />
-                    <span className="text-sm text-slate-700">{c.label}</span>
-                  </label>
-                ))}
+                {opts.checks?.length > 0 && (
+                  <div className="flex flex-wrap gap-x-4 gap-y-1">
+                    {opts.checks.map((c) => (
+                      <label key={c.key} className="flex items-center gap-1.5 py-0.5 cursor-pointer">
+                        <input type="checkbox" checked={!!eventOptions[c.key]}
+                          onChange={(e) => updateOption(c.key, e.target.checked)}
+                          className="w-4 h-4 accent-blue-500" />
+                        <span className="text-xs text-slate-700">{c.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
 
                 {opts.conditionals?.map((c) => (
                   eventOptions[c.showIf] ? (
@@ -1416,27 +1461,27 @@ export default function CreateEvent() {
             )}
 
             {/* Covoiturage (tous types) */}
-            <div className="rounded-2xl p-4 border border-slate-200 bg-white">
+            <div className="rounded-xl px-3 py-2 border border-slate-200 bg-white">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={form.carpool_enabled}
                   onChange={(e) => updateForm('carpool_enabled', e.target.checked)}
                   className="w-4 h-4 accent-blue-500" />
-                <span className="text-sm font-medium text-slate-700">🚗 Activer le covoiturage entre invités</span>
+                <span className="text-xs font-medium text-slate-700">🚗 Activer le covoiturage entre invités</span>
               </label>
             </div>
 
             {/* Listes à la carte (collaboratif uniquement, et seulement si des listes sont disponibles) */}
             {form.mode !== 'solo' && availableListsFor(form.event_type, eventOptions).length > 0 && (
-              <div className="rounded-2xl p-4 border border-slate-200 bg-white">
-                <p className="text-sm font-semibold text-slate-700 mb-1">Que veux-tu dans ton invitation ?</p>
-                <p className="text-xs text-slate-400 mb-3">L'IA générera uniquement les listes cochées</p>
-                <div className="space-y-1">
+              <div className="rounded-xl p-3 border border-slate-200 bg-white">
+                <p className="text-xs font-semibold text-slate-700">Que veux-tu dans ton invitation ?</p>
+                <p className="text-xs text-slate-400 mb-2">L'IA générera uniquement les listes cochées</p>
+                <div className="flex flex-wrap gap-x-4 gap-y-1">
                   {LIST_CHOICES.filter(c => availableListsFor(form.event_type, eventOptions).includes(c.key)).map((c) => (
-                    <label key={c.key} className="flex items-center gap-2 py-1.5 cursor-pointer">
+                    <label key={c.key} className="flex items-center gap-1.5 py-0.5 cursor-pointer">
                       <input type="checkbox" checked={!!selectedLists[c.key]}
                         onChange={() => toggleList(c.key)}
                         className="w-4 h-4 accent-blue-500" />
-                      <span className="text-sm text-slate-700">{c.label}</span>
+                      <span className="text-xs text-slate-700">{c.label}</span>
                     </label>
                   ))}
                 </div>
