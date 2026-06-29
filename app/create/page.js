@@ -186,12 +186,13 @@ function isNegative(text) {
   return /^\s*(non|nan|no|pas besoin|pas la peine|laisse tomber|inutile|non merci|sans)\b/i.test(text || '')
 }
 
-// Options BBQ posées en conversation une fois les essentiels captés (clé + libellé FR pour la question)
+// Options BBQ posées en conversation une fois les essentiels captés
+// (clé + libellé FR pour la question vocale de repli + libellé du bouton QCM)
 const BBQ_OPTIONS = [
-  { key: 'halal', label: 'halal' },
-  { key: 'vegetarien', label: 'végétarien' },
-  { key: 'sans_alcool', label: 'sans alcool' },
-  { key: 'desserts', label: 'des desserts' },
+  { key: 'halal', label: 'halal', qcmLabel: 'Halal' },
+  { key: 'vegetarien', label: 'végétarien', qcmLabel: 'Végétarien' },
+  { key: 'sans_alcool', label: 'sans alcool', qcmLabel: 'Sans alcool' },
+  { key: 'desserts', label: 'des desserts', qcmLabel: 'Prévoir les desserts' },
 ]
 
 // Question de repli déterministe sur les options BBQ encore non répondues
@@ -261,6 +262,9 @@ export default function CreateEvent() {
   const [answeredOptions, setAnsweredOptions] = useState([])
   const optionsRoundsRef = useRef(0)   // anti-boucle : max 3 tours de questions d'options
   const optionsAskedRef = useRef(false) // vrai quand la dernière question portait sur les options
+  // QCM des options BBQ affiché dans le fil : qcmDone = validé (boutons grisés) ; ref = QCM déjà affiché (anti-doublon)
+  const [qcmDone, setQcmDone] = useState(false)
+  const qcmShownRef = useRef(false)
   // Covoiturage : "traité" une fois répondu (ne le demander qu'une fois) ; ref = la dernière question portait dessus
   const [carpoolHandled, setCarpoolHandled] = useState(false)
   const carpoolAskedRef = useRef(false)
@@ -489,36 +493,30 @@ export default function CreateEvent() {
         return
       }
 
-      // b) Essentiels OK + BBQ → on enchaîne sur les options non encore répondues
-      if (effectiveType === 'BBQ') {
-        let pending = BBQ_OPTIONS.filter(o => !answered.includes(o.key))
-        // « non / rien de spécial / classique » pendant la phase options → tout à false, on n'insiste plus
-        if (pending.length > 0 && wasOptionsPhase && isNothingSpecial(clean)) {
-          for (const o of pending) updateOption(o.key, false)
-          answered = Array.from(new Set([...answered, ...pending.map(o => o.key)]))
-          setAnsweredOptions(answered)
-          pending = []
-        }
-        const capped = optionsRoundsRef.current >= 3
-        if (pending.length > 0 && !capped) {
-          optionsRoundsRef.current += 1
-          optionsAskedRef.current = true
-          carpoolAskedRef.current = false
-          deadlineAskedRef.current = false
-          const q = await fetchOptionsQuestion(pending.map(o => o.label))
-          setMessages(prev => [...prev, { role: 'ai', text: q }])
-          setChatReady(false)
+      // b) Essentiels OK + BBQ → QCM cliquable des options (pré-coché depuis ce qui a été dit à la voix)
+      if (effectiveType === 'BBQ' && !qcmDone) {
+        const allAnswered = BBQ_OPTIONS.every(o => answered.includes(o.key))
+        if (!allAnswered) {
+          // On affiche le QCM une seule fois, puis on attend la validation par clic (pas de question vocale)
+          if (!qcmShownRef.current) {
+            qcmShownRef.current = true
+            optionsAskedRef.current = false
+            carpoolAskedRef.current = false
+            deadlineAskedRef.current = false
+            setMessages(prev => [...prev,
+              { role: 'ai', text: 'Pour le menu, choisis ce qui te va 👇' },
+              { role: 'ai', type: 'qcm-bbq' },
+            ])
+            setChatReady(false)
+          }
           return
         }
+        // Toutes les options déjà dites à la voix → pas de QCM, on enchaîne sur le covoiturage
       }
 
       // c) Covoiturage (tous types) : une seule fois, après les options
       if (!carpoolDone) {
-        optionsAskedRef.current = false
-        deadlineAskedRef.current = false
-        carpoolAskedRef.current = true
-        setMessages(prev => [...prev, { role: 'ai', text: CARPOOL_QUESTION }])
-        setChatReady(false)
+        askCarpoolStep()
         return
       }
 
@@ -543,6 +541,23 @@ export default function CreateEvent() {
     } finally {
       setParsingVoice(false)
     }
+  }
+
+  // Étape covoiturage, partagée par le chemin vocal et la validation du QCM (évite la duplication)
+  function askCarpoolStep() {
+    optionsAskedRef.current = false
+    deadlineAskedRef.current = false
+    carpoolAskedRef.current = true
+    setMessages(prev => [...prev, { role: 'ai', text: CARPOOL_QUESTION }])
+    setChatReady(false)
+  }
+
+  // Validation du QCM d'options BBQ : fige les choix, marque tout répondu, puis enchaîne sur le covoiturage
+  function validateQcm() {
+    if (qcmDone) return
+    setAnsweredOptions(BBQ_OPTIONS.map(o => o.key))
+    setQcmDone(true)
+    askCarpoolStep()
   }
 
   function submitChatInput() {
@@ -583,6 +598,8 @@ export default function CreateEvent() {
     setAnsweredOptions([])
     optionsRoundsRef.current = 0
     optionsAskedRef.current = false
+    setQcmDone(false)
+    qcmShownRef.current = false
     setCarpoolHandled(false)
     carpoolAskedRef.current = false
     setDeadlineHandled(false)
@@ -924,17 +941,50 @@ export default function CreateEvent() {
 
           {/* Fil de conversation */}
           <div className="flex-1 space-y-3 mb-4">
-            {messages.map((m, i) => (
-              <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-sm whitespace-pre-wrap ${
-                  m.role === 'user'
-                    ? 'bg-blue-500 text-white rounded-br-sm'
-                    : 'bg-slate-100 text-slate-800 rounded-bl-sm'
-                }`}>
-                  {m.text}
+            {messages.map((m, i) => {
+              // Bloc QCM des options BBQ (boutons bascule pré-cochés depuis la voix + validation)
+              if (m.type === 'qcm-bbq') {
+                return (
+                  <div key={i} className="flex justify-start">
+                    <div className="max-w-[85%] w-full bg-slate-100 rounded-2xl rounded-bl-sm p-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        {BBQ_OPTIONS.map((o) => {
+                          const active = !!eventOptions[o.key]
+                          return (
+                            <button key={o.key} type="button" disabled={qcmDone}
+                              onClick={() => updateOption(o.key, !eventOptions[o.key])}
+                              className={`px-3 py-2.5 rounded-xl text-sm font-medium border-2 text-left transition-colors ${
+                                active
+                                  ? 'bg-orange-500 border-orange-500 text-white'
+                                  : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                              } ${qcmDone ? 'opacity-60 cursor-not-allowed' : ''}`}>
+                              {active ? '✓ ' : ''}{o.qcmLabel || o.label}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      <button type="button" onClick={validateQcm} disabled={qcmDone}
+                        className={`mt-3 w-full py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                          qcmDone ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600 text-white'
+                        }`}>
+                        {qcmDone ? 'Choix validés ✓' : 'Valider mes choix'}
+                      </button>
+                    </div>
+                  </div>
+                )
+              }
+              return (
+                <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-sm whitespace-pre-wrap ${
+                    m.role === 'user'
+                      ? 'bg-blue-500 text-white rounded-br-sm'
+                      : 'bg-slate-100 text-slate-800 rounded-bl-sm'
+                  }`}>
+                    {m.text}
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
             {parsingVoice && (
               <div className="flex justify-start">
                 <div className="px-4 py-2.5 rounded-2xl bg-slate-100 text-slate-400 text-sm animate-pulse rounded-bl-sm">✨ Analyse…</div>
