@@ -155,8 +155,8 @@ function fallbackFollowUpQuestion(labels) {
   return `Il me manque juste ${liste} — c'est pour que tes invités sachent quoi prévoir 🙂 tu me dis ?`
 }
 
-// Question conversationnelle sur le covoiturage (explicative, un seul emoji)
-const CARPOOL_QUESTION = "Petit plus pratique : je peux activer une option covoiturage 🚗 — tes invités pourront se regrouper pour venir ensemble, moins de galère de parking. Je l'active ?"
+// Intro covoiturage (explicative, un seul emoji) — posée juste avant le QCM Oui/Non
+const CARPOOL_INTRO = "Petit plus pratique : avec l'option covoiturage 🚗, tes invités peuvent se regrouper pour venir ensemble — moins de voitures, moins de galère de parking."
 
 // Question conversationnelle sur la date limite d'inscription (optionnelle, un seul emoji)
 const DEADLINE_QUESTION = "Tu veux fixer une date limite pour que tes invités confirment ? 🗓️ Ça t'aide à savoir combien vous serez. Sinon je cale ça sur le jour J."
@@ -310,9 +310,15 @@ export default function CreateEvent() {
   // Covoiturage : "traité" une fois répondu (ne le demander qu'une fois) ; ref = la dernière question portait dessus
   const [carpoolHandled, setCarpoolHandled] = useState(false)
   const carpoolAskedRef = useRef(false)
+  // QCM covoiturage Oui/Non affiché dans le fil : carpoolQcmDone = choix fait (boutons grisés) ; ref = anti-doublon
+  const [carpoolQcmDone, setCarpoolQcmDone] = useState(false)
+  const carpoolQcmShownRef = useRef(false)
   // Date limite d'inscription : même mécanisme (optionnelle), traitée une seule fois
   const [deadlineHandled, setDeadlineHandled] = useState(false)
   const deadlineAskedRef = useRef(false)
+  // QCM photo Oui/Non affiché dans le fil (après la date limite) : photoQcmDone = choix fait ; ref = anti-doublon
+  const [photoQcmDone, setPhotoQcmDone] = useState(false)
+  const photoQcmShownRef = useRef(false)
 
   // Détection du support Web Speech (côté client uniquement)
   useEffect(() => {
@@ -456,7 +462,6 @@ export default function CreateEvent() {
     setParsingVoice(true)
     // À quelle question l'utilisateur répond-il ? (on lit les drapeaux avant de les remettre à jour)
     const wasOptionsPhase = optionsAskedRef.current
-    const wasCarpoolPhase = carpoolAskedRef.current
     const wasDeadlinePhase = deadlineAskedRef.current
     try {
       const res = await fetch('/api/parse-voice', {
@@ -482,17 +487,10 @@ export default function CreateEvent() {
         }
       }
 
-      // Réponse à la question covoiturage (oui/non), ou mention spontanée du covoiturage
+      // Covoiturage : désormais traité via le QCM cliquable (qcm-carpool). Ici on ne gère plus
+      // que la mention spontanée éventuelle (ex : « ah et active le covoiturage ») sans casser la date limite.
       let carpoolDone = carpoolHandled
-      if (wasCarpoolPhase) {
-        carpoolAskedRef.current = false
-        if (typeof data.carpool_enabled === 'boolean') updateForm('carpool_enabled', data.carpool_enabled)
-        else if (isNegative(clean)) updateForm('carpool_enabled', false)
-        else if (isAffirmative(clean)) updateForm('carpool_enabled', true)
-        // sinon : on garde la valeur par défaut, et on n'insiste pas
-        setCarpoolHandled(true)
-        carpoolDone = true
-      } else if (typeof data.carpool_enabled === 'boolean') {
+      if (typeof data.carpool_enabled === 'boolean') {
         updateForm('carpool_enabled', data.carpool_enabled)
         setCarpoolHandled(true)
         carpoolDone = true
@@ -567,12 +565,24 @@ export default function CreateEvent() {
         return
       }
 
-      // e) Plus rien à demander → c'est bon (seul message qui marque la fin)
-      optionsAskedRef.current = false
-      carpoolAskedRef.current = false
-      deadlineAskedRef.current = false
-      setMessages(prev => [...prev, { role: 'ai', text: finalReadyMessage(effectiveType) }])
-      setChatReady(true)
+      // e) Photo (tous types) : proposée une fois, juste avant le message final
+      if (!photoQcmDone) {
+        if (!photoQcmShownRef.current) {
+          photoQcmShownRef.current = true
+          optionsAskedRef.current = false
+          carpoolAskedRef.current = false
+          deadlineAskedRef.current = false
+          setMessages(prev => [...prev,
+            { role: 'ai', text: 'Veux-tu mettre une photo sur ton invitation ? 📸 Ça la rend tout de suite plus attirante.' },
+            { role: 'ai', type: 'qcm-photo' },
+          ])
+          setChatReady(false)
+        }
+        return
+      }
+
+      // f) Plus rien à demander → c'est bon (seul message qui marque la fin)
+      concludeChat(effectiveType)
     } catch (err) {
       setMessages(prev => [...prev, { role: 'ai', text: "Désolé, je n'ai pas bien saisi — tu peux reformuler ?" }])
     } finally {
@@ -580,13 +590,48 @@ export default function CreateEvent() {
     }
   }
 
-  // Étape covoiturage, partagée par le chemin vocal et la validation du QCM (évite la duplication)
+  // Étape covoiturage (QCM Oui/Non cliquable), partagée par tous les chemins (évite la duplication)
   function askCarpoolStep() {
+    if (carpoolQcmShownRef.current) return
+    carpoolQcmShownRef.current = true
     optionsAskedRef.current = false
     deadlineAskedRef.current = false
-    carpoolAskedRef.current = true
-    setMessages(prev => [...prev, { role: 'ai', text: CARPOOL_QUESTION }])
+    carpoolAskedRef.current = false
+    setMessages(prev => [...prev,
+      { role: 'ai', text: CARPOOL_INTRO },
+      { role: 'ai', type: 'qcm-carpool' },
+    ])
     setChatReady(false)
+  }
+
+  // Choix du covoiturage dans la conversation (clic immédiat) → enchaîne sur la date limite (vocale)
+  function chooseCarpool(enabled) {
+    if (carpoolQcmDone) return
+    updateForm('carpool_enabled', enabled)
+    setCarpoolQcmDone(true)
+    setCarpoolHandled(true)
+    optionsAskedRef.current = false
+    carpoolAskedRef.current = false
+    deadlineAskedRef.current = true
+    setMessages(prev => [...prev, { role: 'ai', text: DEADLINE_QUESTION }])
+    setChatReady(false)
+  }
+
+  // Conclut la conversation (seul moment qui marque la fin) : message final + bouton Valider
+  function concludeChat(type) {
+    optionsAskedRef.current = false
+    carpoolAskedRef.current = false
+    deadlineAskedRef.current = false
+    setMessages(prev => [...prev, { role: 'ai', text: finalReadyMessage(type || form.event_type) }])
+    setChatReady(true)
+  }
+
+  // Choix du QCM photo : ouvre le sélecteur (réutilise l'upload existant) si oui, puis conclut dans tous les cas
+  function choosePhoto(wantPhoto) {
+    if (photoQcmDone) return
+    setPhotoQcmDone(true)
+    if (wantPhoto) fileInputRef.current?.click()
+    concludeChat()
   }
 
   // Affiche le QCM des options BBQ (une seule fois) — déclenché par le choix « Collaboratif » du QCM mode
@@ -691,8 +736,12 @@ export default function CreateEvent() {
     listesQcmShownRef.current = false
     setCarpoolHandled(false)
     carpoolAskedRef.current = false
+    setCarpoolQcmDone(false)
+    carpoolQcmShownRef.current = false
     setDeadlineHandled(false)
     deadlineAskedRef.current = false
+    setPhotoQcmDone(false)
+    photoQcmShownRef.current = false
     // Anniversaire et Tournoi : la pré-sélection dépend d'un sous-format choisi à l'étape 2
     const needsSubFormat = type === 'Anniversaire' || type === 'Match/Tournoi'
     setSelectedLists(needsSubFormat ? {} : Object.fromEntries((DEFAULT_LISTS[type] || ['menu']).map(k => [k, true])))
@@ -1127,6 +1176,62 @@ export default function CreateEvent() {
                   </div>
                 )
               }
+              // Bloc QCM covoiturage (clic immédiat : Oui/Non, puis enchaîne sur la date limite)
+              if (m.type === 'qcm-carpool') {
+                const carpoolBtn = (value, label) => (
+                  <button type="button" disabled={carpoolQcmDone}
+                    onClick={() => chooseCarpool(value)}
+                    className={`px-3 py-2.5 rounded-xl text-sm font-medium border-2 text-left transition-colors ${
+                      carpoolQcmDone && form.carpool_enabled === value
+                        ? 'bg-orange-500 border-orange-500 text-white'
+                        : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                    } ${carpoolQcmDone ? 'opacity-60 cursor-not-allowed' : ''}`}>
+                    {label}
+                  </button>
+                )
+                return (
+                  <div key={i} className="flex justify-start">
+                    <div className="max-w-[85%] w-full bg-slate-100 rounded-2xl rounded-bl-sm p-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        {carpoolBtn(true, '🚗 Oui')}
+                        {carpoolBtn(false, 'Non')}
+                      </div>
+                    </div>
+                  </div>
+                )
+              }
+              // Bloc QCM photo (clic immédiat : ouvre le sélecteur si Oui, puis conclut la conversation)
+              if (m.type === 'qcm-photo') {
+                const photoBtn = (value, label) => (
+                  <button type="button" disabled={photoQcmDone}
+                    onClick={() => choosePhoto(value)}
+                    className={`px-3 py-2.5 rounded-xl text-sm font-medium border-2 text-left transition-colors ${
+                      photoQcmDone && value === true
+                        ? 'bg-orange-500 border-orange-500 text-white'
+                        : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                    } ${photoQcmDone ? 'opacity-60 cursor-not-allowed' : ''}`}>
+                    {label}
+                  </button>
+                )
+                return (
+                  <div key={i} className="flex justify-start">
+                    <div className="max-w-[85%] w-full bg-slate-100 rounded-2xl rounded-bl-sm p-3">
+                      {uploadingPhoto && (
+                        <div className="mb-2 text-sm text-slate-500 animate-pulse">⏳ Envoi de la photo…</div>
+                      )}
+                      {photoUrl && (
+                        <div className="mb-2 rounded-xl overflow-hidden border border-slate-200">
+                          <img src={photoUrl} alt="Aperçu" className="w-full h-40 object-cover" />
+                        </div>
+                      )}
+                      <div className="grid grid-cols-2 gap-2">
+                        {photoBtn(true, '📷 Oui, ajouter une photo')}
+                        {photoBtn(false, 'Non merci')}
+                      </div>
+                    </div>
+                  </div>
+                )
+              }
               return (
                 <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-sm whitespace-pre-wrap ${
@@ -1148,9 +1253,11 @@ export default function CreateEvent() {
 
           {/* Bouton de validation, affiché quand plus aucun essentiel ne manque */}
           {chatReady && (
-            <button type="button" onClick={goToRecap}
-              className="w-full mb-3 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-3.5 rounded-2xl transition-colors text-lg">
-              ✅ Valider mon événement
+            <button type="button" onClick={goToRecap} disabled={uploadingPhoto}
+              className={`w-full mb-3 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-3.5 rounded-2xl transition-colors text-lg ${
+                uploadingPhoto ? 'opacity-60 cursor-not-allowed' : ''
+              }`}>
+              {uploadingPhoto ? '⏳ Envoi de la photo…' : '✅ Valider mon événement'}
             </button>
           )}
 
@@ -1396,21 +1503,10 @@ export default function CreateEvent() {
             {/* Pas de jauge fixe pour l'apéro participatif : on masque le nombre de personnes attendues */}
             {form.event_type !== 'Apero' && (
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Nombre de personnes attendues (accompagnants compris) : <span className="text-blue-500 font-bold">{form.nb_participants}</span>
-                </label>
-                <input type="range" min="2" max="200" value={Math.min(Number(form.nb_participants) || 2, 200)}
-                  onChange={(e) => updateForm('nb_participants', parseInt(e.target.value))}
-                  className="w-full accent-blue-500" />
-                <div className="flex justify-between text-xs text-slate-400 mt-1">
-                  <span>2</span><span>200</span>
-                </div>
-                <div className="flex items-center gap-2 mt-2">
-                  <input type="number" min={2} max={200} value={form.nb_participants}
-                    onChange={(e) => updateForm('nb_participants', e.target.value === '' ? '' : Number(e.target.value))}
-                    className="w-24 px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm text-center" />
-                  <span className="text-xs text-slate-400">ou saisis le nombre exact</span>
-                </div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Nombre de personnes</label>
+                <input type="number" min={1} value={form.nb_participants}
+                  onChange={(e) => updateForm('nb_participants', e.target.value === '' ? '' : Number(e.target.value))}
+                  className="w-32 px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none text-sm text-slate-900" />
               </div>
             )}
 
