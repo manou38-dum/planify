@@ -298,6 +298,9 @@ export default function CreateEvent() {
   const [answeredOptions, setAnsweredOptions] = useState([])
   const optionsRoundsRef = useRef(0)   // anti-boucle : max 3 tours de questions d'options
   const optionsAskedRef = useRef(false) // vrai quand la dernière question portait sur les options
+  // QCM du mode d'organisation (1ère étape BBQ) : modeQcmDone = choix fait (boutons grisés) ; ref = anti-doublon
+  const [modeQcmDone, setModeQcmDone] = useState(false)
+  const modeQcmShownRef = useRef(false)
   // QCM des options BBQ affiché dans le fil : qcmDone = validé (boutons grisés) ; ref = QCM déjà affiché (anti-doublon)
   const [qcmDone, setQcmDone] = useState(false)
   const qcmShownRef = useRef(false)
@@ -532,25 +535,20 @@ export default function CreateEvent() {
         return
       }
 
-      // b) Essentiels OK + BBQ → QCM cliquable des options (pré-coché depuis ce qui a été dit à la voix)
-      if (effectiveType === 'BBQ' && !qcmDone) {
-        const allAnswered = BBQ_OPTIONS.every(o => answered.includes(o.key))
-        if (!allAnswered) {
-          // On affiche le QCM une seule fois, puis on attend la validation par clic (pas de question vocale)
-          if (!qcmShownRef.current) {
-            qcmShownRef.current = true
-            optionsAskedRef.current = false
-            carpoolAskedRef.current = false
-            deadlineAskedRef.current = false
-            setMessages(prev => [...prev,
-              { role: 'ai', text: 'Pour le menu, choisis ce qui te va 👇' },
-              { role: 'ai', type: 'qcm-bbq' },
-            ])
-            setChatReady(false)
-          }
-          return
+      // b) Essentiels OK + BBQ → 1ère étape : QCM du mode d'organisation (la suite dépend du choix)
+      if (effectiveType === 'BBQ' && !modeQcmDone) {
+        if (!modeQcmShownRef.current) {
+          modeQcmShownRef.current = true
+          optionsAskedRef.current = false
+          carpoolAskedRef.current = false
+          deadlineAskedRef.current = false
+          setMessages(prev => [...prev,
+            { role: 'ai', text: 'Comment tu veux gérer ça ? 👇' },
+            { role: 'ai', type: 'qcm-mode' },
+          ])
+          setChatReady(false)
         }
-        // Toutes les options déjà dites à la voix → pas de QCM, on enchaîne sur le covoiturage
+        return
       }
 
       // c) Covoiturage (tous types) : une seule fois, après les options
@@ -589,6 +587,34 @@ export default function CreateEvent() {
     carpoolAskedRef.current = true
     setMessages(prev => [...prev, { role: 'ai', text: CARPOOL_QUESTION }])
     setChatReady(false)
+  }
+
+  // Affiche le QCM des options BBQ (une seule fois) — déclenché par le choix « Collaboratif » du QCM mode
+  function showOptionsQcm() {
+    if (qcmShownRef.current) return
+    qcmShownRef.current = true
+    optionsAskedRef.current = false
+    carpoolAskedRef.current = false
+    deadlineAskedRef.current = false
+    setMessages(prev => [...prev,
+      { role: 'ai', text: 'Pour le menu, choisis ce qui te va 👇' },
+      { role: 'ai', type: 'qcm-bbq' },
+    ])
+    setChatReady(false)
+  }
+
+  // Choix du mode dans la conversation (clic immédiat, pas de bouton Valider)
+  function chooseMode(mode) {
+    if (modeQcmDone) return
+    updateForm('mode', mode)
+    setModeQcmDone(true)
+    if (mode === 'collaboratif') {
+      // Chacun apporte un truc → on enchaîne sur le QCM des options
+      showOptionsQcm()
+    } else {
+      // Je gère tout → pas d'apports : on saute les QCM options ET listes, direction covoiturage
+      askCarpoolStep()
+    }
   }
 
   // Validation du QCM d'options BBQ : fige les choix, marque tout répondu, puis enchaîne sur le QCM des listes
@@ -657,6 +683,8 @@ export default function CreateEvent() {
     setAnsweredOptions([])
     optionsRoundsRef.current = 0
     optionsAskedRef.current = false
+    setModeQcmDone(false)
+    modeQcmShownRef.current = false
     setQcmDone(false)
     qcmShownRef.current = false
     setListesQcmDone(false)
@@ -1003,6 +1031,30 @@ export default function CreateEvent() {
           {/* Fil de conversation */}
           <div className="flex-1 space-y-3 mb-4">
             {messages.map((m, i) => {
+              // Bloc QCM du mode d'organisation (clic immédiat : enchaîne options ou saute vers covoiturage)
+              if (m.type === 'qcm-mode') {
+                const modeBtn = (value, label) => (
+                  <button type="button" disabled={modeQcmDone}
+                    onClick={() => chooseMode(value)}
+                    className={`px-3 py-2.5 rounded-xl text-sm font-medium border-2 text-left transition-colors ${
+                      modeQcmDone && form.mode === value
+                        ? 'bg-orange-500 border-orange-500 text-white'
+                        : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                    } ${modeQcmDone ? 'opacity-60 cursor-not-allowed' : ''}`}>
+                    {label}
+                  </button>
+                )
+                return (
+                  <div key={i} className="flex justify-start">
+                    <div className="max-w-[85%] w-full bg-slate-100 rounded-2xl rounded-bl-sm p-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        {modeBtn('collaboratif', '🤝 Chacun apporte un truc')}
+                        {modeBtn('solo', '🎯 Je gère tout')}
+                      </div>
+                    </div>
+                  </div>
+                )
+              }
               // Bloc QCM des options BBQ (boutons bascule pré-cochés depuis la voix + validation)
               if (m.type === 'qcm-bbq') {
                 return (
@@ -1237,30 +1289,7 @@ export default function CreateEvent() {
               </div>
             )}
 
-            {/* Mode d'organisation (masqué pour anniversaire, soirée, tournoi, sortie/activité et apéro : la distinction se fait via les listes cochées) */}
-            {form.event_type !== 'Anniversaire' && form.event_type !== 'Soirée' && form.event_type !== 'Match/Tournoi' && form.event_type !== 'Randonnée' && form.event_type !== 'Apero' && (
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Comment veux-tu organiser ?</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button type="button" onClick={() => updateForm('mode', 'collaboratif')}
-                    className={`p-4 rounded-2xl border-2 text-left transition-all ${
-                      form.mode === 'collaboratif' ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:border-slate-300'
-                    }`}>
-                    <span className="text-2xl block mb-1">🤝</span>
-                    <span className="text-sm font-semibold text-slate-800 block">Collaboratif</span>
-                    <span className="text-xs text-slate-500">Chacun apporte quelque chose</span>
-                  </button>
-                  <button type="button" onClick={() => updateForm('mode', 'solo')}
-                    className={`p-4 rounded-2xl border-2 text-left transition-all ${
-                      form.mode === 'solo' ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:border-slate-300'
-                    }`}>
-                    <span className="text-2xl block mb-1">🎯</span>
-                    <span className="text-sm font-semibold text-slate-800 block">J'organise tout</span>
-                    <span className="text-xs text-slate-500">Les invités confirment juste leur venue</span>
-                  </button>
-                </div>
-              </div>
-            )}
+            {/* Le mode d'organisation est désormais choisi dans la conversation (QCM mode), plus de sélecteur ici */}
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Nom de l'événement</label>
