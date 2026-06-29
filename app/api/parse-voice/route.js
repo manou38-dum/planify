@@ -33,11 +33,14 @@ Interprète TOUJOURS la phrase EN CONTEXTE de current : c'est souvent une répon
 
 - carpool_enabled : booléen, UNIQUEMENT si la phrase concerne clairement le COVOITURAGE (réponse à une proposition de covoiturage, ou mention explicite). « oui / avec plaisir / active / je veux bien » → true ; « non / pas besoin / pas la peine » → false. N'inclus cette clé que si c'est sans ambiguïté à propos du covoiturage.
 
-2) QUESTION DE SUIVI — calcule mentalement l'état après mise à jour (current + ce que tu viens d'extraire). Parmi les champs importants ENCORE VIDES, dans cet ordre de priorité — date (avec l'heure), location, organizer_name, organizer_phone, deadline_rsvp — rédige "follow_up_question" : UNE seule question en français qui regroupe 2 à 3 de ces champs vides (les plus prioritaires). STYLE : ton chaleureux et amical, comme un ami qui aide à organiser. Tutoie TOUJOURS, jamais de vous/votre/vos — vérifie chaque phrase avant de répondre. Explique brièvement POURQUOI tu demandes (ex : pour que les invités sachent où venir). Un emoji maximum, pas systématique. Reste bref. VARIE la formulation à chaque fois, ne répète jamais deux fois la même phrase. Si plus aucun de ces champs n'est vide, mets "follow_up_question": null.
+2) QUESTION DE SUIVI — calcule mentalement l'état après mise à jour (current + ce que tu viens d'extraire). Parmi les champs importants ENCORE VIDES, dans cet ordre de priorité — date (avec l'heure), location, organizer_name, organizer_phone, deadline_rsvp — rédige "follow_up_question" : UNE seule question en français qui regroupe 2 à 3 de ces champs vides (les plus prioritaires).
+STYLE : ton chaleureux, amical et ENTHOUSIASTE, comme un ami qui aide à organiser — sois positif sur l'événement lui-même, pas seulement efficace. Tutoie TOUJOURS, jamais de vous/votre/vos (vérifie chaque phrase avant de répondre). Explique brièvement POURQUOI tu demandes (ex : pour que les invités sachent où venir). Glisse de temps en temps une touche sympa qui projette dans le moment (ex : "ça sent bon l'été ☀️", "ça va être une belle soirée", "parfait pour un samedi") — naturel, sans forcer à chaque phrase. Un emoji maximum.
+NE DIS JAMAIS que c'est la dernière question ou la fin : INTERDICTION des mots "dernière", "dernier", "pour finir", "pour terminer", "finaliser", "il ne reste plus que". D'autres questions peuvent suivre. Enchaîne avec des transitions neutres ou positives ("Niquel !", "Et aussi…", "Autre petit truc…").
+Reste bref. VARIE la formulation à chaque fois, ne répète jamais deux fois la même phrase. Si plus aucun de ces champs n'est vide, mets "follow_up_question": null.
 
 Exemples de ton (NE PAS recopier, varie à chaque fois) :
-- "Il me manque juste l'heure et le lieu — c'est pour que tes invités sachent où et quand débarquer 🙂 tu me dis ?"
-- "Et pour finaliser, qui organise et à quel numéro on peut te joindre si besoin ?"
+- "Un BBQ à Crolles, ça sent bon l'été ! ☀️ Il me manque juste ton prénom et ton numéro…"
+- "Niquel ! Et ça se passe où exactement, pour que tes invités sachent où venir ?"
 
 FORMAT (exemple) : {"date":"2026-07-04T18:00","location":"chez moi","follow_up_question":"..."}`
 
@@ -51,25 +54,57 @@ function extractJson(text) {
   return JSON.parse(raw)
 }
 
+// Garde-fou DÉTERMINISTE du tutoiement : Haiku vouvoie parfois malgré la consigne.
+// Si la phrase contient vous/votre/vos, on la réécrit en tutoiement via un appel correctif (temperature 0).
+async function ensureTutoiement(anthropic, phrase) {
+  const text = typeof phrase === 'string' ? phrase : ''
+  if (!text.trim()) return phrase
+  if (!/\b(vous|votre|vos)\b/i.test(text)) return text
+  try {
+    const message = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 200,
+      temperature: 0,
+      system: 'Réécris cette phrase en tutoiement français (tu, ton, ta, tes), sans changer le sens ni le ton, sans rien ajouter ni enlever. Renvoie UNIQUEMENT la phrase réécrite, rien d\'autre.',
+      messages: [{ role: 'user', content: text }],
+    })
+    const tb = message.content.find(b => b.type === 'text')
+    const rewritten = tb && typeof tb.text === 'string' ? tb.text : ''
+    // Nettoyage : retire d'éventuels fences/guillemets englobants
+    const cleaned = rewritten
+      .replace(/^```[a-z]*\s*/i, '').replace(/```$/, '')
+      .replace(/^["'«»\s]+|["'«»\s]+$/g, '')
+      .trim()
+    if (cleaned) return cleaned
+  } catch (err) {
+    // échec → on garde l'original
+  }
+  return text
+}
+
 // Mode FORMULATION : formule UNE question chaleureuse et variée regroupant les options BBQ encore non répondues
 async function formulateOptionsQuestion(anthropic, labels) {
   try {
-    const system = `Tu poses UNE seule question française et chaleureuse pour finaliser un barbecue, comme un ami qui aide à organiser. Tutoie TOUJOURS, jamais de vous/votre/vos — vérifie chaque phrase avant de répondre. Réponds UNIQUEMENT avec un JSON {"follow_up_question":"..."} sans texte ni backticks.
+    const system = `Tu poses UNE seule question française et chaleureuse sur le menu d'un barbecue, comme un ami qui aide à organiser. Sois enthousiaste et positif sur l'événement (ex : ça sent bon l'été ☀️), sans forcer. Tutoie TOUJOURS, jamais de vous/votre/vos (vérifie chaque phrase avant de répondre). Réponds UNIQUEMENT avec un JSON {"follow_up_question":"..."} sans texte ni backticks.
 
-CLARTÉ AVANT TOUT : une clause COURTE et séparée par option listée, pas de phrase alambiquée qui mélange plusieurs options. N'en oublie aucune. Glisse une mini-explication (caler le menu et les courses). Un emoji maximum. Varie la formulation mais la clarté prime.
+NE DIS JAMAIS que c'est la dernière question ou la fin : INTERDICTION des mots "dernière", "dernier", "pour finir", "pour terminer", "finaliser", "il ne reste plus que". D'autres questions suivront. Démarre par une transition neutre ou positive ("Niquel !", "Et côté menu…", "Autre truc…").
 
-Imite EXACTEMENT cette structure (une option = une petite question) : « Dernière chose pour le menu : tu pars sur du halal, du végé, ou peu importe ? Je te prévois des desserts ? Et pour les boissons, avec ou sans alcool ? »`
+CLARTÉ AVANT TOUT : une clause COURTE et séparée par option listée, pas de phrase alambiquée qui mélange plusieurs options. N'en oublie aucune. Un emoji maximum. Varie la formulation mais la clarté prime.
+
+Imite cette structure (une option = une petite question) : « Pour le menu : tu pars sur du halal, du végé, ou peu importe ? Je te prévois des desserts ? Et pour les boissons, avec ou sans alcool ? »`
     const user = `Options à couvrir : ${labels.join(', ')}`
     const message = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 300,
-      temperature: 0.7,
+      temperature: 0.85,
       system,
       messages: [{ role: 'user', content: user }],
     })
     const tb = message.content.find(b => b.type === 'text')
     const d = extractJson(tb ? tb.text : '')
-    if (typeof d.follow_up_question === 'string' && d.follow_up_question.trim()) return d.follow_up_question.trim()
+    if (typeof d.follow_up_question === 'string' && d.follow_up_question.trim()) {
+      return await ensureTutoiement(anthropic, d.follow_up_question.trim())
+    }
   } catch (err) {
     // repli déterministe côté client
   }
@@ -114,7 +149,7 @@ export async function POST(request) {
     const message = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 1000,
-      temperature: 0.7,
+      temperature: 0.85,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userContent }],
     })
@@ -163,7 +198,7 @@ export async function POST(request) {
     const merged = { ...curForModel, ...out }
     const stillEmpty = IMPORTANT_FIELDS.some(f => !merged[f])
     out.follow_up_question = stillEmpty && typeof data.follow_up_question === 'string' && data.follow_up_question.trim()
-      ? data.follow_up_question.trim()
+      ? await ensureTutoiement(anthropic, data.follow_up_question.trim())
       : null
 
     return Response.json(out)

@@ -166,6 +166,19 @@ function isDeadlineEvasive(text) {
   return isNegative(text) || /peu importe|comme tu veux|[ée]gal|n['’ ]?importe|jour j|pas de date|t['’ ]?as qu['’ ]?à/i.test(text || '')
 }
 
+// Message FINAL (seul moment qui marque la fin) : court, chaleureux, projette dans le moment selon le type
+function finalReadyMessage(type) {
+  const vibes = {
+    'BBQ': "Ça sent bon l'été 🔥",
+    'Soirée': 'Ça va être une belle soirée 🎉',
+    'Anniversaire': 'Ça va être un super anniv 🎂',
+    'Randonnée': 'Ça va être une belle sortie 🌄',
+    'Match/Tournoi': 'Ça va être un super tournoi 🏆',
+    'Apero': 'Ça va être un chouette apéro 🥂',
+  }
+  return `Parfait, j'ai tout ! ${vibes[type] || 'Ça va être un super moment 🎉'}`
+}
+
 function isAffirmative(text) {
   return /^\s*(oui|ouais|ouai|yes|ok|d['’ ]?accord|avec plaisir|carr[ée]ment|active|vas-?y|volontiers|bien s[ûu]r|pourquoi pas|je veux bien|grave|carrement)\b/i.test(text || '')
 }
@@ -519,11 +532,11 @@ export default function CreateEvent() {
         return
       }
 
-      // e) Plus rien à demander → c'est bon
+      // e) Plus rien à demander → c'est bon (seul message qui marque la fin)
       optionsAskedRef.current = false
       carpoolAskedRef.current = false
       deadlineAskedRef.current = false
-      setMessages(prev => [...prev, { role: 'ai', text: "Parfait, j'ai tout ce qu'il me faut !" }])
+      setMessages(prev => [...prev, { role: 'ai', text: finalReadyMessage(effectiveType) }])
       setChatReady(true)
     } catch (err) {
       setMessages(prev => [...prev, { role: 'ai', text: "Désolé, je n'ai pas bien saisi — tu peux reformuler ?" }])
