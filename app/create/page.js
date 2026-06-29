@@ -176,7 +176,7 @@ function finalReadyMessage(type) {
     'Match/Tournoi': 'Ça va être un super tournoi 🏆',
     'Apero': 'Ça va être un chouette apéro 🥂',
   }
-  return `Parfait, j'ai tout ! ${vibes[type] || 'Ça va être un super moment 🎉'}`
+  return `Parfait, j'ai tout ! ${vibes[type] || 'Ça va être un super moment 🎉'} Tu pourras ajouter une photo sympa à ton événement juste après.`
 }
 
 function isAffirmative(text) {
@@ -1316,7 +1316,7 @@ export default function CreateEvent() {
                   ) : (
                     <>
                       <span className="text-2xl">🖼️</span>
-                      <span className="text-sm font-medium">Ajouter une photo</span>
+                      <span className="text-sm font-medium">Ajouter une photo (galerie ou une image trouvée sur le web)</span>
                     </>
                   )}
                 </button>
