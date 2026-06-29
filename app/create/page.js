@@ -265,6 +265,9 @@ export default function CreateEvent() {
   // QCM des options BBQ affiché dans le fil : qcmDone = validé (boutons grisés) ; ref = QCM déjà affiché (anti-doublon)
   const [qcmDone, setQcmDone] = useState(false)
   const qcmShownRef = useRef(false)
+  // QCM des listes de l'invitation (affiché après le QCM options) : même mécanique
+  const [listesQcmDone, setListesQcmDone] = useState(false)
+  const listesQcmShownRef = useRef(false)
   // Covoiturage : "traité" une fois répondu (ne le demander qu'une fois) ; ref = la dernière question portait dessus
   const [carpoolHandled, setCarpoolHandled] = useState(false)
   const carpoolAskedRef = useRef(false)
@@ -552,11 +555,26 @@ export default function CreateEvent() {
     setChatReady(false)
   }
 
-  // Validation du QCM d'options BBQ : fige les choix, marque tout répondu, puis enchaîne sur le covoiturage
+  // Validation du QCM d'options BBQ : fige les choix, marque tout répondu, puis enchaîne sur le QCM des listes
   function validateQcm() {
     if (qcmDone) return
     setAnsweredOptions(BBQ_OPTIONS.map(o => o.key))
     setQcmDone(true)
+    // Étape suivante : QCM « Que veux-tu dans ton invitation ? » (affiché une seule fois)
+    if (!listesQcmShownRef.current) {
+      listesQcmShownRef.current = true
+      setMessages(prev => [...prev,
+        { role: 'ai', text: "Et qu'est-ce que tu veux que je prépare pour l'invitation ? 👇" },
+        { role: 'ai', type: 'qcm-listes' },
+      ])
+      setChatReady(false)
+    }
+  }
+
+  // Validation du QCM des listes : fige les choix puis enchaîne sur le covoiturage
+  function validateListesQcm() {
+    if (listesQcmDone) return
+    setListesQcmDone(true)
     askCarpoolStep()
   }
 
@@ -600,6 +618,8 @@ export default function CreateEvent() {
     optionsAskedRef.current = false
     setQcmDone(false)
     qcmShownRef.current = false
+    setListesQcmDone(false)
+    listesQcmShownRef.current = false
     setCarpoolHandled(false)
     carpoolAskedRef.current = false
     setDeadlineHandled(false)
@@ -968,6 +988,47 @@ export default function CreateEvent() {
                           qcmDone ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600 text-white'
                         }`}>
                         {qcmDone ? 'Choix validés ✓' : 'Valider mes choix'}
+                      </button>
+                      <button type="button" disabled={qcmDone}
+                        onClick={() => { for (const o of BBQ_OPTIONS) updateOption(o.key, false); validateQcm() }}
+                        className={`mt-2 w-full py-2 rounded-xl text-sm font-medium border border-slate-300 text-slate-500 transition-colors ${
+                          qcmDone ? 'opacity-60 cursor-not-allowed' : 'hover:bg-slate-50'
+                        }`}>
+                        Rien de tout ça
+                      </button>
+                    </div>
+                  </div>
+                )
+              }
+              // Bloc QCM des listes de l'invitation (pré-coché selon les défauts du type)
+              if (m.type === 'qcm-listes') {
+                const listKeys = availableListsFor(form.event_type, eventOptions)
+                return (
+                  <div key={i} className="flex justify-start">
+                    <div className="max-w-[85%] w-full bg-slate-100 rounded-2xl rounded-bl-sm p-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        {listKeys.map((key) => {
+                          const choice = LIST_CHOICES.find(c => c.key === key)
+                          if (!choice) return null
+                          const active = !!selectedLists[key]
+                          return (
+                            <button key={key} type="button" disabled={listesQcmDone}
+                              onClick={() => toggleList(key)}
+                              className={`px-3 py-2.5 rounded-xl text-sm font-medium border-2 text-left transition-colors ${
+                                active
+                                  ? 'bg-orange-500 border-orange-500 text-white'
+                                  : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                              } ${listesQcmDone ? 'opacity-60 cursor-not-allowed' : ''}`}>
+                              {active ? '✓ ' : ''}{choice.label}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      <button type="button" onClick={validateListesQcm} disabled={listesQcmDone}
+                        className={`mt-3 w-full py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                          listesQcmDone ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600 text-white'
+                        }`}>
+                        {listesQcmDone ? 'Choix validés ✓' : 'Valider'}
                       </button>
                     </div>
                   </div>
