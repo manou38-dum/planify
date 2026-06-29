@@ -533,13 +533,7 @@ export default function CreateEvent() {
         return
       }
 
-      // b) Date limite d'inscription (tous types, optionnelle) : juste après les essentiels, avant les QCM
-      if (!deadlineDone) {
-        askDeadlineStep()
-        return
-      }
-
-      // c) Essentiels + date limite OK + BBQ → QCM du mode d'organisation (la suite dépend du choix)
+      // b) Essentiels OK + BBQ → QCM du mode d'organisation (la suite dépend du choix)
       if (effectiveType === 'BBQ' && !modeQcmDone) {
         if (!modeQcmShownRef.current) {
           modeQcmShownRef.current = true
@@ -555,9 +549,15 @@ export default function CreateEvent() {
         return
       }
 
-      // d) Covoiturage (tous types) : une seule fois, après le mode/les options
+      // c) Covoiturage (tous types) : une seule fois, après le mode/les options
       if (!carpoolDone) {
         askCarpoolStep()
+        return
+      }
+
+      // d) Date limite d'inscription (tous types, optionnelle) : après le covoiturage, avant la photo
+      if (!deadlineDone) {
+        askDeadlineStep()
         return
       }
 
@@ -613,13 +613,13 @@ export default function CreateEvent() {
     setChatReady(false)
   }
 
-  // Choix du covoiturage dans la conversation (clic immédiat) → enchaîne sur la photo (la date limite est déjà passée)
+  // Choix du covoiturage dans la conversation (clic immédiat) → enchaîne sur la date limite (vocale)
   function chooseCarpool(enabled) {
     if (carpoolQcmDone) return
     updateForm('carpool_enabled', enabled)
     setCarpoolQcmDone(true)
     setCarpoolHandled(true)
-    askPhotoStep()
+    askDeadlineStep()
   }
 
   // Conclut la conversation (seul moment qui marque la fin) : message final + bouton Valider
