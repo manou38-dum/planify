@@ -12,6 +12,7 @@ NOURRITURE
 - Fromage si prévu : 80 g/personne
 - Dessert : 1 part/personne +10%
 - Sauces (ketchup, moutarde, mayo) : contenants PARTAGÉS, jamais par personne — 1 contenant pour ~12 personnes
+- UNITÉ D'ACHAT RÉALISTE : choisis l'unité d'ACHAT réelle selon le produit. Les produits qui s'achètent à la pièce (salade verte/laitue, concombre, melon, pain/baguette, citron, avocat…) doivent être en "pièce"/"unité", JAMAIS en kg. Réserve kg/g aux produits réellement pesés (viande, charcuterie, fromage à la coupe, féculents en vrac…). Exemple : pour 12 personnes → 3 salades (pièces), et surtout PAS 2,5 kg de salade. Garde l'arrondi à l'entier supérieur pour ces unités comptées.
 BOISSONS (cible ~1,5 L total/personne, +15% si forte chaleur)
 - Eau : 0,5 L/personne = 1 bouteille 1,5 L pour 3 personnes
 - Soft (sodas + jus) : 0,4 L/personne = 1 bouteille 1,5 L pour 4 personnes

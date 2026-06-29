@@ -533,7 +533,13 @@ export default function CreateEvent() {
         return
       }
 
-      // b) Essentiels OK + BBQ → 1ère étape : QCM du mode d'organisation (la suite dépend du choix)
+      // b) Date limite d'inscription (tous types, optionnelle) : juste après les essentiels, avant les QCM
+      if (!deadlineDone) {
+        askDeadlineStep()
+        return
+      }
+
+      // c) Essentiels + date limite OK + BBQ → QCM du mode d'organisation (la suite dépend du choix)
       if (effectiveType === 'BBQ' && !modeQcmDone) {
         if (!modeQcmShownRef.current) {
           modeQcmShownRef.current = true
@@ -549,35 +555,15 @@ export default function CreateEvent() {
         return
       }
 
-      // c) Covoiturage (tous types) : une seule fois, après les options
+      // d) Covoiturage (tous types) : une seule fois, après le mode/les options
       if (!carpoolDone) {
         askCarpoolStep()
         return
       }
 
-      // d) Date limite d'inscription (tous types, optionnelle) : une seule fois, après le covoiturage
-      if (!deadlineDone) {
-        optionsAskedRef.current = false
-        carpoolAskedRef.current = false
-        deadlineAskedRef.current = true
-        setMessages(prev => [...prev, { role: 'ai', text: DEADLINE_QUESTION }])
-        setChatReady(false)
-        return
-      }
-
       // e) Photo (tous types) : proposée une fois, juste avant le message final
       if (!photoQcmDone) {
-        if (!photoQcmShownRef.current) {
-          photoQcmShownRef.current = true
-          optionsAskedRef.current = false
-          carpoolAskedRef.current = false
-          deadlineAskedRef.current = false
-          setMessages(prev => [...prev,
-            { role: 'ai', text: 'Veux-tu mettre une photo sur ton invitation ? 📸 Ça la rend tout de suite plus attirante.' },
-            { role: 'ai', type: 'qcm-photo' },
-          ])
-          setChatReady(false)
-        }
+        askPhotoStep()
         return
       }
 
@@ -604,17 +590,36 @@ export default function CreateEvent() {
     setChatReady(false)
   }
 
-  // Choix du covoiturage dans la conversation (clic immédiat) → enchaîne sur la date limite (vocale)
-  function chooseCarpool(enabled) {
-    if (carpoolQcmDone) return
-    updateForm('carpool_enabled', enabled)
-    setCarpoolQcmDone(true)
-    setCarpoolHandled(true)
+  // Étape date limite (vocale), partagée par tous les chemins — posée juste après les essentiels
+  function askDeadlineStep() {
     optionsAskedRef.current = false
     carpoolAskedRef.current = false
     deadlineAskedRef.current = true
     setMessages(prev => [...prev, { role: 'ai', text: DEADLINE_QUESTION }])
     setChatReady(false)
+  }
+
+  // Étape photo (QCM Oui/Non cliquable), partagée par tous les chemins — juste avant le message final
+  function askPhotoStep() {
+    if (photoQcmShownRef.current) return
+    photoQcmShownRef.current = true
+    optionsAskedRef.current = false
+    carpoolAskedRef.current = false
+    deadlineAskedRef.current = false
+    setMessages(prev => [...prev,
+      { role: 'ai', text: 'Veux-tu mettre une photo sur ton invitation ? 📸 Ça la rend tout de suite plus attirante.' },
+      { role: 'ai', type: 'qcm-photo' },
+    ])
+    setChatReady(false)
+  }
+
+  // Choix du covoiturage dans la conversation (clic immédiat) → enchaîne sur la photo (la date limite est déjà passée)
+  function chooseCarpool(enabled) {
+    if (carpoolQcmDone) return
+    updateForm('carpool_enabled', enabled)
+    setCarpoolQcmDone(true)
+    setCarpoolHandled(true)
+    askPhotoStep()
   }
 
   // Conclut la conversation (seul moment qui marque la fin) : message final + bouton Valider
@@ -1066,6 +1071,14 @@ export default function CreateEvent() {
 
   return (
     <div className="max-w-lg mx-auto px-4 py-8">
+      {/* Champ fichier caché monté au niveau racine : déclenchable dans les deux phases (chat ET récap) */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handlePhotoChange}
+        className="hidden"
+      />
       {phase === 'chat' ? (
         /* ───────── PHASE CHAT : conversation guidée ───────── */
         <div className="flex flex-col min-h-[75vh]">
@@ -1470,13 +1483,6 @@ export default function CreateEvent() {
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Photo de l'événement (optionnel)</label>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handlePhotoChange}
-                className="hidden"
-              />
               {photoUrl ? (
                 <div className="relative rounded-xl overflow-hidden border border-slate-200">
                   <img src={photoUrl} alt="Aperçu" className="w-full h-44 object-cover" />
