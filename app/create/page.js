@@ -371,6 +371,8 @@ export default function CreateEvent() {
     setParsingVoice(true)
     // Si une question de suivi était affichée, cette dictée est une réponse → on autorise l'écrasement
     const isFollowUpAnswer = followUpQuestion != null
+    // Libellés manquants AVANT recalcul de ce tour (pour savoir à quelle question l'utilisateur répond)
+    const prevMissing = missingVoiceFields
     try {
       const res = await fetch('/api/parse-voice', {
         method: 'POST',
@@ -388,7 +390,28 @@ export default function CreateEvent() {
         const incoming = data[key]
         effective[key] = (incoming != null && (isFollowUpAnswer || !form[key])) ? incoming : form[key]
       }
-      const missing = computeMissingVoiceFields(effective)
+      let missing = computeMissingVoiceFields(effective)
+
+      // Filet déterministe prénom : si la question précédente portait sur le prénom et que
+      // l'extraction n'a rien capté, on traite un message court (≤ 3 mots, sans chiffre) comme le prénom.
+      // Évite la boucle où l'IA redemande indéfiniment « ton prénom ».
+      let nameNetFired = false
+      const askedForName = Array.isArray(prevMissing) && prevMissing.includes('ton prénom')
+      if (askedForName && !effective.organizer_name) {
+        const words = transcript.trim().split(/\s+/).filter(Boolean)
+        if (words.length <= 3 && !/\d/.test(transcript)) {
+          const name = transcript
+            .trim()
+            .replace(/^(?:je m['’ ]?appelle|moi c['’ ]?est|c['’ ]?est)\s+/i, '')
+            .trim()
+          if (name) {
+            updateForm('organizer_name', name)
+            effective.organizer_name = name
+            missing = computeMissingVoiceFields(effective)
+            nameNetFired = true
+          }
+        }
+      }
       setMissingVoiceFields(missing)
 
       // Anti-boucle : on compte les tours de questions, max 3, puis on laisse l'utilisateur finir à la main
@@ -398,7 +421,9 @@ export default function CreateEvent() {
       // Une question apparaît TOUJOURS s'il manque un obligatoire (formulation IA si dispo, sinon repli)
       let nextQuestion = null
       if (missing.length > 0 && !capped) {
-        nextQuestion = (data.follow_up_question && String(data.follow_up_question).trim())
+        // Si le filet prénom a tiré, la formulation IA (calculée quand le prénom manquait encore)
+        // redemanderait le prénom → on prend le repli déterministe sur les champs réellement restants.
+        nextQuestion = (!nameNetFired && data.follow_up_question && String(data.follow_up_question).trim())
           ? data.follow_up_question
           : fallbackFollowUpQuestion(missing)
       }
