@@ -185,6 +185,7 @@ Correspondance :
       system: selectionPrefix + SYSTEM_PROMPT.replaceAll('{nb_participants}', String(nb_participants ?? 'le nombre de')),
       user: userContent,
       maxTokens: 16000,
+      model: 'mistral-large-latest',
     })
 
     const data = extractJson(text)

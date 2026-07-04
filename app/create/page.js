@@ -152,7 +152,7 @@ function fallbackFollowUpQuestion(labels) {
   const liste = labels.length <= 1
     ? (labels[0] || '')
     : labels.slice(0, -1).join(', ') + ' et ' + labels[labels.length - 1]
-  return `Il me manque juste ${liste} — c'est pour que tes invités sachent quoi prévoir 🙂 tu me dis ?`
+  return `Il me manque ${liste} — c'est pour que tes invités sachent quoi prévoir 🙂 tu me dis ?`
 }
 
 // Intro covoiturage (explicative, un seul emoji) — posée juste avant le QCM Oui/Non

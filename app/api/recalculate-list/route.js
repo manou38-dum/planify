@@ -70,6 +70,7 @@ export async function POST(request) {
       system: SYSTEM_PROMPT,
       user: userContent,
       maxTokens: 8000,
+      model: 'mistral-large-latest',
     })
 
     const data = extractJson(text)
