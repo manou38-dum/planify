@@ -1025,7 +1025,8 @@ export default function CreateEvent() {
             behavior: L.behavior || 'apport',
             list_name: L.list_name || 'Liste',
             icon: L.icon || '📦',
-            description: L.description || null,
+            // Le warning (ex : trio DVA/pelle/sonde) est préfixé dans la description pour persister sans changer le schéma
+            description: L.warning ? (L.description ? `${L.warning}\n${L.description}` : L.warning) : (L.description || null),
             sort_order: i,
           })
           .select()
@@ -1687,6 +1688,11 @@ export default function CreateEvent() {
             const materiel = isMaterielList(generatedLists[activeTab])
             return (
               <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+                {generatedLists[activeTab].warning && (
+                  <p className="text-sm font-medium text-orange-800 bg-orange-100 border border-orange-300 rounded-lg px-3 py-2.5 mb-3">
+                    {generatedLists[activeTab].warning}
+                  </p>
+                )}
                 {materiel ? (
                   <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2 mb-3">
                     Le matériel à prévoir pour ton événement. Décoche ce qui est inutile, ajuste les quantités. Tes invités cocheront ensuite ce qu'ils apportent depuis leur invitation.

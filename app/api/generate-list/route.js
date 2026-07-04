@@ -1,4 +1,5 @@
 import { generateText } from '@/lib/ai'
+import { SAFETY_CHECKLISTS, matchActivity } from '@/lib/safety-checklists'
 
 // L'IA peut prendre plusieurs secondes : on laisse de la marge côté serveur
 export const maxDuration = 60
@@ -158,7 +159,32 @@ export async function POST(request) {
 
     const askedKeys = Object.keys(selected_lists || {}).filter(k => selected_lists[k])
     if (askedKeys.length === 0) askedKeys.push('menu')
-    const selectionPrefix = `L'organisateur a demandé spécifiquement ces listes : ${askedKeys.join(', ')}.
+
+    // Checklist de sécurité FIXE (en dur) pour rando / VTT / ski de rando : on ne laisse PAS l'IA
+    // générer ce matériel critique (risque d'oubli d'un élément vital). Les autres activités
+    // (plongée, parapente...) gardent la génération IA.
+    let fixedChecklist = null
+    if (event_type === 'Randonnée' && askedKeys.includes('checklist')) {
+      const key = matchActivity(event_options?.activite)
+      if (key && SAFETY_CHECKLISTS[key]) {
+        const entry = SAFETY_CHECKLISTS[key]
+        fixedChecklist = {
+          behavior: 'checklist',
+          list_name: entry.label,
+          icon: '🎒',
+          description: 'Équipement individuel : chaque participant coche ce qu\'il a.',
+          ...(entry.warning ? { warning: entry.warning } : {}),
+          items: entry.items.map(it => ({ item_name: it.item_name, quantity: 1, essential: !!it.essential })),
+        }
+      }
+    }
+
+    // Listes réellement confiées à l'IA (la checklist fixe est retirée si prise en charge en dur)
+    const aiAskedKeys = fixedChecklist ? askedKeys.filter(k => k !== 'checklist') : askedKeys
+
+    let data = {}
+    if (aiAskedKeys.length > 0) {
+      const selectionPrefix = `L'organisateur a demandé spécifiquement ces listes : ${aiAskedKeys.join(', ')}.
 Génère UNIQUEMENT ces listes, rien d'autre. Si 'cadeaux' n'est pas demandé, ne génère pas de liste cadeau. Si 'planning' n'est pas demandé, planning = [].
 
 Correspondance :
@@ -171,24 +197,25 @@ Correspondance :
 
 `
 
-    const userContent = [
-      `Type : ${event_type}`,
-      `Nom : ${event_name}`,
-      `Participants : ${nb_participants}`,
-      `Options : ${JSON.stringify(event_options || {})}`,
-      `Lieu : ${location || 'Non précisé'}`,
-      `Heure de début : ${heureDebut || 'Non précisée'}`,
-      `Description : ${description || 'Non précisée'}`,
-    ].join('\n')
+      const userContent = [
+        `Type : ${event_type}`,
+        `Nom : ${event_name}`,
+        `Participants : ${nb_participants}`,
+        `Options : ${JSON.stringify(event_options || {})}`,
+        `Lieu : ${location || 'Non précisé'}`,
+        `Heure de début : ${heureDebut || 'Non précisée'}`,
+        `Description : ${description || 'Non précisée'}`,
+      ].join('\n')
 
-    const text = await generateText({
-      system: selectionPrefix + SYSTEM_PROMPT.replaceAll('{nb_participants}', String(nb_participants ?? 'le nombre de')),
-      user: userContent,
-      maxTokens: 16000,
-      model: 'mistral-large-latest',
-    })
+      const text = await generateText({
+        system: selectionPrefix + SYSTEM_PROMPT.replaceAll('{nb_participants}', String(nb_participants ?? 'le nombre de')),
+        user: userContent,
+        maxTokens: 16000,
+        model: 'mistral-large-latest',
+      })
 
-    const data = extractJson(text)
+      data = extractJson(text)
+    }
 
     function buildPlanning(startHHMM, nb, type) {
       if (!startHHMM) return []
@@ -251,7 +278,9 @@ Correspondance :
     }
 
     // Le tournoi ne produit jamais de liste d'apports
-    const finalLists = event_type === 'Match/Tournoi' ? [] : (Array.isArray(data.lists) ? data.lists : [])
+    const aiLists = event_type === 'Match/Tournoi' ? [] : (Array.isArray(data.lists) ? data.lists : [])
+    // La checklist de sécurité fixe (si applicable) passe en tête, devant les listes générées par l'IA
+    const finalLists = fixedChecklist ? [fixedChecklist, ...aiLists] : aiLists
 
     return Response.json({
       menu_resume: typeof data.menu_resume === 'string' ? data.menu_resume : '',
