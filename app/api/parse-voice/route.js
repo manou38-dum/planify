@@ -42,7 +42,7 @@ NE DIS JAMAIS que c'est la dernière question ou la fin : INTERDICTION des mots 
 Reste bref. VARIE la formulation à chaque fois, ne répète jamais deux fois la même phrase. Si plus aucun de ces champs n'est vide, mets "follow_up_question": null.
 
 Exemples de ton (NE PAS recopier, varie à chaque fois) :
-- "Un BBQ à Crolles, ça sent bon l'été ! ☀️ Il me manque juste ton prénom et ton numéro…"
+- "Génial, ça va être chouette ! 🙂 Il me manque juste le lieu et ton prénom, pour que tes invités sachent où venir — tu me dis ?"
 - "Niquel ! Et ça se passe où exactement, pour que tes invités sachent où venir ?"
 
 FORMAT (exemple) : {"date":"2026-07-04T18:00","location":"chez moi","follow_up_question":"..."}`
