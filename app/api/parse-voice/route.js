@@ -80,6 +80,7 @@ async function ensureTutoiement(anthropic, phrase) {
       .trim()
     if (cleaned) return cleaned
   } catch (err) {
+    console.error(err)
     // échec → on garde l'original
   }
   return text
@@ -109,6 +110,7 @@ Imite cette structure (une option = une petite question) : « Pour le menu : tu 
       return await ensureTutoiement(anthropic, d.follow_up_question.trim())
     }
   } catch (err) {
+    console.error(err)
     // repli déterministe côté client
   }
   return null
@@ -206,6 +208,7 @@ export async function POST(request) {
 
     return Response.json(out)
   } catch (err) {
+    console.error(err)
     // Best-effort : en cas d'erreur on ne pré-remplit rien et on ne pose pas de question
     return Response.json({ follow_up_question: null })
   }
