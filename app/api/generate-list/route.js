@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { generateText } from '@/lib/ai'
 
 // L'IA peut prendre plusieurs secondes : on laisse de la marge côté serveur
 export const maxDuration = 60
@@ -171,13 +171,6 @@ Correspondance :
 
 `
 
-    const apiKey = process.env.ANTHROPIC_API_KEY
-    if (!apiKey) {
-      return Response.json({ error: 'ANTHROPIC_API_KEY manquante côté serveur' }, { status: 500 })
-    }
-
-    const anthropic = new Anthropic({ apiKey })
-
     const userContent = [
       `Type : ${event_type}`,
       `Nom : ${event_name}`,
@@ -188,15 +181,13 @@ Correspondance :
       `Description : ${description || 'Non précisée'}`,
     ].join('\n')
 
-    const message = await anthropic.messages.create({
-      model: 'claude-opus-4-8',
-      max_tokens: 16000,
+    const text = await generateText({
       system: selectionPrefix + SYSTEM_PROMPT.replaceAll('{nb_participants}', String(nb_participants ?? 'le nombre de')),
-      messages: [{ role: 'user', content: userContent }],
+      user: userContent,
+      maxTokens: 16000,
     })
 
-    const textBlock = message.content.find(b => b.type === 'text')
-    const data = extractJson(textBlock ? textBlock.text : '')
+    const data = extractJson(text)
 
     function buildPlanning(startHHMM, nb, type) {
       if (!startHHMM) return []
@@ -267,6 +258,7 @@ Correspondance :
       planning: planningFinal,
     })
   } catch (err) {
+    console.error(err)
     return Response.json({ error: err.message }, { status: 500 })
   }
 }

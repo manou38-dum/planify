@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { generateText } from '@/lib/ai'
 
 // L'IA peut prendre quelques secondes : on laisse de la marge côté serveur
 export const maxDuration = 60
@@ -53,13 +53,6 @@ export async function POST(request) {
       return Response.json({ error: 'Nombre de personnes invalide' }, { status: 400 })
     }
 
-    const apiKey = process.env.ANTHROPIC_API_KEY
-    if (!apiKey) {
-      return Response.json({ error: 'ANTHROPIC_API_KEY manquante côté serveur' }, { status: 500 })
-    }
-
-    const anthropic = new Anthropic({ apiKey })
-
     const userContent = [
       `Type d'événement : ${event_type || 'Non précisé'}`,
       `Nombre de personnes à couvrir : ${nb}`,
@@ -73,19 +66,18 @@ export async function POST(request) {
       }))),
     ].join('\n')
 
-    const message = await anthropic.messages.create({
-      model: 'claude-opus-4-8',
-      max_tokens: 8000,
+    const text = await generateText({
       system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: userContent }],
+      user: userContent,
+      maxTokens: 8000,
     })
 
-    const textBlock = message.content.find(b => b.type === 'text')
-    const data = extractJson(textBlock ? textBlock.text : '')
+    const data = extractJson(text)
     const outItems = Array.isArray(data.items) ? data.items : []
 
     return Response.json({ items: outItems })
   } catch (err) {
+    console.error(err)
     return Response.json({ error: err.message }, { status: 500 })
   }
 }
