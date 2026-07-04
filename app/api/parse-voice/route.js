@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { generateText } from '@/lib/ai'
 
 // Extraction légère : on laisse un peu de marge mais ça reste rapide
 export const maxDuration = 30
@@ -59,20 +59,17 @@ function extractJson(text) {
 
 // Garde-fou DÉTERMINISTE du tutoiement : Haiku vouvoie parfois malgré la consigne.
 // Si la phrase contient vous/votre/vos, on la réécrit en tutoiement via un appel correctif (temperature 0).
-async function ensureTutoiement(anthropic, phrase) {
+async function ensureTutoiement(phrase) {
   const text = typeof phrase === 'string' ? phrase : ''
   if (!text.trim()) return phrase
   if (!/\b(vous|votre|vos)\b/i.test(text)) return text
   try {
-    const message = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 200,
-      temperature: 0,
+    const rewritten = await generateText({
       system: 'Réécris cette phrase en tutoiement français (tu, ton, ta, tes), sans changer le sens ni le ton, sans rien ajouter ni enlever. Renvoie UNIQUEMENT la phrase réécrite, rien d\'autre.',
-      messages: [{ role: 'user', content: text }],
+      user: text,
+      temperature: 0,
+      maxTokens: 200,
     })
-    const tb = message.content.find(b => b.type === 'text')
-    const rewritten = tb && typeof tb.text === 'string' ? tb.text : ''
     // Nettoyage : retire d'éventuels fences/guillemets englobants
     const cleaned = rewritten
       .replace(/^```[a-z]*\s*/i, '').replace(/```$/, '')
@@ -87,7 +84,7 @@ async function ensureTutoiement(anthropic, phrase) {
 }
 
 // Mode FORMULATION : formule UNE question chaleureuse et variée regroupant les options BBQ encore non répondues
-async function formulateOptionsQuestion(anthropic, labels) {
+async function formulateOptionsQuestion(labels) {
   try {
     const system = `Tu poses UNE seule question française et chaleureuse sur le menu d'un barbecue, comme un ami qui aide à organiser. Sois enthousiaste et positif sur l'événement (ex : ça sent bon l'été ☀️), sans forcer. Tutoie TOUJOURS, jamais de vous/votre/vos (vérifie chaque phrase avant de répondre). Réponds UNIQUEMENT avec un JSON {"follow_up_question":"..."} sans texte ni backticks.
 
@@ -97,17 +94,15 @@ CLARTÉ AVANT TOUT : une clause COURTE et séparée par option listée, pas de p
 
 Imite cette structure (une option = une petite question) : « Pour le menu : tu pars sur du halal, du végé, ou peu importe ? Je te prévois des desserts ? Et pour les boissons, avec ou sans alcool ? »`
     const user = `Options à couvrir : ${labels.join(', ')}`
-    const message = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 300,
-      temperature: 0.85,
+    const text = await generateText({
       system,
-      messages: [{ role: 'user', content: user }],
+      user,
+      temperature: 0.85,
+      maxTokens: 300,
     })
-    const tb = message.content.find(b => b.type === 'text')
-    const d = extractJson(tb ? tb.text : '')
+    const d = extractJson(text)
     if (typeof d.follow_up_question === 'string' && d.follow_up_question.trim()) {
-      return await ensureTutoiement(anthropic, d.follow_up_question.trim())
+      return await ensureTutoiement(d.follow_up_question.trim())
     }
   } catch (err) {
     console.error(err)
@@ -120,14 +115,9 @@ export async function POST(request) {
   try {
     const { transcript, current, pending_options } = await request.json()
 
-    const apiKey = process.env.ANTHROPIC_API_KEY
-    if (!apiKey) return Response.json({ follow_up_question: null })
-
-    const anthropic = new Anthropic({ apiKey })
-
     // Mode FORMULATION : juste une question sur les options encore non répondues (pas d'extraction)
     if (Array.isArray(pending_options) && pending_options.length > 0) {
-      const followUp = await formulateOptionsQuestion(anthropic, pending_options.map(String))
+      const followUp = await formulateOptionsQuestion(pending_options.map(String))
       return Response.json({ follow_up_question: followUp })
     }
 
@@ -151,16 +141,14 @@ export async function POST(request) {
       `Phrase : ${String(transcript).trim()}`,
     ].join('\n')
 
-    const message = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1000,
-      temperature: 0.85,
+    const text = await generateText({
       system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: userContent }],
+      user: userContent,
+      temperature: 0.85,
+      maxTokens: 1000,
     })
 
-    const textBlock = message.content.find(b => b.type === 'text')
-    const data = extractJson(textBlock ? textBlock.text : '')
+    const data = extractJson(text)
 
     // On ne renvoie que des champs propres et valides (le client gère l'écrasement)
     const out = {}
@@ -203,7 +191,7 @@ export async function POST(request) {
     const merged = { ...curForModel, ...out }
     const stillEmpty = IMPORTANT_FIELDS.some(f => !merged[f])
     out.follow_up_question = stillEmpty && typeof data.follow_up_question === 'string' && data.follow_up_question.trim()
-      ? await ensureTutoiement(anthropic, data.follow_up_question.trim())
+      ? await ensureTutoiement(data.follow_up_question.trim())
       : null
 
     return Response.json(out)
