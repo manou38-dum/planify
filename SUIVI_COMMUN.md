@@ -1,6 +1,7 @@
 # Planify — suivi commun des IA
 
 Dernière mise à jour : 27 septembre 2026, par Codex.
+État actuel : correctifs testés et publiés sur GitHub, branche `codex/fix-ai-errors-event-options` (commit de correction `473e778`). Ils ne sont pas encore fusionnés dans `main` ni confirmés en production. La création de demande de fusion via le connecteur est refusée (403) et le navigateur demande une connexion GitHub. Le quota Mistral reste à résoudre séparément.
 Participants souhaités par le porteur : utilisateur, Codex, Claude, Gemini et Perplexity.
 Ce fichier est la référence commune. Il ne synchronise pas automatiquement les conversations des différents outils : chacun doit recevoir la dernière version ou accéder au même dépôt.
 
