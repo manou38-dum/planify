@@ -294,6 +294,7 @@ export default function CreateEvent() {
   ])
   const [chatInput, setChatInput] = useState('')
   const [chatReady, setChatReady] = useState(false)
+  const [assistantError, setAssistantError] = useState('')
   // Options déjà répondues (oui OU non) — distingue "répondu" de "false par défaut". Vidée quand le type change.
   const [answeredOptions, setAnsweredOptions] = useState([])
   const optionsRoundsRef = useRef(0)   // anti-boucle : max 3 tours de questions d'options
@@ -380,6 +381,7 @@ export default function CreateEvent() {
         body: JSON.stringify({ transcript, current: form }),
       })
       const data = (await res.json()) || {}
+      if (!res.ok || data.error) throw new Error(data.error || "L'assistant est indisponible. Tu peux remplir le formulaire directement.")
       applyVoiceData(data, { overwrite: isFollowUpAnswer })
       setVoiceUsed(true)
 
@@ -429,7 +431,7 @@ export default function CreateEvent() {
       }
       setFollowUpQuestion(nextQuestion)
     } catch (err) {
-      // Best-effort : la dictée a déjà alimenté la description, on n'alerte pas l'utilisateur
+      setAssistantError(err.message || "L'assistant est indisponible. Tu peux remplir le formulaire directement.")
     }
     setParsingVoice(false)
   }
@@ -482,7 +484,8 @@ export default function CreateEvent() {
   // Canal UNIQUE pour les deux entrées de la phase 'chat' : texte écrit ET fin de dictée vocale
   async function handleUtterance(text) {
     const clean = (text || '').trim()
-    if (!clean) return
+    if (!clean || parsingVoice) return
+    setAssistantError('')
     setMessages(prev => [...prev, { role: 'user', text: clean }])
     setParsingVoice(true)
     // À quelle question l'utilisateur répond-il ? (on lit les drapeaux avant de les remettre à jour)
@@ -495,6 +498,7 @@ export default function CreateEvent() {
         body: JSON.stringify({ transcript: clean, current: form }),
       })
       const data = (await res.json()) || {}
+      if (!res.ok || data.error) throw new Error(data.error || "L'assistant est indisponible. Tu peux continuer avec les options et le formulaire.")
       // En conversation, chaque message est une réponse intentionnelle → on autorise l'écrasement
       applyVoiceData(data, { overwrite: true })
 
@@ -595,7 +599,8 @@ export default function CreateEvent() {
       // f) Plus rien à demander → c'est bon (seul message qui marque la fin)
       concludeChat(effectiveType)
     } catch (err) {
-      setMessages(prev => [...prev, { role: 'ai', text: "Désolé, je n'ai pas bien saisi — tu peux reformuler ?" }])
+      setAssistantError(err.message || "La connexion à l'assistant a échoué. Tu peux continuer avec les options et le formulaire.")
+      setChatInput(clean)
     } finally {
       setParsingVoice(false)
     }
@@ -717,7 +722,7 @@ export default function CreateEvent() {
 
   function submitChatInput() {
     const t = chatInput.trim()
-    if (!t) return
+    if (!t || parsingVoice) return
     setChatInput('')
     handleUtterance(t)
   }
@@ -1116,6 +1121,20 @@ export default function CreateEvent() {
           <h1 className="text-2xl font-bold text-slate-900 mb-1">Décris ton événement</h1>
           <p className="text-slate-500 mb-6">Tu peux parler ou écrire (ex : un barbecue samedi pour 20 personnes chez moi)</p>
 
+          <div className="mb-6">
+            <p className="text-sm font-medium text-slate-600 mb-2">Ou choisis ton événement pour accéder directement aux options :</p>
+            <div className="grid grid-cols-2 gap-2">
+              {EVENT_TYPES.map(type => (
+                <button key={type.value} type="button" disabled={parsingVoice || listening}
+                  onClick={() => { chooseType(type.value); setPhase('recap') }}
+                  className={`p-3 rounded-xl border text-left text-sm font-semibold disabled:opacity-50 ${type.bg} ${type.border} ${type.text}`}>
+                  <span className="mr-2" aria-hidden="true">{type.icon}</span>{type.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {assistantError && <p role="alert" className="mb-4 p-3 rounded-xl bg-amber-50 text-amber-900 text-sm">{assistantError}</p>}
+
           {/* Fil de conversation */}
           <div className="flex-1 space-y-3 mb-4">
             {messages.map((m, i) => {
@@ -1339,6 +1358,7 @@ export default function CreateEvent() {
       </button>
 
       {/* Barre de progression */}
+      {assistantError && <p role="alert" className="mb-4 p-3 rounded-xl bg-amber-50 text-amber-900 text-sm">{assistantError}</p>}
       <div className="flex items-center gap-2 mb-8">
         {[1, 2, 3].map((n) => (
           <div key={n} className="flex items-center flex-1">
