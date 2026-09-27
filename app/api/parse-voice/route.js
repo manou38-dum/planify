@@ -196,8 +196,13 @@ export async function POST(request) {
 
     return Response.json(out)
   } catch (err) {
-    console.error(err)
-    // Best-effort : en cas d'erreur on ne pré-remplit rien et on ne pose pas de question
-    return Response.json({ follow_up_question: null })
+    const status = Number(err.statusCode || err.status) || 500
+    // Ne pas journaliser la réponse complète du fournisseur (en-têtes et cookies).
+    console.error('[parse-voice] provider failure', { status, type: err.name })
+    return Response.json({
+      error: status === 429
+        ? "L'assistant est temporairement indisponible : sa limite d'utilisation est atteinte. Tu peux continuer avec les options et le formulaire."
+        : "L'assistant est indisponible. Tu peux continuer avec les options et le formulaire.",
+    }, { status: status === 429 ? 429 : 503 })
   }
 }
