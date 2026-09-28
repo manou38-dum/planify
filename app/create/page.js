@@ -495,7 +495,7 @@ export default function CreateEvent() {
       const res = await fetch('/api/parse-voice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcript: clean, current: form }),
+        body: JSON.stringify({ transcript: clean, current: form, pending_field: wasDeadlinePhase ? 'deadline_rsvp' : null }),
       })
       const data = (await res.json()) || {}
       if (!res.ok || data.error) throw new Error(data.error || "L'assistant est indisponible. Tu peux continuer avec les options et le formulaire.")
@@ -933,7 +933,7 @@ export default function CreateEvent() {
       setActiveTab((data.lists || []).length > 0 ? 0 : ((data.planning || []).length > 0 ? 'planning' : 0))
       setStep(3)
     } catch (err) {
-      alert('Erreur IA: ' + err.message)
+      alert('Impossible de préparer les listes : ' + err.message)
     }
     setGenerating(false)
   }
@@ -1119,6 +1119,7 @@ export default function CreateEvent() {
           </button>
 
           <h1 className="text-2xl font-bold text-slate-900 mb-1">Décris ton événement</h1>
+          <p className="text-sm text-emerald-700 mb-2">Mode gratuit : aide par règles et listes standard, sans appel à une IA payante.</p>
           <p className="text-slate-500 mb-6">Tu peux parler ou écrire (ex : un barbecue samedi pour 20 personnes chez moi)</p>
 
           <div className="mb-6">
@@ -1482,7 +1483,7 @@ export default function CreateEvent() {
                 </div>
               </div>
               <textarea value={eventDescription} onChange={(e) => setEventDescription(e.target.value)} rows={3}
-                placeholder="Décris ton événement : ambiance, thème, ce que tu prévois... L'IA s'en servira pour personnaliser les listes."
+                placeholder="Décris ton événement : ambiance, thème, ce que tu prévois... En mode gratuit, adapte ensuite les listes proposées."
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none resize-none text-slate-900 text-sm" />
 
               {/* Dialogue vocal : le ✅ ne s'affiche QUE si le calcul client confirme qu'aucun obligatoire ne manque */}
@@ -1651,7 +1652,7 @@ export default function CreateEvent() {
             {form.mode !== 'solo' && availableListsFor(form.event_type, eventOptions).length > 0 && (
               <div className="rounded-xl p-3 border border-slate-200 bg-white">
                 <p className="text-xs font-semibold text-slate-700">Que veux-tu dans ton invitation ?</p>
-                <p className="text-xs text-slate-400 mb-2">L'IA générera uniquement les listes cochées</p>
+                <p className="text-xs text-slate-400 mb-2">Seules les listes cochées seront préparées</p>
                 <div className="flex flex-wrap gap-x-4 gap-y-1">
                   {LIST_CHOICES.filter(c => availableListsFor(form.event_type, eventOptions).includes(c.key)).map((c) => (
                     <label key={c.key} className="flex items-center gap-1.5 py-0.5 cursor-pointer">
@@ -1672,7 +1673,7 @@ export default function CreateEvent() {
               </button>
               <button type="button" onClick={handleGenerate} disabled={generating}
                 className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 text-white font-semibold py-4 rounded-2xl transition-colors text-lg">
-                {generating ? '✨ Génération IA...' : 'Suivant →'}
+                {generating ? '✨ Préparation des listes...' : 'Suivant →'}
               </button>
             </div>
           </div>

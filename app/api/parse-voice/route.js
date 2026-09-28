@@ -1,4 +1,5 @@
 import { generateText } from '@/lib/ai'
+import { parseFreeEvent, useFreeMode } from '@/lib/free-mode.mjs'
 
 // Extraction légère : on laisse un peu de marge mais ça reste rapide
 export const maxDuration = 30
@@ -113,7 +114,12 @@ Imite cette structure (une option = une petite question) : « Pour le menu : tu 
 
 export async function POST(request) {
   try {
-    const { transcript, current, pending_options } = await request.json()
+    const { transcript, current, pending_options, pending_field } = await request.json()
+    if (useFreeMode()) {
+      return Response.json(Array.isArray(pending_options) && pending_options.length
+        ? { source: 'local', follow_up_question: `Quelles options souhaites-tu : ${pending_options.join(', ')} ?` }
+        : parseFreeEvent(transcript, current, undefined, pending_field))
+    }
 
     // Mode FORMULATION : juste une question sur les options encore non répondues (pas d'extraction)
     if (Array.isArray(pending_options) && pending_options.length > 0) {

@@ -1,4 +1,5 @@
 import { generateText } from '@/lib/ai'
+import { useFreeMode } from '@/lib/free-mode.mjs'
 
 // L'IA peut prendre quelques secondes : on laisse de la marge côté serveur
 export const maxDuration = 60
@@ -42,6 +43,7 @@ function extractJson(text) {
 
 export async function POST(request) {
   try {
+    if (useFreeMode()) return Response.json({ error: 'En mode gratuit sans IA, ajuste les quantités directement dans ta liste.' }, { status: 400 })
     const { event_type, nb_participants, event_options, items } = await request.json()
 
     const list = Array.isArray(items) ? items.filter(it => it && (it.item_name || '').trim()) : []

@@ -1,4 +1,5 @@
 import { generateText } from '@/lib/ai'
+import { freeLists, useFreeMode } from '@/lib/free-mode.mjs'
 import { SAFETY_CHECKLISTS, matchActivity } from '@/lib/safety-checklists'
 
 // L'IA peut prendre plusieurs secondes : on laisse de la marge côté serveur
@@ -183,7 +184,12 @@ export async function POST(request) {
     const aiAskedKeys = fixedChecklist ? askedKeys.filter(k => k !== 'checklist') : askedKeys
 
     let data = {}
-    if (aiAskedKeys.length > 0) {
+    if (useFreeMode()) {
+      if (aiAskedKeys.includes('checklist')) {
+        return Response.json({ error: "Cette activité n'a pas de checklist prédéfinie. Fais valider l'équipement par ton encadrant ; tu peux désélectionner la checklist pour continuer." }, { status: 400 })
+      }
+      data = freeLists(aiAskedKeys, nb_participants, event_options, event_type)
+    } else if (aiAskedKeys.length > 0) {
       const selectionPrefix = `L'organisateur a demandé spécifiquement ces listes : ${aiAskedKeys.join(', ')}.
 Génère UNIQUEMENT ces listes, rien d'autre. Si 'cadeaux' n'est pas demandé, ne génère pas de liste cadeau. Si 'planning' n'est pas demandé, planning = [].
 
