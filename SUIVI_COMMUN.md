@@ -2,6 +2,17 @@
 
 Dernière mise à jour : 28 septembre 2026, par Codex.
 
+## Bilan BBQ et enregistrement — 28 septembre
+
+Responsable : Codex. Branche `codex/bbq-flow-quantities`. PR 2 fusionnée (`c463fbd`).
+
+- Cause constatée du problème réseau : projet Supabase Planify `dprkrtiwfjbgwrcbszqc` en pause (`INACTIVE`), confirmé comme adresse utilisée par le site public. Remise en service effectuée via Supabase ; état final `ACTIVE_HEALTHY`. Tables accessibles. Insertion d'un événement sous rôle `anon` réussie dans une transaction ensuite annulée (`rollback`), sans données de test conservées. Parcours d'enregistrement complet depuis le navigateur non encore validé.
+- Nombre de personnes initialement vide, demandé avec les informations essentielles et obligatoire avant calcul. Une réponse comme « 20 » est reconnue. Les portions incluent l'organisateur.
+- BBQ : accès direct au formulaire récapitulatif dès les essentiels complets, avec choix du mode et options réunis. Menu, boissons et matériel présélectionnés, planning disponible mais non coché. Suppression du passage obligé par les QCM successifs.
+- Quantités calibrées et arrondies aux conditionnements ; matériel individuel avec réserve, matériel commun séparé. Sources et hypothèses documentées dans `QUANTITES_BBQ.md`. Portions adultes ; enfants et menus mixtes restent à ajuster manuellement.
+- Erreur réseau de création remplacée par une explication en français, saisie conservée à l'écran.
+- Validation finale : 12 tests réussis et compilation de production réussie. Navigateur : question du nombre puis formulaire avec date, lieu et prénom conservés, mode et listes visibles ; génération des trois listes pour 20 personnes vérifiée (grillades 5 kg, salades 3 kg, légumes 2 kg, pain 5 baguettes, eau 14 bouteilles de 1,5 L, vaisselle 22). Base de calcul consultable avant création. Mise en production des changements de code en attente de fusion.
+
 ## Mode gratuit — correction du 28 septembre
 
 Responsable : Codex. Branche `codex/free-event-mode`. Le mode par défaut utilise des règles françaises et des listes standard, sans appel externe de modèle ni clé requise. Le service Mistral reste bloqué ; il n'est pas présenté comme réparé. Un retour volontaire au fournisseur nécessite `PLANIFY_AI_MODE=external` côté serveur.

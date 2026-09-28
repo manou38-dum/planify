@@ -103,7 +103,7 @@ const AVAILABLE_LISTS = {
 
 // Pré-cochage intelligent selon le type
 const DEFAULT_LISTS = {
-  'BBQ': ['menu', 'boissons', 'materiel', 'planning'],
+  'BBQ': ['menu', 'boissons', 'materiel'],
   'Anniversaire': ['menu', 'boissons', 'cadeaux'],
   'Randonnée': ['checklist'],
   'Soirée': ['boissons', 'menu'],
@@ -144,6 +144,7 @@ function computeMissingVoiceFields(f) {
   if (!f.date) missing.push('la date')
   else if (String(f.date).slice(11, 16) === '00:00') missing.push("l'heure")
   if (!f.location) missing.push('le lieu')
+  if (f.event_type !== 'Apero' && (!Number.isInteger(Number(f.nb_participants)) || Number(f.nb_participants) < 1)) missing.push('le nombre de personnes (toi compris)')
   return missing
 }
 
@@ -255,7 +256,7 @@ export default function CreateEvent() {
     event_type: 'BBQ',
     date: '',
     location: '',
-    nb_participants: 20,
+    nb_participants: '',
     organizer_name: '',
     organizer_phone: '',
     deadline_rsvp: '',
@@ -264,7 +265,7 @@ export default function CreateEvent() {
   })
   const [eventOptions, setEventOptions] = useState({})
   const [eventDescription, setEventDescription] = useState('')
-  const [selectedLists, setSelectedLists] = useState({})
+  const [selectedLists, setSelectedLists] = useState({ menu: true, boissons: true, materiel: true })
   const [listening, setListening] = useState(false)
   const [parsingVoice, setParsingVoice] = useState(false)
   const [speechSupported, setSpeechSupported] = useState(false)
@@ -388,7 +389,7 @@ export default function CreateEvent() {
       // Calcul DÉTERMINISTE des obligatoires encore vides (même règle d'écrasement qu'applyVoiceData).
       // On ne se fie jamais au modèle pour décider ce qui manque.
       const effective = {}
-      for (const key of ['organizer_name', 'date', 'location']) {
+      for (const key of ['organizer_name', 'date', 'location', 'nb_participants', 'event_type']) {
         const incoming = data[key]
         effective[key] = (incoming != null && (isFollowUpAnswer || !form[key])) ? incoming : form[key]
       }
@@ -542,7 +543,7 @@ export default function CreateEvent() {
 
       // Essentiels encore manquants, calculés de façon DÉTERMINISTE (jamais d'après le modèle)
       const effective = {}
-      for (const key of ['organizer_name', 'date', 'location']) {
+      for (const key of ['organizer_name', 'date', 'location', 'nb_participants', 'event_type']) {
         const incoming = data[key]
         effective[key] = incoming != null ? incoming : form[key]
       }
@@ -559,6 +560,14 @@ export default function CreateEvent() {
           : fallbackFollowUpQuestion(missing)
         setMessages(prev => [...prev, { role: 'ai', text: q }])
         setChatReady(false)
+        return
+      }
+
+      // BBQ : toutes les options sont réunies dans le formulaire de vérification.
+      if (effectiveType === 'BBQ') {
+        setForm(prev => ({ ...prev, event_name: prev.event_name || `BBQ de ${effective.organizer_name}` }))
+        setStep(2)
+        setPhase('recap')
         return
       }
 
@@ -756,7 +765,7 @@ export default function CreateEvent() {
       // Anniversaire, Soirée, Tournoi, Sortie/Activité et Apéro sont toujours collaboratifs en interne : la distinction se fait via les listes cochées
       mode: (type === 'Anniversaire' || type === 'Soirée' || type === 'Match/Tournoi' || type === 'Randonnée' || type === 'Apero') ? 'collaboratif' : prev.mode,
       // Apéro : pas de jauge fixe → nb_participants neutre (0) pour désactiver toute fermeture à la jauge
-      nb_participants: type === 'Apero' ? 0 : (prev.nb_participants || 20),
+      nb_participants: type === 'Apero' ? 0 : (prev.nb_participants || ''),
     }))
     setEventOptions({})
     // Nouveau type → on repart de zéro sur les options et le covoiturage de la conversation
@@ -844,6 +853,10 @@ export default function CreateEvent() {
 
   // ---- Étape 2 → 3 : génération IA ----
   async function handleGenerate() {
+    if (form.event_type !== 'Apero' && (!Number.isInteger(Number(form.nb_participants)) || Number(form.nb_participants) < 1)) {
+      alert('Indique le nombre de personnes, toi compris, pour calculer les bonnes quantités.')
+      return
+    }
     if (!form.event_name || !form.date || !form.organizer_name) {
       alert('Remplis le nom de l\'événement, la date et ton prénom.')
       return
@@ -1086,7 +1099,9 @@ export default function CreateEvent() {
       // 4. Redirection
       router.push(`/event/${event.id}`)
     } catch (err) {
-      alert('Erreur création: ' + err.message)
+      alert(/failed to fetch|networkerror|load failed/i.test(err.message || '')
+        ? "Impossible de joindre la base de données. Tes informations restent dans ce formulaire. Vérifie ta connexion ; si elle fonctionne, la base du projet peut être en pause ou indisponible."
+        : 'Erreur création : ' + err.message)
       setCreating(false)
     }
   }
@@ -1456,7 +1471,14 @@ export default function CreateEvent() {
               </div>
             )}
 
-            {/* Le mode d'organisation est désormais choisi dans la conversation (QCM mode), plus de sélecteur ici */}
+            {form.event_type === 'BBQ' && (
+              <fieldset className="rounded-xl border border-slate-200 p-3">
+                <legend className="text-sm font-semibold">Organisation du BBQ</legend>
+                <label className="block text-sm py-1"><input type="radio" name="bbq-mode" checked={form.mode === 'collaboratif'} onChange={() => updateForm('mode', 'collaboratif')} /> Chacun apporte quelque chose</label>
+                <label className="block text-sm py-1"><input type="radio" name="bbq-mode" checked={form.mode === 'solo'} onChange={() => updateForm('mode', 'solo')} /> Je m’occupe de tout (invitation sans liste d’apports)</label>
+                <p className="text-xs text-slate-500 mt-2">Menu, listes, covoiturage, date limite et photo se règlent sur cet écran. Les options sont facultatives.</p>
+              </fieldset>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Nom de l'événement</label>
@@ -1556,7 +1578,7 @@ export default function CreateEvent() {
             {/* Pas de jauge fixe pour l'apéro participatif : on masque le nombre de personnes attendues */}
             {form.event_type !== 'Apero' && (
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Nombre de personnes</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Nombre de personnes, toi compris *</label>
                 <input type="number" min={1} value={form.nb_participants}
                   onChange={(e) => updateForm('nb_participants', e.target.value === '' ? '' : Number(e.target.value))}
                   className="w-32 px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none text-sm text-slate-900" />
@@ -1685,6 +1707,10 @@ export default function CreateEvent() {
         <>
           <h1 className="text-2xl font-bold text-slate-900 mb-1">Listes générées</h1>
           <p className="text-slate-500 mb-5">Ajuste, supprime ou ajoute avant de créer</p>
+          {menuResume && <details className="mb-4 rounded-xl bg-blue-50 p-3 text-sm text-slate-700">
+            <summary className="cursor-pointer font-medium">Base de calcul pour {form.nb_participants} personnes — à adapter</summary>
+            <p className="mt-2">{menuResume}</p>
+          </details>}
 
           {tabs.length === 0 && (
             <p className="text-slate-400 text-sm mb-4">Aucune liste générée. Tu peux quand même créer l'événement.</p>

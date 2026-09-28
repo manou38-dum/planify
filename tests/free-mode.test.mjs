@@ -11,7 +11,24 @@ test('reported conversation accumulates place, name, date and time', () => {
   assert.equal(state.date, '2026-10-19T00:00')
   state = { ...state, ...parseFreeEvent('a 14H', state, '2026-09-27') }
   assert.equal(state.date, '2026-10-19T14:00')
+  assert.match(state.follow_up_question, /nombre de personnes/)
+  state = { ...state, ...parseFreeEvent('12', state, '2026-09-27') }
+  assert.equal(state.nb_participants, 12)
   assert.equal(state.follow_up_question, null)
+})
+
+test('BBQ quantities scale with guests, packages round up and shared equipment stays fixed', () => {
+  const lists = freeLists(['menu', 'boissons', 'materiel'], 20, { desserts: true }, 'BBQ').lists
+  const items = lists.flatMap(l => l.items)
+  const quantity = name => items.find(i => i.item_name.startsWith(name)).quantity
+  assert.equal(quantity('Assortiment'), 5)
+  assert.equal(quantity('Salade'), 3)
+  assert.equal(quantity('Crudités'), 2)
+  assert.equal(quantity('Pain'), 5)
+  assert.equal(quantity('Eau'), 14)
+  assert.equal(quantity('Assiettes'), 22)
+  assert.equal(quantity('Pinces'), 2)
+  assert.equal(quantity('Dessert'), 20)
 })
 test('time alone never invents a date, invalid dates are rejected', () => {
   assert.equal(parseFreeEvent('a 14H', {}, '2026-09-27').date, undefined)
