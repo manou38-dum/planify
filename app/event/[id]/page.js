@@ -2,6 +2,7 @@
 import { quantityReview } from '@/lib/quantity-review.mjs'
 import { invitationMessage } from '@/lib/invitation.mjs'
 import { useState, useEffect } from 'react'
+import { useSharedItems } from '@/lib/use-shared-items'
 import { getSupabase } from '@/lib/supabase'
 import { useParams, useRouter } from 'next/navigation'
 import { QRCodeSVG } from 'qrcode.react'
@@ -63,6 +64,8 @@ export default function EventDashboard() {
   const [editingItem, setEditingItem] = useState(null)
   const [newItem, setNewItem] = useState({ item_name: '', quantity: '', unit: '', estimated_price: '', category: 'Nourriture' })
   const [saving, setSaving] = useState(false)
+
+  useSharedItems(event?.id, setItems, setLists, saving || recalculating || !!editingItem)
 
   useEffect(() => {
     loadAll()
