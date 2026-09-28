@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { getSupabase } from '@/lib/supabase'
+import { MENU_INSPIRATIONS, menuInspiration } from '@/lib/menu-inspirations.mjs'
 import { useRouter } from 'next/navigation'
 
 const EVENT_TYPES = [
@@ -1477,6 +1478,13 @@ export default function CreateEvent() {
                 <label className="block text-sm py-1"><input type="radio" name="bbq-mode" checked={form.mode === 'collaboratif'} onChange={() => updateForm('mode', 'collaboratif')} /> Chacun apporte quelque chose</label>
                 <label className="block text-sm py-1"><input type="radio" name="bbq-mode" checked={form.mode === 'solo'} onChange={() => updateForm('mode', 'solo')} /> Je m’occupe de tout (invitation sans liste d’apports)</label>
                 <p className="text-xs text-slate-500 mt-2">Menu, listes, covoiturage, date limite et photo se règlent sur cet écran. Les options sont facultatives.</p>
+                <label className="block text-sm mt-3">Quel style de menu te tente ?
+                  <select value={eventOptions.menu_style || 'classique'} onChange={e => updateOption('menu_style', e.target.value)} className="block w-full border rounded-lg p-2 mt-1">
+                    {Object.entries(MENU_INSPIRATIONS).map(([key, choice]) => <option key={key} value={key}>{choice.label}</option>)}
+                  </select>
+                </label>
+                <p className="text-xs text-slate-500 mt-2">Les choix ci-dessous précisent les régimes et les desserts. Les recettes servent d’inspiration ; les listes proposent des plats préparés à apporter.</p>
+                {menuInspiration(eventOptions).sources.map(source => <a key={source.url} href={source.url} target="_blank" rel="noopener noreferrer" className="block text-sm text-blue-600 underline mt-1">{source.title} ↗</a>)}
               </fieldset>
             )}
 
@@ -1707,6 +1715,10 @@ export default function CreateEvent() {
         <>
           <h1 className="text-2xl font-bold text-slate-900 mb-1">Listes générées</h1>
           <p className="text-slate-500 mb-5">Ajuste, supprime ou ajoute avant de créer</p>
+          {form.event_type === 'BBQ' && selectedLists.menu && menuInspiration(eventOptions).sources.length > 0 && <div className="mb-4 text-sm">
+            <p>Idées recettes pour ce menu (quantités Planify, à adapter) :</p>
+            {menuInspiration(eventOptions).sources.map(source => <a key={source.url} href={source.url} target="_blank" rel="noopener noreferrer" className="block text-blue-600 underline">{source.title} ↗</a>)}
+          </div>}
           {menuResume && <details className="mb-4 rounded-xl bg-blue-50 p-3 text-sm text-slate-700">
             <summary className="cursor-pointer font-medium">Base de calcul pour {form.nb_participants} personnes — à adapter</summary>
             <p className="mt-2">{menuResume}</p>

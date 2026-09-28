@@ -2,6 +2,16 @@
 
 Dernière mise à jour : 28 septembre 2026, par Codex.
 
+## Invitations et contributions — 28 septembre
+
+Responsable : Codex, branche `codex/invitations-shared-items`. PR 3 fusionnée (`e33459b`). Demandes : alléger WhatsApp, permettre les ajouts des invités, proposer des menus inspirés de sites réels ; refonte visuelle globale reportée à la demande de l'utilisateur.
+
+- Partage : message court (événement, date Paris, lieu, réponse et lien unique), exclusion de toute note de calcul y compris pour les événements existants. Base d'URL des métadonnées définie pour les aperçus sociaux ; l'ancien aperçu WhatsApp peut rester en cache, aucun envoi WhatsApp effectué pendant les tests.
+- Invités : formulaire d'ajout d'un article disponible (nom, quantité entière et unité) à la liste commune en mode collaboratif, après choix « Oui ». Ajout immédiat, distinct de la réservation validée avec la réponse. Détection des doublons déjà chargés ; pas de verrou global contre deux propositions identiques simultanées. Visible aux autres à la prochaine ouverture/actualisation, pas de synchronisation en direct. Aucun changement de permissions ni de schéma. Conservation du list_id lors des réservations partielles.
+- Menus BBQ : choix classique, méditerranéen, légumes ; choix diététiques existants conservés. Sélection éditoriale de recettes vérifiées chez Marmiton, 750g et Manger Bouger dans `lib/menu-inspirations.mjs`. Liens pour organisateur et invités, plats préparés à apporter, quantités Planify (pas une conversion automatique des ingrédients des recettes). Pas de copie d'instructions ni d'images, pas d'IA payante.
+- Confirmation : retrait des promesses de notifications/rappels automatiques non implémentées.
+- Vérifications : 14 tests réussis, compilation réussie. Test navigateur avec base fictive locale : un invité ajoute Glaçons/2 sacs, un deuxième le voit à l'ouverture ; sélecteur de style et sources vérifiés. Test d'insertion Supabase sous rôle anon dans une transaction annulée réussi ; aucune donnée de test conservée en production. Revalidation finale avant publication.
+
 ## Bilan BBQ et enregistrement — 28 septembre
 
 Responsable : Codex. Branche `codex/bbq-flow-quantities`. PR 2 fusionnée (`c463fbd`).

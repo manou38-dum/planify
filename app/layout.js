@@ -1,6 +1,7 @@
 import './globals.css'
 
 export const metadata = {
+  metadataBase: new URL('https://planify.manoulabs.com'),
   title: 'Planify — Organise tes événements sans tracas',
   description: 'Crée un événement, invite tes amis, chacun choisit ce qu\'il apporte. Zéro doublon, zéro stress.',
 }

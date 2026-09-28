@@ -1,4 +1,5 @@
 'use client'
+import { invitationMessage } from '@/lib/invitation.mjs'
 import { useState, useEffect } from 'react'
 import { getSupabase } from '@/lib/supabase'
 import { useParams, useRouter } from 'next/navigation'
@@ -425,33 +426,7 @@ export default function EventDashboard() {
   // Sans emoji (caractères cassés) et SANS autre lien que le lien Planify final,
   // pour que WhatsApp génère l'aperçu de l'invitation (pas Google Maps).
   function buildInvitation() {
-    const url = `${window.location.origin}/invite/${event.invite_link_id}`
-    const d = new Date(event.date)
-    const dateStr = d.toLocaleDateString('fr-FR', {
-      weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
-    })
-
-    const menuResume = event.event_options?.menu_resume
-    const deadlineStr = event.deadline_rsvp
-      ? new Date(event.deadline_rsvp).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
-      : null
-
-    const lines = []
-    if (event.event_options?.surprise) {
-      lines.push(`🤫 SURPRISE — ne préviens pas ${event.event_options?.pour_qui || 'la personne fêtée'} !`, ``)
-    }
-    lines.push(
-      `${event.organizer_name} t'invite !`,
-      ``,
-      `*${event.event_name}*`,
-      `Quand : ${dateStr}`,
-    )
-    if (event.location) lines.push(`Où : ${event.location}`)
-    if (menuResume) lines.push(`Au menu : ${menuResume}`)
-    if (deadlineStr) lines.push(`Réponse souhaitée avant le ${deadlineStr}`)
-    lines.push(``, `Confirme ta venue ici :`, url)
-
-    return { url, text: lines.join('\n') }
+    return invitationMessage(event, window.location.origin)
   }
 
   // Messages de partage dédiés au Tournoi (familles vs bénévoles) — même lien d'invitation
