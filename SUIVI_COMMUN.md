@@ -129,3 +129,10 @@ Propositions à valider après observation de l'application :
 - Tableau de bord BBQ : compléments calculés gratuitement pour le maximum entre prévision et confirmations. Les articles reconnus sont comparés aux quantités totales listées (réservées incluses). Pas de modification automatique des réservations ; ajouts à valider manuellement. Articles personnalisés à vérifier. L'ancien bouton BBQ de recalcul IA indisponible en mode gratuit est remplacé par ces repères.
 - Rappel manuel : suppression du faux « dans 2 jours ». Agenda : fichier ICS proposé après confirmation, alertes la veille et 2 h avant ; l'invité doit l'importer et vérifier les alertes dans son application. Aucun envoi automatique WhatsApp/e-mail activé, choix du canal toujours à résoudre.
 - Validation : 18 tests avec node --experimental-vm-modules --test tests/*.test.mjs ; compilation de production réussie. Navigateur sur données fictives : invitation, options BBQ et confirmation avec bouton agenda vérifiés. Génération complète du brouillon dans le navigateur interrompue par une perte de réponse du navigateur, calculs vérifiés par tests. Aucune donnée de production créée, aucun message envoyé.
+
+## 28 septembre 2026 — Visibilité des ajouts invités
+
+- Défaut identifié : ajout enregistré dans items, mais les autres pages ouvertes ne rechargeaient pas leurs listes.
+- Actualisation des articles et listes toutes les 15 secondes sur les pages visibles, au retour sur l'onglet et à la reprise après une modification. Aucun rechargement du formulaire invité. Requêtes arrêtées au démontage, lectures suspendues pendant les mutations suivies ; données conservées en cas d'échec réseau.
+- Libellé « Proposer cet article à tout le monde » : proposer reste distinct de réserver pour soi. Le commentaire est identifié comme destiné à l'organisateur et dirige vers l'ajout commun pour les apports.
+- Validation : 19 tests réussis, compilation réussie, test navigateur local sur événement fictif : ajout Glaçons depuis invitation, affichage automatique dans le tableau de bord sans rechargement. Aucun événement de production modifié, aucun message envoyé.

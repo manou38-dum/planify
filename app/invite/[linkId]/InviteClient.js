@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { useSharedItems } from '@/lib/use-shared-items'
 import { getSupabase } from '@/lib/supabase'
 import { calendarEvent } from '@/lib/calendar.mjs'
 import { invitationHook } from '@/lib/invitation.mjs'
@@ -44,9 +45,9 @@ export default function InviteClient({ linkId }) {
         category: 'Suggestions des invités', status: 'Disponible', ai_generated: false,
       }).select().single()
       if (error) throw error
-      setItems(previous => [...previous, data])
+      setItems(previous => [...previous.filter(item => item.id !== data.id), data])
       setExtraItem({ name: '', quantity: 1, unit: 'unités' })
-      setExtraFeedback('Article ajouté à la liste commune. Sélectionne-le si tu souhaites l’apporter, puis valide ta réponse.')
+      setExtraFeedback('Article enregistré dans la liste commune. Les autres personnes le verront automatiquement sous 15 secondes lorsque leur page est ouverte. Pour l’apporter toi-même, sélectionne-le ci-dessous puis confirme ta réponse.')
     } catch {
       setExtraFeedback('Impossible de confirmer l’ajout. Recharge la liste avant de réessayer pour éviter un doublon.')
     } finally { setAddingItem(false) }
@@ -75,6 +76,8 @@ export default function InviteClient({ linkId }) {
   const [carpoolMode, setCarpoolMode] = useState(null) // 'offre' | 'demande' | null
   const [carpoolForm, setCarpoolForm] = useState({ zone: '', heure: '', places: 1, phone: '' })
   const [carpoolSubmitting, setCarpoolSubmitting] = useState(false)
+
+  useSharedItems(event?.id, setItems, setLists, addingItem || submitting || !!reservingGiftId)
 
   useEffect(() => {
     loadEvent()
@@ -1147,7 +1150,7 @@ export default function InviteClient({ linkId }) {
                     <label className="text-sm">Quantité<input type="number" min="1" max="1000" step="1" value={extraItem.quantity} onChange={e => setExtraItem(p => ({ ...p, quantity: e.target.value }))} className="block w-24 border rounded-lg p-2 my-1" /></label>
                     <label className="text-sm">Unité<input maxLength={30} value={extraItem.unit} onChange={e => setExtraItem(p => ({ ...p, unit: e.target.value }))} className="block w-full border rounded-lg p-2 my-1" /></label>
                   </div>
-                  <button type="button" disabled={addingItem} onClick={addSharedItem} className="mt-2 rounded-lg bg-blue-600 text-white px-4 py-2 disabled:opacity-50">{addingItem ? 'Ajout…' : 'Ajouter pour tout le monde'}</button>
+                  <button type="button" disabled={addingItem} onClick={addSharedItem} className="mt-2 rounded-lg bg-blue-600 text-white px-4 py-2 disabled:opacity-50">{addingItem ? 'Ajout…' : 'Proposer cet article à tout le monde'}</button>
                   {extraFeedback && <p role="status" className="mt-2 text-sm text-slate-600">{extraFeedback}</p>}
                 </details>
               )}
@@ -1557,11 +1560,11 @@ export default function InviteClient({ linkId }) {
 
               {/* Commentaire */}
               <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-                <label className="block text-sm font-medium text-slate-700 mb-2">Suggestion & commentaire</label>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Commentaire pour l’organisateur</label>
                 <textarea
                   value={commentaire}
                   onChange={(e) => setCommentaire(e.target.value)}
-                  placeholder="Je serai en retard, j'apporte ma guitare..."
+                  placeholder="Ex. Je serai un peu en retard. Pour ajouter un apport, utilise la liste commune ci-dessus."
                   rows={2}
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none resize-none text-sm"
                 />
