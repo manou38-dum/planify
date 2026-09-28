@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { getSupabase } from '@/lib/supabase'
+import { menuInspiration } from '@/lib/menu-inspirations.mjs'
 import { useSearchParams } from 'next/navigation'
 
 export default function InviteClient({ linkId }) {
@@ -15,6 +16,39 @@ export default function InviteClient({ linkId }) {
   const [loading, setLoading] = useState(true)
   const [submitted, setSubmitted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [extraItem, setExtraItem] = useState({ name: '', quantity: 1, unit: 'unités' })
+  const [addingItem, setAddingItem] = useState(false)
+  const [extraFeedback, setExtraFeedback] = useState('')
+
+  async function addSharedItem() {
+    if (addingItem || !event || event.mode === 'solo' || rsvp !== 'Confirmé') return
+    const name = extraItem.name.trim()
+    const quantity = Number(extraItem.quantity)
+    if (!guestName.trim() || !name || name.length > 100 || !Number.isInteger(quantity) || quantity < 1 || quantity > 1000) {
+      setExtraFeedback('Indique ton prénom, un article (100 caractères maximum) et une quantité entière entre 1 et 1000.')
+      return
+    }
+    if (items.some(item => item.item_name.trim().toLocaleLowerCase('fr') === name.toLocaleLowerCase('fr'))) {
+      setExtraFeedback('Cet article figure déjà dans la liste. Sélectionne-le pour le prendre en charge.')
+      return
+    }
+    setAddingItem(true)
+    setExtraFeedback('')
+    try {
+      const target = lists.find(list => list.behavior === 'apport')
+      const { data, error } = await getSupabase().from('items').insert({
+        event_id: event.id, list_id: target?.id || null,
+        item_name: name, quantity, unit: extraItem.unit.trim().slice(0, 30) || 'unités',
+        category: 'Suggestions des invités', status: 'Disponible', ai_generated: false,
+      }).select().single()
+      if (error) throw error
+      setItems(previous => [...previous, data])
+      setExtraItem({ name: '', quantity: 1, unit: 'unités' })
+      setExtraFeedback('Article ajouté à la liste commune. Sélectionne-le si tu souhaites l’apporter, puis valide ta réponse.')
+    } catch {
+      setExtraFeedback('Impossible de confirmer l’ajout. Recharge la liste avant de réessayer pour éviter un doublon.')
+    } finally { setAddingItem(false) }
+  }
 
   const [guestName, setGuestName] = useState('')
   const [rsvp, setRsvp] = useState(null)
@@ -457,6 +491,7 @@ export default function InviteClient({ linkId }) {
               .insert({
                 event_id: event.id,
                 item_name: item.item_name,
+                list_id: item.list_id || null,
                 category: item.category,
                 quantity: remaining,
                 unit: item.unit,
@@ -597,11 +632,11 @@ export default function InviteClient({ linkId }) {
               </div>
 
               <p className="text-slate-500 text-sm">
-                {event.organizer_name} a ete notifie. A {dateStr} !
+                Ta réponse est enregistrée et visible par {event.organizer_name}. À {dateStr} !
               </p>
               {deadlineStr && (
                 <p className="text-slate-400 text-xs mt-2">
-                  📩 Un message récapitulatif te sera envoyé à la date limite d'inscription ({deadlineStr}).
+                  📅 Date limite de réponse : {deadlineStr}. Garde ce lien pour retrouver ton invitation.
                 </p>
               )}
             </>
@@ -1081,7 +1116,7 @@ export default function InviteClient({ linkId }) {
               {event.mode !== 'solo' && allReserved && (
                 <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
                   <p className="text-sm text-emerald-800">
-                    ✅ Super, tout est déjà couvert ! Pas besoin de te charger de quoi que ce soit. Si tu veux apporter un petit extra ou poser une question, contacte l'organisateur.
+                    ✅ Super, tout est déjà couvert ! Tu peux ajouter une idée à la liste commune ci-dessous, ou contacter l'organisateur.
                   </p>
                   <ContactOrganizerButton
                     label="💬 Contacter l'organisateur"
@@ -1094,6 +1129,28 @@ export default function InviteClient({ linkId }) {
               {isApero && apportItems.length === 0 && (
                 <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm text-center">
                   <p className="text-sm text-slate-500">🛒 La liste de courses arrivera une fois qu'on saura qui est partant.</p>
+                </div>
+              )}
+
+              {event.mode !== 'solo' && !isAnnivEnfant && rsvp === 'Confirmé' && (
+                <details className="bg-white rounded-2xl p-4 border border-slate-200">
+                  <summary className="cursor-pointer font-semibold text-slate-800">+ Ajouter quelque chose à la liste commune</summary>
+                  <p className="text-sm text-slate-500 my-2">Une idée en plus ? Elle sera visible par tous dès l’ajout. Chacun pourra ensuite choisir de l’apporter.</p>
+                  <label className="block text-sm">Article<input maxLength={100} value={extraItem.name} onChange={e => setExtraItem(p => ({ ...p, name: e.target.value }))} placeholder="Ex. glaçons, jeu de cartes…" className="block w-full border rounded-lg p-2 my-1" /></label>
+                  <div className="flex gap-3">
+                    <label className="text-sm">Quantité<input type="number" min="1" max="1000" step="1" value={extraItem.quantity} onChange={e => setExtraItem(p => ({ ...p, quantity: e.target.value }))} className="block w-24 border rounded-lg p-2 my-1" /></label>
+                    <label className="text-sm">Unité<input maxLength={30} value={extraItem.unit} onChange={e => setExtraItem(p => ({ ...p, unit: e.target.value }))} className="block w-full border rounded-lg p-2 my-1" /></label>
+                  </div>
+                  <button type="button" disabled={addingItem} onClick={addSharedItem} className="mt-2 rounded-lg bg-blue-600 text-white px-4 py-2 disabled:opacity-50">{addingItem ? 'Ajout…' : 'Ajouter pour tout le monde'}</button>
+                  {extraFeedback && <p role="status" className="mt-2 text-sm text-slate-600">{extraFeedback}</p>}
+                </details>
+              )}
+
+              {event.event_type === 'BBQ' && menuInspiration(event.event_options).sources.length > 0 && (
+                <div className="rounded-xl bg-white border border-slate-200 p-4 text-sm">
+                  <p className="font-semibold">Des idées pour préparer les accompagnements</p>
+                  <p className="text-slate-500 my-1">Adapte les recettes à la quantité que tu prends en charge et aux régimes des invités.</p>
+                  {menuInspiration(event.event_options).sources.map(source => <a key={source.url} href={source.url} target="_blank" rel="noopener noreferrer" className="block text-blue-600 underline">{source.title} ↗</a>)}
                 </div>
               )}
 
