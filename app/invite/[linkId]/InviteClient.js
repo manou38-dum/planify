@@ -1,6 +1,8 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { getSupabase } from '@/lib/supabase'
+import { calendarEvent } from '@/lib/calendar.mjs'
+import { invitationHook } from '@/lib/invitation.mjs'
 import { menuInspiration } from '@/lib/menu-inspirations.mjs'
 import { useSearchParams } from 'next/navigation'
 
@@ -368,7 +370,7 @@ export default function InviteClient({ linkId }) {
 
     // Contrôle anti-dépassement AU SUBMIT (données fraîches) : prime sur l'affichage.
     // On vérifie qu'il reste assez de places pour cet invité + ses accompagnants.
-    if (rsvp === 'Confirmé' && event.nb_participants > 0) {
+    if (rsvp === 'Confirmé' && !event.event_options?.allow_extra_guests && event.nb_participants > 0) {
       let q = supabase
         .from('participants')
         .select('nb_personnes')
@@ -634,7 +636,11 @@ export default function InviteClient({ linkId }) {
               <p className="text-slate-500 text-sm">
                 Ta réponse est enregistrée et visible par {event.organizer_name}. À {dateStr} !
               </p>
-              {deadlineStr && (
+              {rsvp === 'Confirmé' && <div className="rounded-xl bg-amber-50 p-4 mt-4"><button className="font-semibold text-amber-900 underline" onClick={() => {
+ const url = URL.createObjectURL(new Blob([calendarEvent(event, window.location.origin)], { type: 'text/calendar;charset=utf-8' }))
+ const link = document.createElement('a'); link.href = url; link.download = 'invitation-planify.ics'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
+}}>Ajouter à mon agenda</button><p className="text-xs text-slate-600 mt-2">Rappels proposés la veille et 2 h avant. Ouvre le fichier dans ton agenda et vérifie les alertes : leur activation dépend de ton application.</p></div>}
+{deadlineStr && (
                 <p className="text-slate-400 text-xs mt-2">
                   📅 Date limite de réponse : {deadlineStr}. Garde ce lien pour retrouver ton invitation.
                 </p>
@@ -673,7 +679,7 @@ export default function InviteClient({ linkId }) {
   const giftDispo = giftItems.filter(i => i.status === 'Disponible')
 
   // Jauge atteinte : autant de personnes confirmées que de convives attendus
-  const isFull = event.nb_participants > 0 && confirmedTotal >= event.nb_participants
+  const isFull = !event.event_options?.allow_extra_guests && event.nb_participants > 0 && confirmedTotal >= event.nb_participants
   // Tout est déjà couvert : il existe des listes mais plus rien de disponible (apports ni cadeaux)
   const hasAnyList = apportItems.length > 0 || giftItems.length > 0
   const allReserved = hasAnyList && disponibles.length === 0 && giftDispo.length === 0
@@ -759,7 +765,7 @@ export default function InviteClient({ linkId }) {
       )}
 
       {/* Header événement */}
-      <div className="relative bg-gradient-to-b from-blue-500 to-blue-600 text-white px-4 pt-10 pb-8 overflow-hidden">
+      <div className="relative bg-gradient-to-b from-orange-700 to-amber-900 text-white px-6 pt-12 pb-12 overflow-hidden">
         {event.photo_url && (
           <>
             <img src={event.photo_url} alt="" className="absolute inset-0 w-full h-full object-cover" />
@@ -767,16 +773,16 @@ export default function InviteClient({ linkId }) {
           </>
         )}
         <div className="relative max-w-lg mx-auto">
-          <p className="text-blue-200 text-sm mb-1">Tu es invité(e) par {event.organizer_name}</p>
-          <h1 className="text-2xl font-bold mb-3">{event.event_name}</h1>
+          <p className="text-orange-100 text-sm mb-3">Tu es invité(e) par {event.organizer_name}</p>
+          <h1 className="text-4xl font-bold tracking-tight mb-5">{event.event_name}</h1>
           <div className="space-y-1.5">
-            <p className="text-blue-100 text-sm flex items-center gap-2">
+            <p className="text-orange-50 text-sm flex items-center gap-2">
               📅 {new Date(event.date).toLocaleDateString('fr-FR', {
                 weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
               })}
             </p>
             {event.location && (
-              <p className="text-blue-100 text-sm flex items-center gap-2">
+              <p className="text-orange-50 text-sm flex items-center gap-2">
                 📍 {event.location}
                 <a
                   href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`}
@@ -793,7 +799,7 @@ export default function InviteClient({ linkId }) {
                 🥂 {event.organizer_name} propose un apéro participatif{contributionAmount ? `, ~${contributionAmount} €/pers.` : ''} Tu es partant ?
               </p>
             ) : (
-              <p className="text-blue-100 text-sm flex items-center gap-2">👥 {event.nb_participants} personnes attendues</p>
+              <p className="text-orange-50 text-sm flex items-center gap-2">👥 {event.nb_participants} personnes attendues</p>
             )}
             {lienRando && (
               <a href={lienRando} target="_blank" rel="noopener noreferrer"
@@ -801,8 +807,8 @@ export default function InviteClient({ linkId }) {
                 🗺 Voir l'itinéraire / le site
               </a>
             )}
-            <p className="text-blue-50 text-sm mt-2">
-              {isRecap ? "Voici où en est l'événement" : "Confirme ta venue et participe à l'événement en remplissant les infos"}
+            <p className="text-orange-50 text-lg leading-relaxed pt-4">
+              {isRecap ? "Voici où en est l'événement" : invitationHook(event)}
             </p>
           </div>
           {isExpired && (
