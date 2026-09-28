@@ -1,7 +1,15 @@
 # Planify — suivi commun des IA
 
-Dernière mise à jour : 27 septembre 2026, par Codex.
-État actuel : correctifs testés et publiés sur GitHub, branche `codex/fix-ai-errors-event-options` (commit de correction `473e778`). Ils ne sont pas encore fusionnés dans `main` ni confirmés en production. La création de demande de fusion via le connecteur est refusée (403) et le navigateur demande une connexion GitHub. Le quota Mistral reste à résoudre séparément.
+Dernière mise à jour : 28 septembre 2026, par Codex.
+
+## Mode gratuit — correction du 28 septembre
+
+Responsable : Codex. Branche `codex/free-event-mode`. Le mode par défaut utilise des règles françaises et des listes standard, sans appel externe de modèle ni clé requise. Le service Mistral reste bloqué ; il n'est pas présenté comme réparé. Un retour volontaire au fournisseur nécessite `PLANIFY_AI_MODE=external` côté serveur.
+
+Fichiers : `lib/free-mode.mjs`, routes parse-voice/generate-list/recalculate-list, page create et tests. La conversation conserve prénom, lieu, date et heure entre les messages ; la réponse sur la date limite ne modifie pas la date de l'événement. Listes menu/boissons/matériel/cadeaux selon sélection ; quantités indicatives à modifier. Recalcul automatique indisponible dans ce mode, modification manuelle requise. Les checklists prédéfinies restent disponibles ; une activité sans checklist prédéfinie reçoit une erreur explicite.
+
+Validation : 11 tests réussis et compilation de production réussie. Dans le navigateur local, le scénario BBQ à Chambéry → numa le 19 octobre → à 14H avance aux boutons de répartition sans boucler. Génération locale des trois listes BBQ vérifiée sans appel de modèle. Publication en production encore à effectuer ; aucun événement de test enregistré.
+État actuel : PR nº 1 fusionnée par l'utilisateur, commit `e4354616d0dc15ac499dfe806c749ff31413a60c`, déploiement de production `dpl_Aq9eDrDsoKcL8Su3zF2ojLb5ayEQ` prêt sur `planify-e6eh`, associé au domaine planify.manoulabs.com. Sept icônes et formulaire BBQ vérifiés en production. La conversation affiche désormais l'erreur de quota au lieu de boucler. Mistral reste indisponible.
 Participants souhaités par le porteur : utilisateur, Codex, Claude, Gemini et Perplexity.
 Ce fichier est la référence commune. Il ne synchronise pas automatiquement les conversations des différents outils : chacun doit recevoir la dernière version ou accéder au même dépôt.
 
@@ -70,6 +78,8 @@ Propositions à valider après observation de l'application :
 | Vérifier accès et configuration IA | À attribuer | Constats locaux, corrections non réalisées |
 
 ## Journal
+
+- 27 septembre 2026 — Vérification après fusion : domaine de production associé à planify-e6eh, version corrigée visible après rechargement. Essai de conversation sans création d'événement : erreur de limite IA explicite, texte conservé ; options BBQ accessibles. Inspection Mistral en lecture seule : organisation affichée Manou / Default Workspace, limites de modèles positives, aucune règle de quota workspace, plafond de dépenses désactivé, forfait gratuit indiquant 0 USD sur 10 USD inclus. Ces informations n'expliquent pas le refus effectif de l'API. Aucun achat, changement de clé, changement de fournisseur ou modification de quota effectué. Un diagnostic fournisseur ou une alternative autorisée reste nécessaire.
 
 - 27 septembre 2026 — Suite : accès distant Git rétabli via le client Git hors restriction locale ; HEAD distant confirmé identique au commit de référence. Le refus 403 du connecteur GitHub n'empêche donc pas une publication via Git. Correction supplémentaire : génération et recalcul des listes choisissent désormais un modèle adapté au fournisseur, au lieu d'imposer Mistral à Anthropic. AI_PROVIDER est normalisé, les valeurs inconnues sont refusées explicitement. Sept tests passent (erreurs de conversation et choix des modèles). Le compte Vercel connecté ne renvoie toujours aucune équipe. Quota Mistral non résolu ; aucun changement de clé ou de fournisseur en production.
 
