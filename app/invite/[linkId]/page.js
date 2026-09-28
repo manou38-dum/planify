@@ -1,3 +1,4 @@
+import { invitationHook } from '@/lib/invitation.mjs'
 import { getSupabase } from '@/lib/supabase'
 import InviteClient from './InviteClient'
 
@@ -41,7 +42,7 @@ export async function generateMetadata({ params }) {
   }
 
   const title = event.event_name
-  const description = `Organisé par ${event.organizer_name} - ${formatDateFr(event.date)}. Confirme ta venue !`
+  const description = `${event.organizer_name} t’invite : ${invitationHook(event)} Rendez-vous ${formatDateFr(event.date)}.`
 
   return {
     title,

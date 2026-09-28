@@ -1,4 +1,5 @@
 'use client'
+import { quantityReview } from '@/lib/quantity-review.mjs'
 import { invitationMessage } from '@/lib/invitation.mjs'
 import { useState, useEffect } from 'react'
 import { getSupabase } from '@/lib/supabase'
@@ -526,8 +527,9 @@ export default function EventDashboard() {
   // Recalcul des quantités : seulement pour les types où les quantités dépendent
   // du nombre de personnes (pas les listes cadeaux/checklist, traitées à part).
   const QTY_SCALE_TYPES = ['BBQ', 'Soirée', 'Apero', 'Anniversaire', 'Mariage', 'Randonnée', 'Autre']
+  const quantityCheck = quantityReview(event, participants, items)
   const recalcPeople = event.event_type === 'Apero' ? totalPersonnes : (event.nb_participants || totalPersonnes)
-  const canRecalc = QTY_SCALE_TYPES.includes(event.event_type) && apportItems.length > 0
+  const canRecalc = event.event_type !== 'BBQ' && QTY_SCALE_TYPES.includes(event.event_type) && apportItems.length > 0
 
   // Emoji du type d'événement (pour l'en-tête résumé)
   const TYPE_EMOJIS = { 'BBQ': '🔥', 'Anniversaire': '🎂', 'Mariage': '💍', 'Randonnée': '🧭', 'Soirée': '🎶', 'Match/Tournoi': '⚽', 'Apero': '🥂', 'Autre': '✨' }
@@ -539,7 +541,7 @@ export default function EventDashboard() {
   const isExpired = deadlineEnd ? deadlineEnd < new Date() : false
 
   // Jauge atteinte : autant (ou plus) de personnes confirmées que de convives attendus
-  const isFull = event.nb_participants > 0 && totalPersonnes >= event.nb_participants
+  const isFull = !event.event_options?.allow_extra_guests && event.nb_participants > 0 && totalPersonnes >= event.nb_participants
   // Inscriptions fermées : soit complet, soit date limite dépassée
   const isClosed = isFull || isExpired
 
@@ -652,13 +654,13 @@ export default function EventDashboard() {
     })
     const mealChoices = Array.isArray(event.event_options?.meal_choices) ? event.event_options.meal_choices : []
     const lines = [
-      `🔔 Rappel : ${event.event_name} dans 2 jours !`,
-      `📅 ${dateStr}${event.location ? ` · 📍 ${event.location}` : ''}`,
+      `On se retrouve bientôt pour ${event.event_name} !`,
+      `Quand : ${dateStr}${event.location ? ` · Où : ${event.location}` : ''}`,
     ]
     if (apportItems.length > 0) lines.push(`Pense à apporter ce que tu as réservé.`)
     if (slots.length > 0) lines.push(`N'oublie pas ton créneau d'aide.`)
     if (mealChoices.length > 0) lines.push(`Pense à voter pour le repas si ce n'est pas fait.`)
-    lines.push(`👉 Retrouve ce que tu avais prévu (apports, créneau, checklist) en cliquant ici : ${url}`)
+    lines.push(`Tes apports et les dernières infos sont ici : ${url}`)
     lines.push(`À très vite !`)
     return { url, text: lines.join('\n') }
   }
@@ -697,7 +699,7 @@ export default function EventDashboard() {
       bilanLines.push(`${totalPersonnes} personne${totalPersonnes > 1 ? 's' : ''} partante${totalPersonnes > 1 ? 's' : ''}${aperoAmount > 0 ? ` · budget estimé ${aperoBudget} €` : ''}.`)
     } else {
       bilanLines.push(`${totalPersonnes} personne${totalPersonnes > 1 ? 's' : ''} sur ${event.nb_participants} ont confirmé${
-        totalPersonnes >= event.nb_participants ? ", c'est complet ✅." : ', il reste de la place.'
+        isFull ? ", c'est complet ✅." : ', il reste de la place.'
       }`)
     }
     if (apportItems.length > 0) {
@@ -1054,7 +1056,14 @@ export default function EventDashboard() {
             <p className="text-xs text-blue-500">Supprime, modifie ou ajoute des articles</p>
           </div>
 
-          {/* Recalcul des quantités après suppression d'articles */}
+          {event.event_type === 'BBQ' && <div className="p-4 bg-amber-50 border-b border-amber-200">
+<h4 className="font-semibold text-amber-950">Les courses suivent les invités</h4>
+<p className="text-sm mt-2">{quantityCheck.confirmed} personnes confirmées, accompagnants compris. Repères pour {quantityCheck.people} personnes (au moins le nombre prévu).</p>
+<p className="text-xs text-slate-600 mt-2">Compte aussi ton foyer dans les réponses. Les quantités déjà listées, réservées ou non, sont déduites. Les articles personnalisés restent à vérifier à la main.</p>
+{quantityCheck.additions.length ? <ul className="text-sm mt-3 space-y-1">{quantityCheck.additions.map(it => <li key={it.item_name}>À ajouter si besoin : <strong>{it.quantity} {it.unit}</strong> de {it.item_name}</li>)}</ul> : <p className="text-sm mt-3">Aucun complément suggéré pour les articles reconnus.</p>}
+<p className="text-xs mt-2">Valide les compléments en ajoutant des articles ci-dessous. Les apports réservés restent inchangés.</p>
+</div>}
+{/* Recalcul des quantités après suppression d'articles */}
           {canRecalc && (
             <div className="px-4 py-3 border-b border-slate-100 bg-amber-50">
               <button

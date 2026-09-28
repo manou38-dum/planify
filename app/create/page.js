@@ -1483,7 +1483,10 @@ export default function CreateEvent() {
                     {Object.entries(MENU_INSPIRATIONS).map(([key, choice]) => <option key={key} value={key}>{choice.label}</option>)}
                   </select>
                 </label>
-                <p className="text-xs text-slate-500 mt-2">Les choix ci-dessous précisent les régimes et les desserts. Les recettes servent d’inspiration ; les listes proposent des plats préparés à apporter.</p>
+                <label className="block text-sm mt-3">Et côté appétit ?
+<select value={eventOptions.appetite || 'standard'} onChange={e => updateOption('appetite', e.target.value)} className="block w-full border rounded-lg p-2 mt-1"><option value="standard">Appétits classiques</option><option value="generous">Gros mangeurs — aliments +30 %</option></select></label>
+<label className="block text-sm mt-3">Un petit mot pour donner envie ?<textarea value={eventOptions.invitation_hook || ''} onChange={e => updateOption('invitation_hook', e.target.value)} maxLength={280} rows={2} placeholder="On allume le barbecue… il ne manque plus que toi !" className="block w-full border rounded-lg p-2 mt-1" /></label>
+<p className="text-xs text-slate-500 mt-2">Les choix ci-dessous précisent les régimes et les desserts. Les recettes servent d’inspiration ; les listes proposent des plats préparés à apporter.</p>
                 {menuInspiration(eventOptions).sources.map(source => <a key={source.url} href={source.url} target="_blank" rel="noopener noreferrer" className="block text-sm text-blue-600 underline mt-1">{source.title} ↗</a>)}
               </fieldset>
             )}
@@ -1586,13 +1589,14 @@ export default function CreateEvent() {
             {/* Pas de jauge fixe pour l'apéro participatif : on masque le nombre de personnes attendues */}
             {form.event_type !== 'Apero' && (
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Nombre de personnes, toi compris *</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Nombre prévu pour les courses, toi compris *</label>
                 <input type="number" min={1} value={form.nb_participants}
                   onChange={(e) => updateForm('nb_participants', e.target.value === '' ? '' : Number(e.target.value))}
                   className="w-32 px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none text-sm text-slate-900" />
               </div>
             )}
 
+            <div className="rounded-xl bg-amber-50 p-3"><label className="text-sm"><input type="checkbox" checked={!!eventOptions.allow_extra_guests} onChange={e => updateOption('allow_extra_guests', e.target.checked)} /> Autoriser les inscriptions au-delà du nombre prévu</label><p className="text-xs text-slate-600 mt-1">Les accompagnants comptent dans les réponses. Tu pourras vérifier les compléments de courses dans le tableau de bord. Sans cette option, le nombre prévu reste la limite de places.</p></div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Date limite de réponse (optionnel)</label>
               <input type="datetime-local" value={form.deadline_rsvp} onChange={(e) => updateForm('deadline_rsvp', e.target.value)}
@@ -1602,7 +1606,7 @@ export default function CreateEvent() {
             {/* Options spécifiques au type (masquées tant que le format du tournoi n'est pas choisi) */}
             {(opts.fields?.length || opts.checks?.length || opts.textarea) && !(form.event_type === 'Match/Tournoi' && !eventOptions.tournoi_mode) && (
               <div className={`rounded-2xl p-3 border-2 ${currentType.bg} ${currentType.border}`}>
-                <p className={`text-xs font-semibold mb-2 ${currentType.text}`}>Options {currentType.label}</p>
+                <p className={`text-xs font-semibold mb-2 ${currentType.text}`}>Préférences et extras — {currentType.label}</p>
 
                 {opts.fields?.map((f) => (
                   <div key={f.key} className="mb-2">
@@ -1681,7 +1685,7 @@ export default function CreateEvent() {
             {/* Listes à la carte (collaboratif uniquement, et seulement si des listes sont disponibles) */}
             {form.mode !== 'solo' && availableListsFor(form.event_type, eventOptions).length > 0 && (
               <div className="rounded-xl p-3 border border-slate-200 bg-white">
-                <p className="text-xs font-semibold text-slate-700">Que veux-tu dans ton invitation ?</p>
+                <p className="text-xs font-semibold text-slate-700">Quelles listes partager avec tes invités ?</p>
                 <p className="text-xs text-slate-400 mb-2">Seules les listes cochées seront préparées</p>
                 <div className="flex flex-wrap gap-x-4 gap-y-1">
                   {LIST_CHOICES.filter(c => availableListsFor(form.event_type, eventOptions).includes(c.key)).map((c) => (
@@ -1719,9 +1723,9 @@ export default function CreateEvent() {
             <p>Idées recettes pour ce menu (quantités Planify, à adapter) :</p>
             {menuInspiration(eventOptions).sources.map(source => <a key={source.url} href={source.url} target="_blank" rel="noopener noreferrer" className="block text-blue-600 underline">{source.title} ↗</a>)}
           </div>}
-          {menuResume && <details className="mb-4 rounded-xl bg-blue-50 p-3 text-sm text-slate-700">
+          {menuResume && <details open className="mb-4 rounded-2xl border-2 border-amber-300 bg-amber-50 p-5 text-sm text-amber-950">
             <summary className="cursor-pointer font-medium">Base de calcul pour {form.nb_participants} personnes — à adapter</summary>
-            <p className="mt-2">{menuResume}</p>
+            <p className="mt-2">{menuResume}</p><p className="mt-3 font-semibold">À toi de jouer : modifie directement les quantités dans les listes ci-dessous. Ces repères sont gratuits et ajustables.</p>
           </details>}
 
           {tabs.length === 0 && (
@@ -1771,7 +1775,7 @@ export default function CreateEvent() {
                         <input value={it.item_name} onChange={(e) => updateItem(activeTab, ii, 'item_name', e.target.value)}
                           placeholder="Article"
                           className="flex-1 min-w-0 px-2 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm" />
-                        <input type="number" value={it.quantity ?? ''} onChange={(e) => updateItem(activeTab, ii, 'quantity', e.target.value === '' ? null : Number(e.target.value))}
+                        <input type="number" min="0" step="any" aria-label={`Quantité de ${it.item_name}`} value={it.quantity ?? ''} onChange={(e) => updateItem(activeTab, ii, 'quantity', e.target.value === '' ? null : Number(e.target.value))}
                           className="w-14 px-2 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm text-center" />
                         <input value={it.unit || ''} onChange={(e) => updateItem(activeTab, ii, 'unit', e.target.value)}
                           placeholder="u."
