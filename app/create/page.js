@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { getSupabase } from '@/lib/supabase'
+import { safeGiftUrl, giftSearchUrl } from '@/lib/birthday-lists.mjs'
 import { MENU_INSPIRATIONS, menuInspiration } from '@/lib/menu-inspirations.mjs'
 import { useRouter } from 'next/navigation'
 
@@ -855,7 +856,7 @@ export default function CreateEvent() {
   // ---- Étape 2 → 3 : génération IA ----
   async function handleGenerate() {
     if (form.event_type !== 'Apero' && (!Number.isInteger(Number(form.nb_participants)) || Number(form.nb_participants) < 1)) {
-      alert('Indique le nombre de personnes, toi compris, pour calculer les bonnes quantités.')
+      alert(form.event_type === 'Anniversaire' ? 'Indique le nombre de personnes attendues pour préparer le buffet.' : 'Indique le nombre de personnes, toi compris, pour calculer les bonnes quantités.')
       return
     }
     if (!form.event_name || !form.date || !form.organizer_name) {
@@ -1006,6 +1007,7 @@ export default function CreateEvent() {
 
       // Nettoie les choix de repas (retire les vides) avant l'enregistrement
       const cleanedOptions = { ...eventOptions }
+      cleanedOptions.gift_links = Object.fromEntries(generatedLists.filter(list => list.behavior === 'cadeau').flatMap(list => (list.items || []).filter(item => safeGiftUrl(item.purchase_url)).map(item => [item.item_name, safeGiftUrl(item.purchase_url)])))
       if (Array.isArray(cleanedOptions.meal_choices)) {
         const cleaned = cleanedOptions.meal_choices.map(c => (c || '').trim()).filter(Boolean)
         if (cleaned.length) cleanedOptions.meal_choices = cleaned
@@ -1589,7 +1591,7 @@ export default function CreateEvent() {
             {/* Pas de jauge fixe pour l'apéro participatif : on masque le nombre de personnes attendues */}
             {form.event_type !== 'Apero' && (
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Nombre prévu pour les courses, toi compris *</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{form.event_type === 'Anniversaire' ? 'Nombre d’invités attendus *' : 'Nombre prévu pour les courses, toi compris *'}</label>
                 <input type="number" min={1} value={form.nb_participants}
                   onChange={(e) => updateForm('nb_participants', e.target.value === '' ? '' : Number(e.target.value))}
                   className="w-32 px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none text-sm text-slate-900" />
@@ -1724,8 +1726,8 @@ export default function CreateEvent() {
             {menuInspiration(eventOptions).sources.map(source => <a key={source.url} href={source.url} target="_blank" rel="noopener noreferrer" className="block text-blue-600 underline">{source.title} ↗</a>)}
           </div>}
           {menuResume && <details open className="mb-4 rounded-2xl border-2 border-amber-300 bg-amber-50 p-5 text-sm text-amber-950">
-            <summary className="cursor-pointer font-medium">Base de calcul pour {form.nb_participants} personnes — à adapter</summary>
-            <p className="mt-2">{menuResume}</p><p className="mt-3 font-semibold">À toi de jouer : modifie directement les quantités dans les listes ci-dessous. Ces repères sont gratuits et ajustables.</p>
+            <summary className="cursor-pointer font-medium">{form.event_type === 'Anniversaire' ? 'Cadeaux et organisation de l’anniversaire — à adapter' : `Base de calcul pour ${form.nb_participants} personnes — à adapter`}</summary>
+            <p className="mt-2">{menuResume}</p><p className="mt-3 font-semibold">{form.event_type === 'Anniversaire' ? 'Choisis les idées cadeaux qui conviennent, ajoute un lien produit si tu en as un, puis laisse les invités en réserver une chacun. Les idées sont gratuites ; les achats restent libres.' : 'À toi de jouer : modifie directement les quantités dans les listes ci-dessous. Ces repères sont gratuits et ajustables.'}</p>
           </details>}
 
           {tabs.length === 0 && (
@@ -1767,7 +1769,7 @@ export default function CreateEvent() {
                   {(generatedLists[activeTab].items || []).map((it, ii) => {
                     const included = it.included !== false
                     return (
-                      <div key={ii} className={`flex items-center gap-2 ${materiel && !included ? 'opacity-40' : ''}`}>
+                      <div key={ii} className={`flex flex-wrap items-center gap-2 ${materiel && !included ? 'opacity-40' : ''}`}>
                         {materiel && (
                           <input type="checkbox" checked={included} onChange={() => toggleIncluded(activeTab, ii)}
                             className="shrink-0 w-5 h-5 accent-emerald-500" />
@@ -1780,6 +1782,13 @@ export default function CreateEvent() {
                         <input value={it.unit || ''} onChange={(e) => updateItem(activeTab, ii, 'unit', e.target.value)}
                           placeholder="u."
                           className="w-14 px-2 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm" />
+                        {generatedLists[activeTab].behavior === 'cadeau' && <div className="order-last w-full rounded-lg bg-pink-50 p-3 mb-2">
+                          <label className="block text-xs font-medium text-slate-700">Lien d’achat précis (facultatif)
+                            <input type="url" value={it.purchase_url || ''} onChange={e => updateItem(activeTab, ii, 'purchase_url', e.target.value)} placeholder="https://…" className="block w-full border rounded-lg p-2 mt-1" />
+                          </label>
+                          {it.purchase_url && !safeGiftUrl(it.purchase_url) && <p className="text-xs text-red-700 mt-1">Utilise une adresse https:// valide ; ce lien ne sera pas enregistré.</p>}
+                          <a href={safeGiftUrl(it.purchase_url) || giftSearchUrl(it.item_name)} target="_blank" rel="noopener noreferrer" className="inline-block text-sm text-pink-800 underline mt-2">{safeGiftUrl(it.purchase_url) ? 'Voir le cadeau sur le site marchand' : 'Rechercher ce cadeau en ligne'}</a>
+                        </div>}
                         {!materiel && (
                           <button onClick={() => deleteItem(activeTab, ii)}
                             className="shrink-0 w-8 h-8 rounded-lg text-red-400 hover:bg-red-50 transition-colors">✕</button>

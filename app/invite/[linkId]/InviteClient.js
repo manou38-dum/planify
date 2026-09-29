@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useSharedItems } from '@/lib/use-shared-items'
 import { getSupabase } from '@/lib/supabase'
+import { safeGiftUrl, giftSearchUrl } from '@/lib/birthday-lists.mjs'
 import { calendarEvent } from '@/lib/calendar.mjs'
 import { invitationHook } from '@/lib/invitation.mjs'
 import { menuInspiration } from '@/lib/menu-inspirations.mjs'
@@ -1287,13 +1288,14 @@ export default function InviteClient({ linkId }) {
                 <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
                   <label className="block text-sm font-medium text-slate-700 mb-1">🎁 Idées cadeaux</label>
                   <p className="text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2 mb-3">
-                    Réserve le cadeau que tu offres (pour éviter les doublons), puis achète-le où tu veux. L'app ne gère pas l'achat.
+                    Parcours les idées, ouvre le lien d’achat ou recherche le cadeau, puis réserve ton choix pour éviter les doublons. Planify ne gère pas l’achat.
                   </p>
                   <div className="space-y-2">
                     {giftItems.map((gift) => {
                       const reserved = gift.status === 'Réservé'
                       const price = gift.estimated_price != null ? `~${Math.round(Number(gift.estimated_price))}€` : null
-                      const shopUrl = `https://www.google.com/search?tbm=shop&gl=fr&hl=fr&q=${encodeURIComponent(gift.item_name)}`
+                      const directUrl = safeGiftUrl(event.event_options?.gift_links?.[gift.item_name])
+                      const shopUrl = directUrl || giftSearchUrl(gift.item_name)
                       return (
                         <div key={gift.id} className={`rounded-xl border-2 px-3 py-3 transition-all ${
                           reserved ? 'border-slate-100 bg-slate-50' : 'border-slate-100 hover:border-slate-200'
@@ -1316,10 +1318,10 @@ export default function InviteClient({ linkId }) {
                               </button>
                             )}
                           </div>
-                          {reserved && (
+                          {(
                             <a href={shopUrl} target="_blank" rel="noopener noreferrer"
                               className="inline-block mt-2 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-full transition-colors">
-                              🔍 Trouver ce cadeau
+                              {directUrl ? 'Voir le cadeau sur le site marchand' : 'Rechercher ce cadeau en ligne'}
                             </a>
                           )}
                         </div>
