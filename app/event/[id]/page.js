@@ -982,7 +982,7 @@ export default function EventDashboard() {
         </dl>
 
         {/* Les deux listes restent visibles, même pendant les modifications. */}
-        {event.mode !== 'solo' && (
+        {event.mode !== 'solo' && (event.event_type !== 'Match/Tournoi' || apportItems.length > 0) && (
           <div className="grid gap-4 p-4 md:grid-cols-2">
             <section aria-labelledby="remaining-contributions" className="rounded-3xl border-2 border-amber-200 bg-amber-50 p-4">
               <h2 id="remaining-contributions" className="font-bold text-lg text-amber-950 flex items-baseline gap-2">Reste à apporter <span className="text-sm font-semibold bg-amber-100 rounded-full px-2.5 tabular-nums">{disponibles.length}</span></h2>
@@ -1030,7 +1030,7 @@ export default function EventDashboard() {
       </div>
 
       {/* === BOUTON MODIFIER LA LISTE (masqué en mode solo) === */}
-      {event.mode !== 'solo' && (
+      {event.mode !== 'solo' && (event.event_type !== 'Match/Tournoi' || apportItems.length > 0) && (
         <button
           onClick={() => setEditMode(!editMode)}
           className={`w-full mb-4 py-3 rounded-xl font-semibold text-sm transition-all border ${

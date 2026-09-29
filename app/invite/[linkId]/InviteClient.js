@@ -460,7 +460,7 @@ export default function InviteClient({ linkId }) {
           if (!item) continue
 
           const total = Number(item.quantity) || 1
-          const taken = Math.max(1, Math.min(chosenQty, total))
+          const taken = Math.min(total, Math.max(1, chosenQty))
           const unitPrice = (item.estimated_price != null && total > 0)
             ? Number(item.estimated_price) / total
             : null
@@ -479,7 +479,7 @@ export default function InviteClient({ linkId }) {
               .eq('status', 'Disponible') // Sécurité anti-doublon
           } else {
             // Réservation partielle : on scinde l'item
-            const remaining = total - taken
+            const remaining = Number((total - taken).toFixed(10))
 
             await supabase
               .from('items')
@@ -550,7 +550,7 @@ export default function InviteClient({ linkId }) {
         const item = items.find(i => i.id === itemId)
         return {
           item_name: item?.item_name || 'Article',
-          quantity: Math.max(1, Math.min(chosenQty, Number(item?.quantity) || 1)),
+          quantity: Math.min(Number(item?.quantity) || 1, Math.max(1, chosenQty)),
           unit: item?.unit || '',
         }
       })
@@ -1301,7 +1301,7 @@ export default function InviteClient({ linkId }) {
                 </div>
               )}
 
-              {event.mode !== 'solo' && !isAnnivEnfant && rsvp === 'Confirmé' && (
+              {event.mode !== 'solo' && event.event_type !== 'Match/Tournoi' && !isAnnivEnfant && rsvp === 'Confirmé' && (
                 <details className="bg-white rounded-3xl p-4 shadow-sm ring-1 ring-stone-900/5">
                   <summary className="cursor-pointer font-bold text-stone-900 min-h-[28px]">+ Ajouter une idée à la liste commune</summary>
                   <p className="text-sm text-stone-600 my-2">Elle sera visible par tous les invités. Chacun pourra ensuite choisir de l’apporter.</p>
