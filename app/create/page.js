@@ -14,6 +14,36 @@ const EVENT_TYPES = [
   { value: 'Autre', icon: '✨', label: 'Autre', bg: 'bg-slate-50', border: 'border-slate-300', text: 'text-slate-700', accent: 'bg-slate-500' },
 ]
 
+const EVENT_CATEGORIES = [
+  { label: 'Repas & apéro', icon: '🍽️', types: ['BBQ', 'Apero'] },
+  { label: 'Fête', icon: '🎉', types: ['Anniversaire', 'Soirée'] },
+  { label: 'Sortie plein air', icon: '🧭', types: ['Randonnée'] },
+  { label: 'Match / tournoi', icon: '🏆', types: ['Match/Tournoi'] },
+  { label: 'Autre', icon: '✨', types: ['Autre'] },
+]
+
+function EventCategoryPicker({ onSelect, disabled = false }) {
+  const [category, setCategory] = useState(null)
+  return <div>
+    <div className="grid grid-cols-2 gap-2">
+      {EVENT_CATEGORIES.map(choice => <button key={choice.label} type="button" disabled={disabled}
+        aria-pressed={category === choice.label}
+        onClick={() => choice.types.length === 1 ? onSelect(choice.types[0]) : setCategory(choice.label)}
+        className={`p-4 rounded-xl border text-left text-sm font-semibold disabled:opacity-50 ${category === choice.label ? 'border-blue-500 bg-blue-50 text-blue-800' : 'border-slate-200 bg-white text-slate-700'}`}>
+        <span className="mr-2" aria-hidden="true">{choice.icon}</span>{choice.label}
+      </button>)}
+    </div>
+    {category && <fieldset className="mt-3 rounded-xl border border-blue-200 p-3">
+      <legend className="px-1 text-sm font-medium">Quel format pour {category.toLowerCase()} ?</legend>
+      <div className="flex flex-wrap gap-2">
+        {EVENT_TYPES.filter(type => EVENT_CATEGORIES.find(choice => choice.label === category).types.includes(type.value)).map(type =>
+          <button key={type.value} type="button" disabled={disabled} onClick={() => onSelect(type.value)}
+            className={`rounded-lg border px-4 py-3 text-sm font-medium disabled:opacity-50 ${type.bg} ${type.border} ${type.text}`}>{type.icon} {type.label}</button>)}
+      </div>
+    </fieldset>}
+  </div>
+}
+
 // Options spécifiques par type d'événement
 const OPTIONS_BY_TYPE = {
   'BBQ': {
@@ -118,9 +148,7 @@ const DEFAULT_LISTS = {
 function annivLists(annivType) {
   return annivType === 'enfant' ? ['cadeaux'] : ['menu', 'boissons', 'cadeaux']
 }
-// Pour le Tournoi, l'invitation ne contient AUCUNE liste à la création :
-// pas d'apports (intendance gérée par l'orga/club) et le planning des postes
-// bénévoles est créé dans un 2e temps par l'organisateur, après réception des réponses.
+// Le tournoi prépare un planning bénévole, sans liste d'apports.
 // Le vote repas (mode 'complet') est géré à part via event_options.meal_choices.
 function tournoiLists() {
   return []
@@ -801,7 +829,7 @@ export default function CreateEvent() {
 
   // Sélecteur de format du tournoi (complet / bénévoles) : fixe le format et recale la pré-sélection
   function chooseTournoiMode(tournoiMode) {
-    updateOption('tournoi_mode', tournoiMode)
+    setEventOptions(prev => ({ ...prev, tournoi_mode: tournoiMode, aide_installation: prev.aide_installation ?? true }))
     setSelectedLists(Object.fromEntries(tournoiLists(tournoiMode).map(k => [k, true])))
   }
 
@@ -874,11 +902,16 @@ export default function CreateEvent() {
       alert('Indique l\'activité (randonnée, plongée, parapente...) : elle pilote la checklist de sécurité.')
       return
     }
+    if (form.event_type === 'Match/Tournoi' && eventOptions.tournoi_mode === 'complet' && eventOptions.repas_enabled && !(eventOptions.meal_choices || []).some(choice => choice.trim())) {
+      alert('Ajoute au moins un choix de repas, ou désactive l’option repas.')
+      return
+    }
     setGenerating(true)
     try {
-      // Tournoi et Apéro : logique en 2 temps. À la création, on ne génère RIEN.
-      // (Tournoi → postes bénévoles ; Apéro → liste de courses) préparés plus tard depuis le dashboard.
-      if (form.event_type === 'Match/Tournoi' || form.event_type === 'Apero') {
+      // Apéro : la liste de courses attend les réponses et le budget réel par personne.
+      // Le tournoi, lui, prévisualise ses postes bénévoles avant création afin de pouvoir
+      // les corriger et les enregistrer directement avec l'événement.
+      if (form.event_type === 'Apero') {
         setGeneratedLists([])
         setPlanning([])
         setEditedPlanning([])
@@ -935,7 +968,7 @@ export default function CreateEvent() {
           location: form.location,
           description: eventDescription,
           date: form.date,
-          selected_lists: selectedLists,
+          selected_lists: form.event_type === 'Match/Tournoi' ? { planning: true } : selectedLists,
         }),
       })
       const data = await res.json()
@@ -1006,6 +1039,7 @@ export default function CreateEvent() {
 
       // Nettoie les choix de repas (retire les vides) avant l'enregistrement
       const cleanedOptions = { ...eventOptions }
+      if (form.event_type === 'Match/Tournoi' && (eventOptions.tournoi_mode !== 'complet' || !eventOptions.repas_enabled)) delete cleanedOptions.meal_choices
       if (Array.isArray(cleanedOptions.meal_choices)) {
         const cleaned = cleanedOptions.meal_choices.map(c => (c || '').trim()).filter(Boolean)
         if (cleaned.length) cleanedOptions.meal_choices = cleaned
@@ -1140,15 +1174,7 @@ export default function CreateEvent() {
 
           <div className="mb-6">
             <p className="text-sm font-medium text-slate-600 mb-2">Ou choisis ton événement pour accéder directement aux options :</p>
-            <div className="grid grid-cols-2 gap-2">
-              {EVENT_TYPES.map(type => (
-                <button key={type.value} type="button" disabled={parsingVoice || listening}
-                  onClick={() => { chooseType(type.value); setPhase('recap') }}
-                  className={`p-3 rounded-xl border text-left text-sm font-semibold disabled:opacity-50 ${type.bg} ${type.border} ${type.text}`}>
-                  <span className="mr-2" aria-hidden="true">{type.icon}</span>{type.label}
-                </button>
-              ))}
-            </div>
+            <EventCategoryPicker disabled={parsingVoice || listening} onSelect={type => { chooseType(type); setPhase('recap') }} />
           </div>
           {assistantError && <p role="alert" className="mb-4 p-3 rounded-xl bg-amber-50 text-amber-900 text-sm">{assistantError}</p>}
 
@@ -1396,19 +1422,7 @@ export default function CreateEvent() {
         <>
           <h1 className="text-2xl font-bold text-slate-900 mb-1">Quel type d'événement ?</h1>
           <p className="text-slate-500 mb-6">Choisis pour démarrer</p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {EVENT_TYPES.map((type) => (
-              <button
-                key={type.value}
-                type="button"
-                onClick={() => chooseType(type.value)}
-                className={`p-5 rounded-2xl border-2 text-center transition-all hover:scale-[1.03] ${type.bg} ${type.border}`}
-              >
-                <span className="text-3xl block mb-1">{type.icon}</span>
-                <span className={`text-sm font-semibold block ${type.text}`}>{type.label}</span>
-              </button>
-            ))}
-          </div>
+          <EventCategoryPicker onSelect={chooseType} />
         </>
       )}
 
@@ -1469,6 +1483,14 @@ export default function CreateEvent() {
                     <span className="text-xs text-slate-500">Juste les postes à pourvoir</span>
                   </button>
                 </div>
+                {eventOptions.tournoi_mode === 'complet' && (
+                  <label className="mt-3 flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-sm text-slate-700">
+                    <input type="checkbox" checked={eventOptions.aide_installation !== false}
+                      onChange={e => updateOption('aide_installation', e.target.checked)}
+                      className="mt-0.5 h-4 w-4 accent-blue-500" />
+                    <span><strong>Prévoir l’installation</strong><span className="block text-xs text-slate-500">Ajoute un créneau de montage des terrains, tables et matériel au planning bénévoles.</span></span>
+                  </label>
+                )}
               </div>
             )}
 
@@ -1595,6 +1617,11 @@ export default function CreateEvent() {
                   className="w-32 px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none text-sm text-slate-900" />
               </div>
             )}
+            {form.event_type === 'Apero' && (
+              <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                Pas de nombre à fixer à l’avance : les personnes confirmées seront comptées automatiquement. Tu pourras attendre leurs réponses avant de préparer la liste de courses, calculée selon le nombre de partants et la mise par personne.
+              </p>
+            )}
 
             <div className="rounded-xl bg-amber-50 p-3"><label className="text-sm"><input type="checkbox" checked={!!eventOptions.allow_extra_guests} onChange={e => updateOption('allow_extra_guests', e.target.checked)} /> Autoriser les inscriptions au-delà du nombre prévu</label><p className="text-xs text-slate-600 mt-1">Les accompagnants comptent dans les réponses. Tu pourras vérifier les compléments de courses dans le tableau de bord. Sans cette option, le nombre prévu reste la limite de places.</p></div>
             <div>
@@ -1652,7 +1679,12 @@ export default function CreateEvent() {
             {/* Vote repas (tournoi complet) : l'organisateur définit les choix proposés */}
             {form.event_type === 'Match/Tournoi' && eventOptions.tournoi_mode === 'complet' && (
               <div className="rounded-2xl p-4 border border-slate-200 bg-white">
-                <p className="text-sm font-semibold text-slate-700 mb-1">🍽 Vote repas (optionnel)</p>
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2">
+                  <input type="checkbox" checked={!!eventOptions.repas_enabled}
+                    onChange={e => setEventOptions(prev => ({ ...prev, repas_enabled: e.target.checked, meal_choices: prev.meal_choices?.length ? prev.meal_choices : ['Merguez', 'Steak-frites', 'Végétarien'] }))} />
+                  Proposer un repas aux participants
+                </label>
+                {eventOptions.repas_enabled && <>
                 <p className="text-xs text-slate-400 mb-3">Propose des choix de repas, les participants voteront depuis leur invitation.</p>
                 <div className="space-y-2">
                   {(eventOptions.meal_choices || []).map((choice, i) => (
@@ -1669,6 +1701,7 @@ export default function CreateEvent() {
                   className="mt-2 w-full py-2 rounded-lg border-2 border-dashed border-slate-200 text-slate-400 text-sm hover:border-blue-300 hover:text-blue-500 transition-colors">
                   + ajouter un choix
                 </button>
+                </>}
               </div>
             )}
 
