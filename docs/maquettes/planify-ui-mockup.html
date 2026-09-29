@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Planify — Maquettes mobiles v2</title>
+<style>
+/* Maquette v2 — alignée sur la PR #9 (29/09/2026).
+   Couleurs = palette Tailwind déjà utilisée dans l'app (stone, orange, amber, emerald, blue, rose),
+   pour une intégration en classes Tailwind sans nouvelle dépendance. Police système : zéro chargement. */
+:root{
+  --cream:#FFF8F1; --surface:#FFFFFF; --ink:#1C1917; --muted:#57534E; --line:#E7E5E4;
+  --primary:#C2410C; --primary-press:#9A3412; --primary-soft:#FFEDD5;
+  --amber-50:#FFFBEB; --amber-200:#FDE68A; --amber-800:#92400E; --amber-950:#451A03;
+  --em-50:#ECFDF5; --em-200:#A7F3D0; --em-700:#047857; --em-800:#065F46; --em-950:#022C22;
+  --blue-50:#EFF6FF; --blue-700:#1D4ED8; --rose-50:#FFF1F2; --rose-700:#BE123C;
+  --teal-50:#F0FDFA; --teal-700:#0F766E; --slate-50:#F8FAFC; --slate-700:#334155;
+  --radius:20px; --shadow:0 1px 2px rgba(28,25,23,.06),0 8px 24px rgba(28,25,23,.06);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#F5F0EA;color:var(--ink);line-height:1.45;-webkit-font-smoothing:antialiased}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid #2563EB;outline-offset:2px;border-radius:8px}
+
+/* ---------- Page de présentation ---------- */
+.intro{max-width:1100px;margin:0 auto;padding:28px 16px 8px}
+.intro h1{font-size:24px;letter-spacing:-.01em}
+.intro p{color:var(--muted);max-width:720px;margin-top:6px;font-size:15px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 4px}
+.chip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 14px;font-size:14px;font-weight:600;text-decoration:none;color:var(--ink)}
+.chip[aria-current="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.stage{max-width:1400px;margin:0 auto;padding:16px;display:flex;gap:28px;overflow-x:auto;scroll-snap-type:x mandatory}
+.shot{flex:0 0 auto;scroll-snap-align:center}
+.shot>h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 10px 6px}
+.phone{width:390px;height:820px;border-radius:44px;border:10px solid #1C1917;background:var(--cream);overflow:hidden;position:relative;box-shadow:0 30px 60px rgba(28,25,23,.18)}
+.scroll{height:100%;overflow-y:auto;padding-bottom:110px}
+.scroll::-webkit-scrollbar{width:0}
+@media (max-width:480px){
+  .stage{display:block;padding:0}
+  .shot{display:none;margin-bottom:0}
+  .shot.on{display:block}
+  .shot>h2{display:none}
+  .phone{width:100%;height:auto;min-height:100vh;border:0;border-radius:0;box-shadow:none}
+  .scroll{height:auto;overflow:visible}
+  .sticky{position:fixed!important}
+}
+
+/* ---------- Composants ---------- */
+.pad{padding:0 16px}
+.hero{margin:12px;border-radius:28px;padding:22px 20px 20px;color:var(--ink);position:relative;overflow:hidden}
+.hero.repas{background:linear-gradient(160deg,#FFEDD5 0%,#FED7AA 55%,#FDBA74 100%)}
+.hero.tournoi{background:linear-gradient(160deg,#DBEAFE 0%,#BFDBFE 60%,#93C5FD 100%)}
+.hero .from{font-size:14px;font-weight:600;color:#44403C}
+.hero h3{padding-right:64px;font-size:28px;line-height:1.1;letter-spacing:-.02em;margin:6px 0 10px}
+.hero .hook{font-size:16px;color:#292524}
+.hero .big{position:absolute;right:14px;top:10px;font-size:54px;opacity:.9}
+.facts{display:flex;flex-direction:column;gap:6px;margin-top:16px}
+.fact{display:flex;gap:10px;align-items:flex-start;background:rgba(255,255,255,.72);border-radius:14px;padding:10px 12px;font-size:15px}
+.fact b{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#57534E;font-weight:700}
+.proof{display:flex;align-items:center;gap:10px;margin:14px 16px 4px;font-size:14px;color:var(--muted)}
+.avatars{display:flex}
+.avatars span{width:28px;height:28px;border-radius:50%;border:2px solid var(--cream);margin-left:-8px;display:grid;place-items:center;font-size:12px;font-weight:700;color:#fff}
+.avatars span:first-child{margin-left:0}
+.card{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;margin:12px}
+.card h4{font-size:17px;margin-bottom:4px}
+.help{font-size:14px;color:var(--muted)}
+.rsvp{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.rsvp button{min-height:72px;border-radius:16px;border:2px solid var(--line);background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-weight:600;font-size:15px}
+.rsvp button span{font-size:22px}
+.rsvp button[aria-pressed="true"][data-v="oui"]{border-color:#059669;background:var(--em-50)}
+.rsvp button[aria-pressed="true"][data-v="pe"]{border-color:#D97706;background:var(--amber-50)}
+.rsvp button[aria-pressed="true"][data-v="non"]{border-color:#E11D48;background:var(--rose-50)}
+.stepper{display:flex;align-items:center;justify-content:space-between;margin-top:12px}
+.stepper .ctrl{display:flex;align-items:center;gap:6px}
+.stepper button{width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:#fff;font-size:22px;font-weight:600}
+.stepper output{min-width:32px;text-align:center;font-size:20px;font-weight:700}
+.field{margin-top:10px}
+.field label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:4px}
+.field input{width:100%;min-height:44px;border-radius:12px;border:1px solid #D6D3D1;padding:10px 12px;background:#fff;font-size:16px}
+.item{display:flex;align-items:center;gap:12px;padding:12px 4px;border-top:1px solid var(--line);min-height:56px}
+.item:first-of-type{border-top:0}
+.item input{width:22px;height:22px;accent-color:var(--primary);flex:0 0 auto}
+.item .name{flex:1;font-size:16px}
+.item .qty{font-size:14px;font-weight:700;color:var(--amber-950);background:var(--amber-50);border:1px solid var(--amber-200);border-radius:999px;padding:3px 10px;white-space:nowrap}
+.tag{display:inline-block;font-size:12px;font-weight:600;border-radius:999px;padding:2px 8px;margin-left:6px;vertical-align:1px}
+.tag.guest{background:var(--blue-50);color:var(--blue-700)}
+.tag.taken{background:var(--em-50);color:var(--em-800)}
+.item.done .name{color:var(--muted)}
+details.add{margin-top:12px;border:1px dashed #D6D3D1;border-radius:14px;padding:12px}
+details.add summary{font-weight:600;cursor:pointer;min-height:24px}
+.row{display:flex;gap:8px;margin-top:8px}
+.row input{flex:1}
+.btn{min-height:48px;border-radius:14px;border:0;padding:0 18px;font-weight:700;font-size:16px;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.btn.primary{background:var(--primary);color:#fff}
+.btn.primary:active{background:var(--primary-press)}
+.btn.ghost{background:#fff;border:1px solid #D6D3D1;color:var(--ink)}
+.btn.wa{background:#15803D;color:#fff}
+.btn.block{width:100%}
+.sticky{position:absolute;left:0;right:0;bottom:0;padding:12px 16px 18px;background:var(--cream);box-shadow:0 -8px 16px rgba(28,25,23,.06);z-index:5}
+.sticky .sum{font-size:13px;color:var(--muted);text-align:center;margin-bottom:8px}
+.meal{display:grid;gap:8px;margin-top:12px}
+.meal label{display:flex;align-items:center;gap:12px;min-height:52px;border:2px solid var(--line);border-radius:14px;padding:0 14px;font-size:16px;background:#fff}
+.meal input{width:20px;height:20px;accent-color:var(--blue-700)}
+.meal label:has(input:checked){border-color:var(--blue-700);background:var(--blue-50)}
+.switch{display:flex;align-items:flex-start;gap:12px;margin-top:4px}
+.switch input{width:22px;height:22px;accent-color:var(--blue-700);margin-top:2px}
+.note{font-size:13px;color:var(--muted);background:var(--slate-50);border-radius:12px;padding:10px 12px;margin-top:10px}
+
+/* Confirmation */
+.done-hero{text-align:center;padding:36px 20px 8px}
+.done-hero .check{width:76px;height:76px;border-radius:50%;background:var(--em-50);border:2px solid var(--em-200);display:grid;place-items:center;font-size:36px;margin:0 auto 14px}
+.done-hero h3{font-size:26px;letter-spacing:-.02em}
+.done-hero p{color:var(--muted);margin-top:6px;font-size:16px}
+.recap li{list-style:none;display:flex;gap:10px;padding:8px 0;border-top:1px solid var(--line);font-size:15px}
+.recap li:first-child{border-top:0}
+.recap li b{min-width:92px;color:var(--muted);font-weight:600}
+
+/* Tableau organisateur */
+.topbar{padding:18px 16px 6px}
+.topbar small{font-size:13px;font-weight:600;color:var(--muted)}
+.topbar h3{font-size:22px;letter-spacing:-.01em}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 12px 0}
+.kpi{background:#fff;border-radius:16px;padding:12px;box-shadow:var(--shadow)}
+.kpi strong{display:block;font-size:24px;line-height:1.1}
+.kpi span{font-size:12px;color:var(--muted);font-weight:600}
+.bilan{margin:12px;border-radius:var(--radius);padding:14px 16px;background:var(--amber-50);border:1px solid var(--amber-200);font-size:15px}
+.bilan p+p{margin-top:4px}
+.panel{margin:12px;border-radius:var(--radius);padding:16px}
+.panel.reste{background:var(--amber-50);border:2px solid var(--amber-200)}
+.panel.reserve{background:var(--em-50);border:2px solid var(--em-200)}
+.panel h4{font-size:19px;display:flex;align-items:baseline;gap:8px}
+.panel h4 .n{font-size:14px;font-weight:600;border-radius:999px;padding:1px 9px}
+.panel.reste h4{color:var(--amber-950)} .panel.reste h4 .n{background:#FEF3C7}
+.panel.reserve h4{color:var(--em-950)} .panel.reserve h4 .n{background:#D1FAE5}
+.panel .sub{font-size:14px;margin-top:2px}
+.panel.reste .sub{color:var(--amber-800)} .panel.reserve .sub{color:var(--em-800)}
+.panel ul{list-style:none;margin-top:10px}
+.panel li{display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-top:1px solid rgba(0,0,0,.08)}
+.panel li:first-child{border-top:0}
+.panel li .who{font-size:14px;margin-top:2px}
+.panel.reserve li .who{color:var(--em-800)}
+.panel li .q{font-weight:700;font-size:15px;white-space:nowrap;text-align:right}
+.people li{list-style:none;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-top:1px solid var(--line)}
+.people li:first-child{border-top:0}
+.people .sub{font-size:13px;color:var(--blue-700)}
+.pill{font-size:12px;font-weight:700;border-radius:999px;padding:3px 9px;white-space:nowrap}
+.pill.oui{background:var(--em-50);color:var(--em-800)} .pill.pe{background:var(--amber-50);color:var(--amber-800)} .pill.non{background:#F5F5F4;color:#57534E}
+.actions{display:grid;gap:8px;margin:12px}
+.msg{white-space:pre-wrap;font-size:14px;background:#F0FDF4;border:1px solid #BBF7D0;border-radius:14px;padding:12px;margin-top:10px;font-family:inherit}
+.toast{position:absolute;left:50%;bottom:100px;transform:translateX(-50%);background:var(--ink);color:#fff;border-radius:12px;padding:10px 14px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:9}
+.toast.show{opacity:1}
+
+/* Création : catégories */
+.cats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px}
+.cat{min-height:96px;border-radius:18px;border:2px solid transparent;text-align:left;padding:14px;font-weight:700;font-size:16px;display:flex;flex-direction:column;justify-content:space-between}
+.cat span{font-size:28px}
+.cat small{font-weight:500;font-size:13px;color:var(--muted)}
+.cat[aria-pressed="true"]{border-color:var(--ink)}
+.c-repas{background:#FFEDD5}.c-fete{background:#FFE4E6}.c-sortie{background:#CCFBF1}.c-match{background:#DBEAFE}.c-autre{background:#F1F5F9}
+.formats{margin:0 12px;display:flex;gap:8px;flex-wrap:wrap}
+.formats button{min-height:48px;border-radius:14px;border:1px solid #D6D3D1;background:#fff;padding:0 16px;font-weight:600}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header class="intro">
+  <h1>Planify — maquettes mobiles v2</h1>
+  <p>Proposition visuelle alignée sur la PR #9. Données fictives, aucun envoi ni enregistrement. Sur téléphone, un écran à la fois ; sur ordinateur, fais défiler horizontalement.</p>
+  <nav class="chips" aria-label="Écrans">
+    <a class="chip" href="#s-cat" data-s="s-cat">0 · Catégories</a>
+    <a class="chip" href="#s-inv" data-s="s-inv" aria-current="true">1 · Invitation repas</a>
+    <a class="chip" href="#s-tour" data-s="s-tour">2 · Invitation tournoi</a>
+    <a class="chip" href="#s-ok" data-s="s-ok">3 · Confirmation</a>
+    <a class="chip" href="#s-dash" data-s="s-dash">4 · Tableau organisateur</a>
+  </nav>
+</header>
+
+<main class="stage">
+
+<!-- ===================== 0. Création : 5 catégories ===================== -->
+<section class="shot" id="s-cat">
+  <h2>0 · Création — choix de catégorie</h2>
+  <div class="phone"><div class="scroll">
+    <div class="topbar"><small>Nouvel événement</small><h3>Qu’est-ce qu’on organise ?</h3></div>
+    <p class="help pad">Choisis une catégorie. Tu pourras tout ajuster ensuite.</p>
+    <div class="cats" role="group" aria-label="Catégories">
+      <button class="cat c-repas" aria-pressed="true" data-cat="repas" data-label="repas &amp; apéro"><span aria-hidden="true">🍽️</span>Repas &amp; apéro<small>BBQ, apéro</small></button>
+      <button class="cat c-fete" aria-pressed="false" data-cat="fete" data-label="fête"><span aria-hidden="true">🎉</span>Fête<small>Anniversaire, soirée</small></button>
+      <button class="cat c-sortie" aria-pressed="false" data-cat="sortie" data-label="sortie plein air"><span aria-hidden="true">🧭</span>Sortie plein air<small>Rando, VTT, plongée…</small></button>
+      <button class="cat c-match" aria-pressed="false" data-cat="match" data-label="match / tournoi"><span aria-hidden="true">🏆</span>Match / tournoi<small>Club, association</small></button>
+      <button class="cat c-autre" aria-pressed="false" data-cat="autre" data-label="autre" style="grid-column:1/-1;min-height:72px"><span aria-hidden="true" style="font-size:22px">✨</span>Autre<small>Tout le reste</small></button>
+    </div>
+    <div class="card" id="formats">
+      <h4>Quel format pour repas &amp; apéro ?</h4>
+      <div class="formats" style="margin:10px 0 0">
+        <button>🔥 BBQ</button><button>🥂 Apéro</button>
+      </div>
+      <p class="note">Même logique que la PR #9 : les catégories à un seul format (Sortie plein air, Match / tournoi, Autre) passent directement à l’étape suivante. Les types internes ne changent pas.</p>
+    </div>
+  </div></div>
+</section>
+
+<!-- ===================== 1. Invitation Repas & apéro ===================== -->
+<section class="shot on" id="s-inv">
+  <h2>1 · Invitation — Repas &amp; apéro (BBQ)</h2>
+  <div class="phone"><div class="scroll">
+    <div class="hero repas">
+      <div class="big" aria-hidden="true">🔥</div>
+      <p class="from">Léa t’invite</p>
+      <h3>BBQ de rentrée<br>au jardin</h3>
+      <p class="hook">On allume le barbecue, chacun apporte un petit quelque chose… il ne manque plus que toi.</p>
+      <div class="facts">
+        <div class="fact"><span aria-hidden="true">📅</span><div><b>Quand</b>Samedi 10 octobre · 19 h</div></div>
+        <div class="fact"><span aria-hidden="true">📍</span><div><b>Où</b>12 chemin des Vignes, Meylan<br><a href="#" style="font-size:14px;color:#9A3412;font-weight:600">Voir l’itinéraire</a></div></div>
+        <div class="fact"><span aria-hidden="true">⏳</span><div><b>Réponse souhaitée</b>avant le jeudi 8 octobre</div></div>
+      </div>
+    </div>
+    <div class="proof">
+      <div class="avatars" aria-hidden="true"><span style="background:#C2410C">M</span><span style="background:#0F766E">S</span><span style="background:#1D4ED8">K</span></div>
+      <span><b style="color:var(--ink)">9 personnes</b> ont déjà dit oui, accompagnants compris</span>
+    </div>
+
+    <div class="card">
+      <h4>Tu viens ?</h4>
+      <div class="rsvp" role="group" aria-label="Ta réponse">
+        <button data-v="oui" aria-pressed="true"><span aria-hidden="true">🙌</span>Oui !</button>
+        <button data-v="pe" aria-pressed="false"><span aria-hidden="true">🤔</span>Peut-être</button>
+        <button data-v="non" aria-pressed="false"><span aria-hidden="true">🙁</span>Non</button>
+      </div>
+      <div class="field"><label for="p1">Ton prénom</label><input id="p1" value="Karim" autocomplete="given-name"></div>
+      <div class="stepper">
+        <div><b>Vous serez combien ?</b><p class="help">Toi compris</p></div>
+        <div class="ctrl"><button type="button" data-step="-1" aria-label="Retirer une personne">−</button><output id="nb">2</output><button type="button" data-step="1" aria-label="Ajouter une personne">+</button></div>
+      </div>
+      <div id="companions"></div>
+    </div>
+
+    <div class="card">
+      <h4>Ce que tu peux apporter</h4>
+      <p class="help">Coche ce que tu prends. Les quantités sont des repères, pas des obligations.</p>
+      <div style="margin-top:8px" id="items">
+        <label class="item"><input type="checkbox" checked><span class="name">Chipolatas</span><span class="qty">1,2 kg</span></label>
+        <label class="item"><input type="checkbox"><span class="name">Salade de pâtes</span><span class="qty">2 saladiers</span></label>
+        <label class="item"><input type="checkbox"><span class="name">Pain de campagne</span><span class="qty">3 pains</span></label>
+        <label class="item"><input type="checkbox"><span class="name">Glaçons</span><span class="qty">2 sacs</span></label>
+        <label class="item"><input type="checkbox"><span class="name">Tarte aux pommes<span class="tag guest">Idée d’un invité</span></span><span class="qty">1 tarte</span></label>
+        <div class="item done"><span style="width:22px;text-align:center" aria-hidden="true">✓</span><span class="name">Merguez<span class="tag taken">Pris par Sophie</span></span><span class="qty" style="background:#F5F5F4;border-color:#E7E5E4;color:#57534E">1,5 kg</span></div>
+      </div>
+      <details class="add">
+        <summary>+ Ajouter une idée à la liste commune</summary>
+        <p class="help" style="margin-top:6px">Elle sera visible par tous les invités. Chacun pourra ensuite choisir de l’apporter.</p>
+        <div class="row"><input id="newItem" placeholder="Ex. : guirlande lumineuse" aria-label="Nouvel article" style="min-height:44px;border-radius:12px;border:1px solid #D6D3D1;padding:0 12px"><button class="btn ghost" id="addItem" type="button">Ajouter</button></div>
+      </details>
+    </div>
+
+    <div class="card">
+      <h4>Covoiturage</h4>
+      <p class="help">Propose des places ou trouve un trajet avec d’autres invités.</p>
+      <div class="row"><button class="btn ghost" style="flex:1">Je propose des places</button><button class="btn ghost" style="flex:1">Je cherche</button></div>
+    </div>
+    <div class="card"><div class="field" style="margin:0"><label for="com">Un mot pour Léa (facultatif)</label><input id="com" placeholder="Allergies, retard prévu…"></div></div>
+
+    <div class="sticky">
+      <p class="sum" id="sum">2 personnes · 1 apport</p>
+      <button class="btn primary block" data-go="s-ok">Envoyer ma réponse</button>
+    </div>
+  </div></div>
+</section>
+
+<!-- ===================== 2. Invitation Match / tournoi ===================== -->
+<section class="shot" id="s-tour">
+  <h2>2 · Invitation — Match / tournoi (repas activé)</h2>
+  <div class="phone"><div class="scroll">
+    <div class="hero tournoi">
+      <div class="big" aria-hidden="true">🏆</div>
+      <p class="from">AS Crolles Pétanque t’invite</p>
+      <h3>Tournoi d’automne<br>en doublettes</h3>
+      <p class="hook">Une journée de jeu, de bonne humeur et de retrouvailles. Viens jouer, encourager ou donner un coup de main.</p>
+      <div class="facts">
+        <div class="fact"><span aria-hidden="true">📅</span><div><b>Quand</b>Dimanche 18 octobre · 9 h</div></div>
+        <div class="fact"><span aria-hidden="true">📍</span><div><b>Où</b>Boulodrome municipal, Crolles</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h4>Tu viens ?</h4>
+      <div class="rsvp" role="group" aria-label="Ta réponse">
+        <button data-v="oui" aria-pressed="true"><span aria-hidden="true">🙌</span>Oui !</button>
+        <button data-v="pe" aria-pressed="false"><span aria-hidden="true">🤔</span>Peut-être</button>
+        <button data-v="non" aria-pressed="false"><span aria-hidden="true">🙁</span>Non</button>
+      </div>
+      <div class="stepper">
+        <div><b>Vous serez combien ?</b><p class="help">Joueurs et supporters</p></div>
+        <div class="ctrl"><button type="button" aria-label="Retirer">−</button><output>3</output><button type="button" aria-label="Ajouter">+</button></div>
+      </div>
+      <div class="field"><label>Prénom accompagnant 1</label><input value="Nadia"></div>
+      <div class="field"><label>Prénom accompagnant 2</label><input value="Hugo"></div>
+    </div>
+
+    <div class="card">
+      <h4>🍽️ Repas du midi <span class="tag" style="background:#F1F5F9;color:#334155">facultatif</span></h4>
+      <p class="help">Le club propose ces choix. Ton vote compte pour tout ton groupe.</p>
+      <div class="meal" role="radiogroup" aria-label="Choix du repas">
+        <label><input type="radio" name="meal" checked>Merguez-frites</label>
+        <label><input type="radio" name="meal">Steak-frites</label>
+        <label><input type="radio" name="meal">Végétarien</label>
+      </div>
+      <p class="note">Les choix sont ceux saisis par l’organisateur (<code>event_options.meal_choices</code>). Si le repas est désactivé à la création, ce bloc n’apparaît pas. Aucune liste de courses pour les invités.</p>
+    </div>
+
+    <div class="card">
+      <label class="switch"><input type="checkbox" checked><span><b>Je peux donner un coup de main</b><span class="help" style="display:block">Installation, buvette, arbitrage… L’organisateur répartit les postes ensuite.</span></span></label>
+    </div>
+
+    <div class="sticky">
+      <p class="sum">3 personnes · repas : Merguez-frites · bénévole</p>
+      <button class="btn primary block" style="background:#1D4ED8" data-go="s-ok">Envoyer ma réponse</button>
+    </div>
+  </div></div>
+</section>
+
+<!-- ===================== 3. Confirmation ===================== -->
+<section class="shot" id="s-ok">
+  <h2>3 · Confirmation de participation</h2>
+  <div class="phone"><div class="scroll">
+    <div class="done-hero">
+      <div class="check" aria-hidden="true">🎉</div>
+      <h3>C’est noté, Karim !</h3>
+      <p>Léa voit ta réponse dès maintenant.<br>Merci pour ta contribution, ça va régaler tout le monde.</p>
+    </div>
+
+    <div class="card">
+      <h4>BBQ de rentrée au jardin</h4>
+      <p class="help">Samedi 10 octobre · 19 h · Meylan</p>
+      <ul class="recap" style="margin-top:10px">
+        <li><b>Présence</b><span>Oui, à 2 : toi et Inès</span></li>
+        <li><b>Tu apportes</b><span>Chipolatas · 1,2 kg</span></li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h4>Pour ne rien oublier</h4>
+      <button class="btn ghost block" style="margin-top:10px">📅 Ajouter à mon agenda</button>
+      <p class="note">Le fichier propose une alerte la veille et 2 h avant. C’est ton application d’agenda qui décide de l’activer : vérifie-la après l’ajout.</p>
+      <button class="btn ghost block" style="margin-top:10px" id="copyLink">🔗 Copier le lien de l’invitation</button>
+      <p class="help" style="margin-top:8px">Garde ce lien : il te permet de retrouver ou modifier ta réponse avant le jeudi 8 octobre.</p>
+    </div>
+
+    <div class="card">
+      <h4>Une question ?</h4>
+      <button class="btn wa block" style="margin-top:10px">Écrire à Léa sur WhatsApp</button>
+    </div>
+
+    <div class="sticky">
+      <button class="btn ghost block" data-go="s-inv">Modifier ma réponse</button>
+    </div>
+  </div><div class="toast" role="status" aria-live="polite">Lien copié</div></div>
+</section>
+
+<!-- ===================== 4. Tableau organisateur ===================== -->
+<section class="shot" id="s-dash">
+  <h2>4 · Tableau de bord organisateur</h2>
+  <div class="phone"><div class="scroll">
+    <div class="topbar"><small>🔥 BBQ · samedi 10 octobre · 19 h</small><h3>BBQ de rentrée au jardin</h3></div>
+    <div class="kpis">
+      <div class="kpi"><strong>11</strong><span>personnes confirmées</span></div>
+      <div class="kpi"><strong>3</strong><span>peut-être</span></div>
+      <div class="kpi"><strong>2</strong><span>ne viennent pas</span></div>
+    </div>
+
+    <div class="bilan" role="status">
+      <p><b>📋 Bilan.</b> 11 personnes sur 14 prévues ont confirmé, accompagnants compris.</p>
+      <p>Il reste 3 choses à apporter : salade de pâtes, pain, glaçons.</p>
+    </div>
+
+    <section class="panel reste" aria-labelledby="h-reste">
+      <h4 id="h-reste">Reste à apporter <span class="n">3</span></h4>
+      <p class="sub">Les quantités qui cherchent encore un volontaire.</p>
+      <ul>
+        <li><div><b>Salade de pâtes</b></div><span class="q">2 saladiers</span></li>
+        <li><div><b>Pain de campagne</b></div><span class="q">3 pains</span></li>
+        <li><div><b>Glaçons</b></div><span class="q">2 sacs</span></li>
+      </ul>
+    </section>
+
+    <section class="panel reserve" aria-labelledby="h-res">
+      <h4 id="h-res">Déjà réservé <span class="n">4</span></h4>
+      <p class="sub">Qui apporte quoi.</p>
+      <ul>
+        <li><div><b>Merguez</b><p class="who">Sophie</p></div><span class="q">1,5 kg</span></li>
+        <li><div><b>Chipolatas</b><p class="who">Karim</p></div><span class="q">1,2 kg</span></li>
+        <li><div><b>Rosé</b><p class="who">Marc</p></div><span class="q">3 bouteilles</span></li>
+        <li><div><b>Tarte aux pommes</b> <span class="tag guest">Idée d’un invité</span><p class="who">Inès</p></div><span class="q">1 tarte</span></li>
+      </ul>
+    </section>
+
+    <div class="actions">
+      <button class="btn primary block" id="prep">📣 Préparer une relance</button>
+    </div>
+    <div class="card" id="relance" hidden>
+      <h4>Message à envoyer toi-même</h4>
+      <p class="help">Planify prépare le texte à partir de ce qui manque. Rien n’est envoyé automatiquement.</p>
+      <pre class="msg" id="relanceTxt">Salut ! Plus que quelques jours avant *BBQ de rentrée au jardin*.
+
+Il manque encore : salade de pâtes, pain de campagne, glaçons.
+
+Si tu peux en prendre un, c'est ici :
+https://planify-e6eh.vercel.app/invite/…
+
+Merci !</pre>
+      <div class="row"><button class="btn wa" style="flex:1">Ouvrir WhatsApp</button><button class="btn ghost" id="copyRel">Copier</button></div>
+    </div>
+
+    <div class="card">
+      <h4>Participants</h4>
+      <ul class="people" style="margin-top:6px">
+        <li><div><b>Karim</b><p class="sub">avec Inès</p></div><span class="pill oui">Oui · 2</span></li>
+        <li><div><b>Sophie</b><p class="sub">avec Paul, Lina, Tom</p></div><span class="pill oui">Oui · 4</span></li>
+        <li><div><b>Marc</b></div><span class="pill oui">Oui · 1</span></li>
+        <li><div><b>Julie</b></div><span class="pill pe">Peut-être</span></li>
+        <li><div><b>Thomas</b></div><span class="pill non">Non</span></li>
+      </ul>
+      <button class="btn ghost block" style="margin-top:8px">Voir les 16 réponses</button>
+      <ul hidden>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h4>Inviter d’autres personnes</h4>
+      <div class="row"><button class="btn wa" style="flex:1">WhatsApp</button><button class="btn ghost" style="flex:1">SMS</button><button class="btn ghost">QR</button></div>
+    </div>
+    <p class="note" style="margin:12px">Variante Match / tournoi : pas de panneaux d’apports. On garde le bilan, le décompte « 🍽 Repas : Merguez-frites 12 · Steak-frites 7 · Végétarien 3 » (par nombre de personnes) et le planning bénévole existant.</p>
+  </div><div class="toast" role="status" aria-live="polite">Message copié</div></div>
+</section>
+</main>
+
+<script>
+// Maquette seulement : aucun appel réseau, aucun stockage.
+const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)]
+function show(id){
+  $$('.shot').forEach(s => s.classList.toggle('on', s.id === id))
+  $$('.chip').forEach(c => c.setAttribute('aria-current', c.dataset.s === id))
+  const el = document.getElementById(id)
+  if (matchMedia('(min-width:481px)').matches) el.scrollIntoView({behavior:'smooth', inline:'center', block:'nearest'})
+  else window.scrollTo(0, 0)
+}
+$$('.chip').forEach(c => c.addEventListener('click', e => { e.preventDefault(); show(c.dataset.s) }))
+$$('[data-go]').forEach(b => b.addEventListener('click', () => show(b.dataset.go)))
+function toast(root, t){ const el = $('.toast', root); if(!el) return; el.textContent = t; el.classList.add('show'); setTimeout(() => el.classList.remove('show'), 1600) }
+function copy(text, root, t){ try { navigator.clipboard.writeText(text) } catch(e) {} toast(root, t) }
+
+// RSVP
+$$('.rsvp').forEach(g => g.addEventListener('click', e => {
+  const b = e.target.closest('button'); if(!b) return
+  $$('button', g).forEach(x => x.setAttribute('aria-pressed', x === b))
+}))
+// Catégories
+$$('.cat').forEach(c => c.addEventListener('click', () => {
+  $$('.cat').forEach(x => x.setAttribute('aria-pressed', x === c))
+  const multi = { repas: ['🔥 BBQ','🥂 Apéro'], fete: ['🎂 Anniversaire','🪩 Soirée'] }[c.dataset.cat]
+  const box = $('#formats')
+  box.hidden = !multi
+  if (multi) { $('h4', box).innerHTML = 'Quel format pour ' + c.dataset.label + ' ?'; $('.formats', box).innerHTML = multi.map(m => `<button>${m}</button>`).join('') }
+}))
+// Accompagnants
+const names = ['Inès','','','','','']
+function renderCompanions(){
+  const n = +$('#nb').value
+  $('#companions').innerHTML = Array.from({length:n-1}, (_, i) => `<div class="field"><label for="c${i}">Prénom accompagnant ${i+1}</label><input id="c${i}" value="${names[i]||''}" placeholder="Facultatif"></div>`).join('')
+  updateSum()
+}
+$$('#s-inv [data-step]').forEach(b => b.addEventListener('click', () => { const o = $('#nb'); o.value = Math.min(8, Math.max(1, +o.value + +b.dataset.step)); renderCompanions() }))
+function updateSum(){
+  const n = +$('#nb').value, k = $$('#items input:checked').length
+  $('#sum').textContent = `${n} personne${n>1?'s':''} · ${k} apport${k>1?'s':''}`
+}
+$('#items').addEventListener('change', updateSum)
+$('#addItem').addEventListener('click', () => {
+  const v = $('#newItem').value.trim(); if(!v) return
+  const l = document.createElement('label'); l.className = 'item'
+  l.innerHTML = `<input type="checkbox"><span class="name"></span><span class="qty">1</span>`
+  $('.name', l).append(v); const t = document.createElement('span'); t.className='tag guest'; t.textContent='Ton idée'; $('.name', l).append(t)
+  $('#items').insertBefore(l, $('#items .done')); $('#newItem').value = ''
+})
+renderCompanions()
+// Confirmation / relance
+$('#copyLink').addEventListener('click', () => copy('https://planify-e6eh.vercel.app/invite/…', $('#s-ok'), 'Lien copié'))
+$('#prep').addEventListener('click', () => { $('#relance').hidden = false; $('#relance').scrollIntoView({behavior:'smooth', block:'nearest'}) })
+$('#copyRel').addEventListener('click', () => copy($('#relanceTxt').textContent, $('#s-dash'), 'Message copié'))
+</script>
+</body>
+</html>
