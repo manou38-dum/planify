@@ -801,7 +801,7 @@ export default function CreateEvent() {
 
   // Sélecteur de format du tournoi (complet / bénévoles) : fixe le format et recale la pré-sélection
   function chooseTournoiMode(tournoiMode) {
-    updateOption('tournoi_mode', tournoiMode)
+    setEventOptions(prev => ({ ...prev, tournoi_mode: tournoiMode, aide_installation: prev.aide_installation ?? true }))
     setSelectedLists(Object.fromEntries(tournoiLists(tournoiMode).map(k => [k, true])))
   }
 
@@ -876,9 +876,10 @@ export default function CreateEvent() {
     }
     setGenerating(true)
     try {
-      // Tournoi et Apéro : logique en 2 temps. À la création, on ne génère RIEN.
-      // (Tournoi → postes bénévoles ; Apéro → liste de courses) préparés plus tard depuis le dashboard.
-      if (form.event_type === 'Match/Tournoi' || form.event_type === 'Apero') {
+      // Apéro : la liste de courses attend les réponses et le budget réel par personne.
+      // Le tournoi, lui, prévisualise ses postes bénévoles avant création afin de pouvoir
+      // les corriger et les enregistrer directement avec l'événement.
+      if (form.event_type === 'Apero') {
         setGeneratedLists([])
         setPlanning([])
         setEditedPlanning([])
@@ -935,7 +936,7 @@ export default function CreateEvent() {
           location: form.location,
           description: eventDescription,
           date: form.date,
-          selected_lists: selectedLists,
+          selected_lists: form.event_type === 'Match/Tournoi' ? { planning: true } : selectedLists,
         }),
       })
       const data = await res.json()
@@ -1469,6 +1470,14 @@ export default function CreateEvent() {
                     <span className="text-xs text-slate-500">Juste les postes à pourvoir</span>
                   </button>
                 </div>
+                {eventOptions.tournoi_mode === 'complet' && (
+                  <label className="mt-3 flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-sm text-slate-700">
+                    <input type="checkbox" checked={eventOptions.aide_installation !== false}
+                      onChange={e => updateOption('aide_installation', e.target.checked)}
+                      className="mt-0.5 h-4 w-4 accent-blue-500" />
+                    <span><strong>Prévoir l’installation</strong><span className="block text-xs text-slate-500">Ajoute un créneau de montage des terrains, tables et matériel au planning bénévoles.</span></span>
+                  </label>
+                )}
               </div>
             )}
 
@@ -1594,6 +1603,11 @@ export default function CreateEvent() {
                   onChange={(e) => updateForm('nb_participants', e.target.value === '' ? '' : Number(e.target.value))}
                   className="w-32 px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none text-sm text-slate-900" />
               </div>
+            )}
+            {form.event_type === 'Apero' && (
+              <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                Pas de nombre à fixer à l’avance : les personnes confirmées seront comptées automatiquement. Tu pourras attendre leurs réponses avant de préparer la liste de courses, calculée selon le nombre de partants et la mise par personne.
+              </p>
             )}
 
             <div className="rounded-xl bg-amber-50 p-3"><label className="text-sm"><input type="checkbox" checked={!!eventOptions.allow_extra_guests} onChange={e => updateOption('allow_extra_guests', e.target.checked)} /> Autoriser les inscriptions au-delà du nombre prévu</label><p className="text-xs text-slate-600 mt-1">Les accompagnants comptent dans les réponses. Tu pourras vérifier les compléments de courses dans le tableau de bord. Sans cette option, le nombre prévu reste la limite de places.</p></div>
