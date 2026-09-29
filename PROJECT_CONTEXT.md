@@ -22,7 +22,7 @@ Planify aide un organisateur à créer un événement, envoyer un lien d’invit
 
 - `origin/main` comprend actuellement les changements fusionnés jusqu’à la PR #7 (deux panneaux organisateur : reste à apporter / déjà réservé).
 - La PR #8 sur `codex/birthday-gift-lists` est séparée et ajoute des idées cadeaux d’anniversaire et leurs liens. Vérifier son état sur GitHub avant d’intégrer ou de modifier cette branche.
-- La branche de travail `codex/outdoor-and-tournament-lists` part de `origin/main` pour les listes outdoor et le planning de tournoi. Ses changements ne sont pas encore publiés.
+- La branche de travail `codex/outdoor-and-tournament-lists` part de `origin/main` pour les listes outdoor et le planning de tournoi. La branche est publiée sur GitHub ; vérifier sa PR avant de considérer les changements comme déployés.
 - Les modifications locales `.env.local.example`, `.gitignore`, le dossier `.claude/` et les captures d’écran présents dans le checkout principal appartiennent au propriétaire du projet : ne pas les supprimer, les restaurer, ni les inclure dans un commit par défaut.
 
 ## Comportements produit et décisions
@@ -32,16 +32,22 @@ Planify aide un organisateur à créer un événement, envoyer un lien d’invit
 - Sortie / Activité (`Randonnée`) : le champ `event_options.activite` distingue le sport. Les checklists disponibles restent gratuites et partageables ; les consignes de sécurité d’une activité encadrée ne sont pas validées par Planify.
 - Tournoi complet : ne pas confondre les postes bénévoles (planning) et les courses/apports. La demande actuelle est d’afficher un aperçu modifiable des postes avant création, incluant un choix d’installation. L’intendance de repas reste gérée par l’organisateur/le club tant qu’une liste d’apports n’a pas été explicitement demandée.
 - Apéro participatif : l’absence de nombre attendu obligatoire est intentionnelle. Le nombre de personnes se déduit des réponses confirmées ; l’organisateur peut ensuite générer la liste de courses avec un budget calculé comme nombre de partants × mise indicative. Planify ne collecte ni ne répartit l’argent. Proposition à discuter : garder la jauge facultative et montrer une date limite de réponse pour savoir quand figer les achats.
-- La nouvelle organisation des catégories d’événements n’est pas décidée. Ne pas modifier les catégories visibles avant validation de la proposition de produit.
+- Catégories validées et implémentées : Repas & apéro (BBQ/Apero), Fête (Anniversaire/Soirée), Sortie plein air (Randonnée), Match / tournoi, Autre. Les types internes restent inchangés.
 
 ## Retour utilisateur à traiter
 
-1. Réduire et regrouper les types d’événements visibles pour éviter les doublons. **Demander validation de la proposition avant toute modification.** Une piste à discuter : entrées simples « Repas & convivialité », « Fête & anniversaire », « Sortie & sport », « Match / tournoi », « Autre », puis quelques formats précis choisis en deuxième étape.
+1. Regroupement en cinq catégories validé par le propriétaire et implémenté sur la branche courante.
 2. Développer les listes outdoor pour plongée, VTT, ski de fond et autres sorties de groupe. Des repères doivent être contextualisés ; pour la plongée, la validation revient toujours au club/encadrant.
 3. Pour le tournoi complet, proposer l’installation et corriger l’absence d’aperçu/planning à la création.
 4. Pour l’apéro, expliquer qu’on ne connaît pas le nombre avant les réponses ; une jauge facultative ne doit pas retarder les réponses ni le calcul des achats.
 
 ## Collaboration et vérification
+
+Codex prend les catégories, les listes et le parcours tournoi. Claude prépare les propositions visuelles mobiles et les textes dans `docs/maquettes/`, sans modifier les pages applicatives avant validation du design.
+
+Tournoi : repas facultatif avec choix modifiables via `event_options.meal_choices`, utilisant le vote existant des invités. Aucune liste de courses à apporter. Désactiver le repas retire les choix lors de la création.
+
+Outdoor : ajout plongée, ski de fond et sortie générique ; VTT et randonnée utilisent leurs listes existantes. Compilation de production réussie le 29 septembre 2026. Les essais complets avec création réelle restent à réaliser après intégration.
 
 Lire ce fichier avant une nouvelle intervention. Se coordonner par une PR ou une note de reprise partagée, garder les changements indépendants dans des branches distinctes et ne jamais présumer qu’une autre IA a fusionné/poussé une modification. Ne pas exposer de secrets. Vérifier les parcours concernés et lancer `npm run build` après les changements ; ne pas ajouter de tests miroir sans demande explicite.
 

@@ -166,7 +166,7 @@ export async function POST(request) {
     let fixedChecklist = null
     if (event_type === 'Randonnée' && askedKeys.includes('checklist')) {
       const key = matchActivity(event_options?.activite)
-      const entry = SAFETY_CHECKLISTS[key]
+      const entry = SAFETY_CHECKLISTS[key] || SAFETY_CHECKLISTS['sortie-generique']
       fixedChecklist = {
         behavior: 'checklist',
         list_name: entry.label,
@@ -292,7 +292,7 @@ Correspondance :
     const finalLists = fixedChecklist ? [fixedChecklist, ...aiLists] : aiLists
 
     return Response.json({
-      menu_resume: typeof data.menu_resume === 'string' ? data.menu_resume : '',
+      menu_resume: event_type === 'Match/Tournoi' || aiAskedKeys.length === 0 ? '' : (typeof data.menu_resume === 'string' ? data.menu_resume : ''),
       lists: finalLists,
       planning: planningFinal,
     })
