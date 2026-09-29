@@ -136,3 +136,10 @@ Propositions à valider après observation de l'application :
 - Actualisation des articles et listes toutes les 15 secondes sur les pages visibles, au retour sur l'onglet et à la reprise après une modification. Aucun rechargement du formulaire invité. Requêtes arrêtées au démontage, lectures suspendues pendant les mutations suivies ; données conservées en cas d'échec réseau.
 - Libellé « Proposer cet article à tout le monde » : proposer reste distinct de réserver pour soi. Le commentaire est identifié comme destiné à l'organisateur et dirige vers l'ajout commun pour les apports.
 - Validation : 19 tests réussis, compilation réussie, test navigateur local sur événement fictif : ajout Glaçons depuis invitation, affichage automatique dans le tableau de bord sans rechargement. Aucun événement de production modifié, aucun message envoyé.
+
+## 29 septembre 2026 — Deux pavés pour les apports côté organisateur
+
+- Liste « Reste à apporter » ouverte par défaut, noms et quantités restantes.
+- Liste « Déjà réservé » ouverte par défaut, quantités et personne qui apporte ; prénom retrouvé par identifiant si nécessaire.
+- Les deux pavés restent visibles pendant la modification, avec des messages explicites quand ils sont vides. Affichage empilé sur petit écran, deux colonnes sur grand écran. Utilise la synchronisation existante ; aucun changement des réservations.
+- Validation : compilation réussie ; navigateur sur données fictives : Pain 5 baguettes restantes et Pain 2 baguettes réservées par Alex correctement séparés, aucune erreur console. Aucun événement réel modifié.

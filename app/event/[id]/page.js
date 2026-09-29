@@ -37,7 +37,6 @@ export default function EventDashboard() {
   const [copied, setCopied] = useState(false)
   const [showQR, setShowQR] = useState(false)
   const [shareNotice, setShareNotice] = useState('')
-  const [showAllMissing, setShowAllMissing] = useState(false)
   const [showAllParticipants, setShowAllParticipants] = useState(false)
 
   // Message à partager (relance ou récap final) : { title, text }
@@ -979,39 +978,29 @@ export default function EventDashboard() {
           )}
         </div>
 
-        {/* Barre orange "Manque" (non-edit mode, masquée en mode solo) */}
-        {event.mode !== 'solo' && disponibles.length > 0 && !editMode && (
-          <div className="mx-4 my-3 bg-gradient-to-r from-amber-400 to-orange-400 text-white rounded-xl px-4 py-3">
-            <div className="flex items-center justify-between">
-              <div className="flex-1 min-w-0">
-                <p className="font-bold text-sm">
-                  Manque : {missingNames.slice(0, 3).join(', ')}{missingNames.length > 3 ? '...' : ''}
-                </p>
-                <p className="text-amber-100 text-xs mt-0.5">
-                  {disponibles.length} articles - {totalManquant.toFixed(0)} € a couvrir
-                </p>
-              </div>
-              <button
-                onClick={() => setShowAllMissing(!showAllMissing)}
-                className="bg-white/20 hover:bg-white/30 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ml-3 shrink-0"
-              >
-                {showAllMissing ? 'Reduire' : 'Voir tout'}
-              </button>
-            </div>
-
-            {showAllMissing && (
-              <div className="mt-3 pt-3 border-t border-amber-300/50 space-y-1.5">
-                {disponibles.map((item) => (
-                  <div key={item.id} className="flex justify-between items-center text-sm">
-                    <span>
-                      {item.item_name}{' '}
-                      <span className="text-amber-100 text-xs">{item.quantity} {item.unit}</span>
-                    </span>
-                    <span className="font-semibold">{item.estimated_price} €</span>
-                  </div>
-                ))}
-              </div>
-            )}
+        {/* Les deux listes restent visibles, même pendant les modifications. */}
+        {event.mode !== 'solo' && (
+          <div className="grid gap-4 p-4 md:grid-cols-2">
+            <section aria-labelledby="remaining-contributions" className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+              <h2 id="remaining-contributions" className="font-bold text-lg text-amber-950">Reste à apporter <span className="text-sm font-normal">({disponibles.length})</span></h2>
+              <p className="text-sm text-amber-800 mt-1">Les quantités qui cherchent encore un volontaire.</p>
+              {disponibles.length ? <ul className="mt-4 divide-y divide-amber-200">
+                {disponibles.map(item => <li key={item.id} className="py-3 flex items-start justify-between gap-3">
+                  <span className="font-medium text-slate-900 break-words min-w-0">{item.item_name}</span>
+                  <span className="text-sm font-semibold text-amber-950 text-right shrink-0 max-w-[45%]">{item.quantity ?? 'À préciser'} {item.unit}</span>
+                </li>)}
+              </ul> : <p className="mt-4 text-sm text-amber-950">{apportItems.length ? 'Tout est pris en charge, merci à tous !' : 'Aucun article à apporter pour le moment.'}</p>}
+            </section>
+            <section aria-labelledby="reserved-contributions" className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+              <h2 id="reserved-contributions" className="font-bold text-lg text-emerald-950">Déjà réservé <span className="text-sm font-normal">({reserves.length})</span></h2>
+              <p className="text-sm text-emerald-800 mt-1">Qui apporte quoi : les engagements des invités.</p>
+              {reserves.length ? <ul className="mt-4 divide-y divide-emerald-200">
+                {reserves.map(item => <li key={item.id} className="py-3 flex items-start justify-between gap-3">
+                  <div className="min-w-0"><p className="font-medium text-slate-900 break-words">{item.item_name}</p><p className="text-sm text-emerald-800 mt-1">{item.assigned_to || participants.find(p => p.id === item.assigned_participant_id)?.participant_name || 'Invité à préciser'}</p></div>
+                  <span className="text-sm font-semibold text-emerald-950 text-right shrink-0 max-w-[45%]">{item.quantity ?? 'À préciser'} {item.unit}</span>
+                </li>)}
+              </ul> : <p className="mt-4 text-sm text-emerald-950">Personne n’a encore réservé d’article.</p>}
+            </section>
           </div>
         )}
 
