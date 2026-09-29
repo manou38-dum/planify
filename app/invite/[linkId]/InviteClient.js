@@ -4,6 +4,7 @@ import { useSharedItems } from '@/lib/use-shared-items'
 import { getSupabase } from '@/lib/supabase'
 import { calendarEvent } from '@/lib/calendar.mjs'
 import { invitationHook } from '@/lib/invitation.mjs'
+import { eventTheme, formatQuantity } from '@/lib/ui-theme.mjs'
 import { menuInspiration } from '@/lib/menu-inspirations.mjs'
 import { useSearchParams } from 'next/navigation'
 
@@ -22,6 +23,7 @@ export default function InviteClient({ linkId }) {
   const [extraItem, setExtraItem] = useState({ name: '', quantity: 1, unit: 'unités' })
   const [addingItem, setAddingItem] = useState(false)
   const [extraFeedback, setExtraFeedback] = useState('')
+  const [linkCopied, setLinkCopied] = useState(false)
 
   async function addSharedItem() {
     if (addingItem || !event || event.mode === 'solo' || rsvp !== 'Confirmé') return
@@ -47,7 +49,7 @@ export default function InviteClient({ linkId }) {
       if (error) throw error
       setItems(previous => [...previous.filter(item => item.id !== data.id), data])
       setExtraItem({ name: '', quantity: 1, unit: 'unités' })
-      setExtraFeedback('Article enregistré dans la liste commune. Les autres personnes le verront automatiquement sous 15 secondes lorsque leur page est ouverte. Pour l’apporter toi-même, sélectionne-le ci-dessous puis confirme ta réponse.')
+      setExtraFeedback('Article enregistré dans la liste commune. Les autres personnes le verront automatiquement sous 15 secondes lorsque leur page est ouverte. Pour l’apporter toi-même, coche-le dans la liste ci-dessus puis envoie ta réponse.')
     } catch {
       setExtraFeedback('Impossible de confirmer l’ajout. Recharge la liste avant de réessayer pour éviter un doublon.')
     } finally { setAddingItem(false) }
@@ -562,19 +564,27 @@ export default function InviteClient({ linkId }) {
   }
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50">
-      <div className="text-slate-400">Chargement...</div>
+    <div className="min-h-screen flex items-center justify-center bg-cream">
+      <div className="text-stone-500">Chargement…</div>
     </div>
   )
 
   if (!event) return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50">
+    <div className="min-h-screen flex items-center justify-center bg-cream px-4">
       <div className="text-center">
         <p className="text-4xl mb-3">😕</p>
-        <p className="text-slate-500">Ce lien d'invitation n'est plus valide</p>
+        <p className="text-stone-600">Ce lien d’invitation n’est plus valide. Demande à l’organisateur de te le renvoyer.</p>
       </div>
     </div>
   )
+
+  // Habillage selon le type d'événement (affichage uniquement)
+  const theme = eventTheme(event.event_type)
+  // Téléphone de l'organisateur (si renseigné quelque part sur l'événement)
+  const organizerPhone = event.organizer_phone || event.event_options?.organizer_phone || event.event_options?.phone || null
+  const organizerWaLink = organizerPhone
+    ? `https://wa.me/${cleanPhone(organizerPhone)}?text=${encodeURIComponent("Salut, j'ai une question pour " + event.event_name)}`
+    : null
 
   // Vérifier deadline : la date limite vaut jusqu'à la FIN de la journée (23:59:59)
   const deadlineEnd = event.deadline_rsvp ? new Date(new Date(event.deadline_rsvp).getFullYear(), new Date(event.deadline_rsvp).getMonth(), new Date(event.deadline_rsvp).getDate(), 23, 59, 59) : null
@@ -588,81 +598,97 @@ export default function InviteClient({ linkId }) {
       ? new Date(event.deadline_rsvp).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
       : null
 
+    const companions = (nbPersonnes > 1 ? companionNames : []).map(n => n.trim()).filter(Boolean)
+    const presence = nbPersonnes > 1
+      ? `Oui, à ${nbPersonnes}${companions.length ? ` : toi et ${companions.join(', ')}` : ''}`
+      : 'Oui'
+    const inviteUrl = typeof window !== 'undefined' ? `${window.location.origin}/invite/${linkId}` : ''
+
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
-        <div className="text-center max-w-sm w-full">
-          <p className="text-5xl mb-4">{rsvp === 'Confirmé' ? '🎉' : rsvp === 'Refusé' ? '👋' : '🤔'}</p>
+      <div className="min-h-screen bg-cream px-4 py-10">
+        <div className="max-w-sm w-full mx-auto">
+          <div className="text-center">
+            <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-emerald-50 ring-2 ring-emerald-200 flex items-center justify-center text-4xl" aria-hidden="true">
+              {rsvp === 'Confirmé' ? '🎉' : rsvp === 'Refusé' ? '👋' : '🤔'}
+            </div>
+
+            {rsvp === 'Confirmé' && (
+              <>
+                <h1 className="text-2xl font-bold text-stone-900 mb-2 text-balance">
+                  {guestName ? `C'est noté, ${guestName} !` : 'C’est noté !'}
+                </h1>
+                <p className="text-stone-600">
+                  {event.organizer_name} voit ta réponse dès maintenant.{' '}
+                  {signedSlotDetails.length > 0
+                    ? 'Merci pour ton coup de main, ça compte énormément.'
+                    : selectedItemDetails.length > 0
+                      ? 'Merci pour ta contribution, ça va régaler tout le monde.'
+                      : 'On a hâte de te voir !'}
+                </p>
+              </>
+            )}
+
+            {rsvp === 'Refusé' && (
+              <>
+                <h1 className="text-2xl font-bold text-stone-900 mb-2">Dommage !</h1>
+                <p className="text-stone-600">Merci d’avoir prévenu, ça aide {event.organizer_name} à s’organiser. À la prochaine{guestName ? `, ${guestName}` : ''} !</p>
+                <p className="text-stone-500 text-sm mt-2">Si tu changes d’avis, le lien reste actif.</p>
+              </>
+            )}
+
+            {rsvp === 'Peut-être' && (
+              <>
+                <h1 className="text-2xl font-bold text-stone-900 mb-2">On note !</h1>
+                <p className="text-stone-600">Tu pourras confirmer plus tard avec le même lien{deadlineStr ? `, avant le ${deadlineStr}` : ''}.</p>
+              </>
+            )}
+          </div>
 
           {rsvp === 'Confirmé' && (
             <>
-              <h1 className="text-2xl font-bold text-slate-900 mb-2">
-                {guestName ? `C'est noté, ${guestName} ! 🎉` : 'Super, tu es inscrit ! 🎉'}
-              </h1>
-              <p className="text-slate-500 mb-4">
-                {signedSlotDetails.length > 0
-                  ? 'Merci pour ton coup de main, ça compte énormément 🙌'
-                  : selectedItemDetails.length > 0
-                    ? 'Merci pour ta contribution, ça va régaler tout le monde !'
-                    : 'On a hâte de te voir, ça va être top !'}
-              </p>
-
-              <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm text-left mb-4">
-                <p className="font-bold text-slate-900 mb-1">{event.event_name}</p>
-                <p className="text-sm text-slate-500 flex items-center gap-2">📅 {dateStr}</p>
-                {event.location && (
-                  <p className="text-sm text-slate-500 flex items-center gap-2 mt-1">📍 {event.location}</p>
-                )}
-
-                {selectedItemDetails.length > 0 && (
-                  <div className="mt-3 pt-3 border-t border-slate-100">
-                    <p className="text-sm font-medium text-slate-700 mb-2">Tu apportes :</p>
-                    <ul className="space-y-1">
-                      {selectedItemDetails.map((it, idx) => (
-                        <li key={idx} className="text-sm text-emerald-600 flex items-center gap-2">
-                          ✅ {it.item_name} <span className="text-slate-400">({it.quantity} {it.unit})</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {signedSlotDetails.length > 0 && (
-                  <div className="mt-3 pt-3 border-t border-slate-100">
-                    <p className="text-sm font-medium text-slate-700 mb-1">Tu aides pour :</p>
-                    <p className="text-sm text-blue-600">
-                      {signedSlotDetails.map(s => `${s.slot_name} (${new Date(s.slot_date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })})`).join(', ')}
-                    </p>
-                  </div>
-                )}
+              <div className="bg-white rounded-3xl p-4 shadow-sm ring-1 ring-stone-900/5 mt-6">
+                <p className="font-bold text-stone-900">{event.event_name}</p>
+                <p className="text-sm text-stone-600 mt-0.5">📅 {dateStr}</p>
+                {event.location && <p className="text-sm text-stone-600 mt-0.5">📍 {event.location}</p>}
+                <dl className="mt-3 divide-y divide-stone-100 text-sm">
+                  <div className="flex gap-3 py-2"><dt className="w-24 shrink-0 font-semibold text-stone-500">Présence</dt><dd className="text-stone-800 min-w-0">{presence}</dd></div>
+                  {selectedItemDetails.length > 0 && (
+                    <div className="flex gap-3 py-2"><dt className="w-24 shrink-0 font-semibold text-stone-500">Tu apportes</dt>
+                      <dd className="text-stone-800 min-w-0">{selectedItemDetails.map(it => `${it.item_name} · ${formatQuantity(it.quantity)} ${it.unit || ''}`.trim()).join(', ')}</dd></div>
+                  )}
+                  {signedSlotDetails.length > 0 && (
+                    <div className="flex gap-3 py-2"><dt className="w-24 shrink-0 font-semibold text-stone-500">Tu aides</dt>
+                      <dd className="text-stone-800 min-w-0">{signedSlotDetails.map(s => `${s.slot_name} (${new Date(s.slot_date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })})`).join(', ')}</dd></div>
+                  )}
+                  {mealChoice && (
+                    <div className="flex gap-3 py-2"><dt className="w-24 shrink-0 font-semibold text-stone-500">Repas</dt><dd className="text-stone-800 min-w-0">{mealChoice}</dd></div>
+                  )}
+                  {isVolunteer && (
+                    <div className="flex gap-3 py-2"><dt className="w-24 shrink-0 font-semibold text-stone-500">Bénévole</dt><dd className="text-stone-800 min-w-0">Tu es prêt(e) à aider</dd></div>
+                  )}
+                </dl>
               </div>
 
-              <p className="text-slate-500 text-sm">
-                Ta réponse est enregistrée et visible par {event.organizer_name}. À {dateStr} !
-              </p>
-              {rsvp === 'Confirmé' && <div className="rounded-xl bg-amber-50 p-4 mt-4"><button className="font-semibold text-amber-900 underline" onClick={() => {
- const url = URL.createObjectURL(new Blob([calendarEvent(event, window.location.origin)], { type: 'text/calendar;charset=utf-8' }))
- const link = document.createElement('a'); link.href = url; link.download = 'invitation-planify.ics'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
-}}>Ajouter à mon agenda</button><p className="text-xs text-slate-600 mt-2">Rappels proposés la veille et 2 h avant. Ouvre le fichier dans ton agenda et vérifie les alertes : leur activation dépend de ton application.</p></div>}
-{deadlineStr && (
-                <p className="text-slate-400 text-xs mt-2">
-                  📅 Date limite de réponse : {deadlineStr}. Garde ce lien pour retrouver ton invitation.
-                </p>
+              <div className="bg-white rounded-3xl p-4 shadow-sm ring-1 ring-stone-900/5 mt-3">
+                <p className="font-bold text-stone-900">Pour ne rien oublier</p>
+                <button type="button" className="mt-3 w-full min-h-[48px] rounded-2xl border border-stone-300 bg-white font-semibold text-stone-900 hover:bg-stone-50" onClick={() => {
+                  const url = URL.createObjectURL(new Blob([calendarEvent(event, window.location.origin)], { type: 'text/calendar;charset=utf-8' }))
+                  const link = document.createElement('a'); link.href = url; link.download = 'invitation-planify.ics'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
+                }}>📅 Ajouter à mon agenda</button>
+                <p className="text-xs text-stone-600 mt-2 rounded-xl bg-stone-50 p-3">Le fichier propose une alerte la veille et 2 h avant. C’est ton application d’agenda qui décide de l’activer : vérifie-la après l’ajout.</p>
+                <button type="button" className="mt-3 w-full min-h-[48px] rounded-2xl border border-stone-300 bg-white font-semibold text-stone-900 hover:bg-stone-50"
+                  onClick={() => { navigator.clipboard?.writeText(inviteUrl).then(() => setLinkCopied(true), () => {}); setTimeout(() => setLinkCopied(false), 2000) }}>
+                  {linkCopied ? '✓ Lien copié' : '🔗 Copier le lien de l’invitation'}
+                </button>
+                <p className="text-xs text-stone-600 mt-2">Garde ce lien : il te permet de retrouver ou modifier ta réponse{deadlineStr ? ` avant le ${deadlineStr}` : ''}.</p>
+              </div>
+
+              {organizerWaLink && (
+                <a href={organizerWaLink} target="_blank" rel="noopener noreferrer"
+                  className="mt-3 flex items-center justify-center w-full min-h-[48px] rounded-2xl bg-green-700 hover:bg-green-800 text-white font-semibold">
+                  Écrire à {event.organizer_name} sur WhatsApp
+                </a>
               )}
-            </>
-          )}
-
-          {rsvp === 'Refusé' && (
-            <>
-              <h1 className="text-2xl font-bold text-slate-900 mb-3">Dommage !</h1>
-              <p className="text-slate-500 mb-2">Merci d'avoir repondu. A la prochaine, {guestName} ! 👋</p>
-              <p className="text-slate-400 text-sm">Si tu changes d'avis, le lien reste actif.</p>
-            </>
-          )}
-
-          {rsvp === 'Peut-être' && (
-            <>
-              <h1 className="text-2xl font-bold text-slate-900 mb-3">On note ! 🤔</h1>
-              <p className="text-slate-500">Pas de souci, tu pourras confirmer plus tard avec le meme lien.</p>
             </>
           )}
         </div>
@@ -686,11 +712,6 @@ export default function InviteClient({ linkId }) {
   // Tout est déjà couvert : il existe des listes mais plus rien de disponible (apports ni cadeaux)
   const hasAnyList = apportItems.length > 0 || giftItems.length > 0
   const allReserved = hasAnyList && disponibles.length === 0 && giftDispo.length === 0
-  // Téléphone de l'organisateur (si renseigné quelque part sur l'événement)
-  const organizerPhone = event.organizer_phone || event.event_options?.organizer_phone || event.event_options?.phone || null
-  const organizerWaLink = organizerPhone
-    ? `https://wa.me/${cleanPhone(organizerPhone)}?text=${encodeURIComponent("Salut, j'ai une question pour " + event.event_name)}`
-    : null
   // Bouton réutilisable : n'affiche rien si l'organisateur n'a pas de numéro
   function ContactOrganizerButton({ label, className }) {
     if (!organizerWaLink) return null
@@ -759,7 +780,7 @@ export default function InviteClient({ linkId }) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-cream text-stone-900">
       {/* Bandeau surprise */}
       {event.event_options?.surprise && (
         <div className="bg-amber-100 border-b border-amber-200 text-amber-900 text-sm font-medium px-4 py-3 text-center">
@@ -767,65 +788,76 @@ export default function InviteClient({ linkId }) {
         </div>
       )}
 
-      {/* Header événement */}
-      <div className="relative bg-gradient-to-b from-orange-700 to-amber-900 text-white px-6 pt-12 pb-12 overflow-hidden">
-        {event.photo_url && (
-          <>
-            <img src={event.photo_url} alt="" className="absolute inset-0 w-full h-full object-cover" />
-            <div className="absolute inset-0 bg-gradient-to-b from-blue-900/70 to-blue-950/80" />
-          </>
-        )}
-        <div className="relative max-w-lg mx-auto">
-          <p className="text-orange-100 text-sm mb-3">Tu es invité(e) par {event.organizer_name}</p>
-          <h1 className="text-4xl font-bold tracking-tight mb-5">{event.event_name}</h1>
-          <div className="space-y-1.5">
-            <p className="text-orange-50 text-sm flex items-center gap-2">
-              📅 {new Date(event.date).toLocaleDateString('fr-FR', {
-                weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
-              })}
+      {/* En-tête de l'invitation : couleur selon la catégorie, photo de l'organisateur si elle existe */}
+      <div className="max-w-lg mx-auto px-3 pt-3">
+        <div className={`relative overflow-hidden rounded-[28px] px-5 pt-6 pb-5 ${theme.hero}`}>
+          {event.photo_url && (
+            <>
+              <img src={event.photo_url} alt="" className="absolute inset-0 w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-b from-white/85 to-white/75" />
+            </>
+          )}
+          <div className="relative">
+            <span className="absolute right-0 top-0 text-5xl" aria-hidden="true">{theme.emoji}</span>
+            <p className="text-sm font-semibold text-stone-700 pr-16">{event.organizer_name} t’invite</p>
+            <h1 className="text-3xl font-bold tracking-tight leading-tight mt-1 pr-16 text-balance">{event.event_name}</h1>
+            <p className="text-base text-stone-800 mt-3 leading-relaxed">
+              {isRecap ? "Voici où en est l'événement" : invitationHook(event)}
             </p>
-            {event.location && (
-              <p className="text-orange-50 text-sm flex items-center gap-2">
-                📍 {event.location}
-                <a
-                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-200 underline hover:text-white text-xs"
-                >
-                  Voir l'itinéraire
-                </a>
-              </p>
-            )}
-            {isApero ? (
-              <p className="text-blue-50 text-sm flex items-center gap-2">
-                🥂 {event.organizer_name} propose un apéro participatif{contributionAmount ? `, ~${contributionAmount} €/pers.` : ''} Tu es partant ?
-              </p>
-            ) : (
-              <p className="text-orange-50 text-sm flex items-center gap-2">👥 {event.nb_participants} personnes attendues</p>
-            )}
+            <div className="mt-4 space-y-1.5">
+              <div className="flex gap-3 rounded-2xl bg-white/75 px-3 py-2.5">
+                <span aria-hidden="true">📅</span>
+                <div className="min-w-0"><p className="text-xs font-bold uppercase tracking-wide text-stone-600">Quand</p>
+                  <p className="first-letter:uppercase">{new Date(event.date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</p></div>
+              </div>
+              {event.location && (
+                <div className="flex gap-3 rounded-2xl bg-white/75 px-3 py-2.5">
+                  <span aria-hidden="true">📍</span>
+                  <div className="min-w-0"><p className="text-xs font-bold uppercase tracking-wide text-stone-600">Où</p>
+                    <p className="break-words">{event.location}</p>
+                    <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`} target="_blank" rel="noopener noreferrer"
+                      className={`text-sm font-semibold underline ${theme.link}`}>Voir l'itinéraire</a></div>
+                </div>
+              )}
+              {event.deadline_rsvp && !isExpired && (
+                <div className="flex gap-3 rounded-2xl bg-white/75 px-3 py-2.5">
+                  <span aria-hidden="true">⏳</span>
+                  <div className="min-w-0"><p className="text-xs font-bold uppercase tracking-wide text-stone-600">Réponse souhaitée</p>
+                    <p>avant le {new Date(event.deadline_rsvp).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</p></div>
+                </div>
+              )}
+              {isApero ? (
+                <p className="rounded-2xl bg-white/75 px-3 py-2.5 text-sm">
+                  🥂 {event.organizer_name} propose un apéro participatif{contributionAmount ? `, ~${contributionAmount} €/pers.` : ''} Tu es partant ?
+                </p>
+              ) : (
+                <p className="rounded-2xl bg-white/75 px-3 py-2.5 text-sm">👥 {event.nb_participants} personnes attendues</p>
+              )}
+            </div>
             {lienRando && (
               <a href={lienRando} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 mt-2 bg-white/20 hover:bg-white/30 text-white text-sm font-medium px-3 py-1.5 rounded-full transition-colors">
+                className="inline-flex items-center gap-1.5 mt-3 bg-white/80 hover:bg-white text-stone-900 text-sm font-semibold px-3 py-2 rounded-full transition-colors">
                 🗺 Voir l'itinéraire / le site
               </a>
             )}
-            <p className="text-orange-50 text-lg leading-relaxed pt-4">
-              {isRecap ? "Voici où en est l'événement" : invitationHook(event)}
-            </p>
+            {isExpired && (
+              <p className="mt-3 rounded-xl bg-white/85 text-red-800 text-sm font-semibold px-3 py-2">
+                ⏰ La date limite de réponse est dépassée
+              </p>
+            )}
           </div>
-          {isExpired && (
-            <div className="mt-3 bg-red-500/20 text-red-100 text-sm px-3 py-2 rounded-lg">
-              ⏰ La date limite de réponse est dépassée
-            </div>
-          )}
         </div>
+        {!isRecap && confirmedTotal >= 2 && (
+          <p className="mx-2 mt-3 text-sm text-stone-600">
+            <span className="font-bold text-stone-900">{confirmedTotal} personnes</span> ont déjà dit oui, accompagnants compris
+          </p>
+        )}
       </div>
 
       {/* === VUE RÉCAPITULATIF (lien de rappel ?recap=1) === */}
       {isRecap && (
-        <div className="max-w-lg mx-auto px-4 -mt-4">
-          <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm space-y-4">
+        <div className="max-w-lg mx-auto px-4 mt-4">
+          <div className="bg-white rounded-3xl p-4 shadow-sm ring-1 ring-stone-900/5 space-y-4">
             <div>
               <h2 className="text-base font-bold text-slate-800">📋 Récapitulatif de l'événement</h2>
               <p className="text-sm text-slate-600 mt-1">{event.event_name}</p>
@@ -892,7 +924,7 @@ export default function InviteClient({ linkId }) {
           </div>
 
           {/* Retrouve ta réponse */}
-          <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm mt-3">
+          <div className="bg-white rounded-3xl p-4 shadow-sm ring-1 ring-stone-900/5 mt-3">
             <label className="block text-sm font-semibold text-slate-700 mb-2">Retrouve ta réponse</label>
             <input
               type="text"
@@ -960,7 +992,7 @@ export default function InviteClient({ linkId }) {
       )}
 
       {(!isRecap || formRevealed) && (
-      <div className="max-w-lg mx-auto px-4 -mt-4">
+      <div className="max-w-lg mx-auto px-4 mt-4">
         <form onSubmit={handleSubmit} className="space-y-4">
           {existingParticipant && (
             <div className="bg-blue-50 border border-blue-200 text-blue-800 text-sm px-4 py-3 rounded-2xl flex items-start gap-2">
@@ -970,14 +1002,16 @@ export default function InviteClient({ linkId }) {
           )}
 
           {/* Nom */}
-          <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-            <label className="block text-sm font-medium text-slate-700 mb-2">Ton prénom (contact)</label>
+          <div className="bg-white rounded-3xl p-4 shadow-sm ring-1 ring-stone-900/5">
+            <label htmlFor="guest-name" className="block font-bold text-stone-900 mb-2">Ton prénom</label>
             <input
               type="text"
               value={guestName}
               onChange={(e) => setGuestName(e.target.value)}
               onBlur={(e) => checkExistingGuest(e.target.value)}
-              placeholder="Prénom du contact"
+              id="guest-name"
+              autoComplete="given-name"
+              placeholder="Ton prénom"
               className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none text-lg"
               required
               disabled={isExpired}
@@ -991,19 +1025,19 @@ export default function InviteClient({ linkId }) {
               <p className="text-orange-700 mt-0.5">L'organisateur a peut-être encore de la place, contacte-le.</p>
               <ContactOrganizerButton
                 label="💬 Contacter l'organisateur"
-                className="inline-block mt-3 text-xs font-semibold bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-full transition-colors"
+                className="inline-block mt-3 text-xs font-semibold bg-green-700 hover:bg-green-800 text-white px-4 py-2 rounded-full transition-colors"
               />
             </div>
           )}
 
           {/* RSVP */}
-          <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-            <label className="block text-sm font-medium text-slate-700 mb-3">Tu viens ?</label>
-            <div className="grid grid-cols-3 gap-2">
+          <div className="bg-white rounded-3xl p-4 shadow-sm ring-1 ring-stone-900/5">
+            <p className="font-bold text-stone-900 mb-3" id="rsvp-label">Tu viens ?</p>
+            <div className="grid grid-cols-3 gap-2" role="group" aria-labelledby="rsvp-label">
               {[
-                { val: 'Confirmé', emoji: '✅', label: 'Oui !' },
-                { val: 'Refusé', emoji: '❌', label: 'Non' },
+                { val: 'Confirmé', emoji: '🙌', label: 'Oui !' },
                 { val: 'Peut-être', emoji: '🤔', label: 'Peut-être' },
+                { val: 'Refusé', emoji: '🙁', label: 'Non' },
               ].map((opt) => {
                 // "Je viens" bloqué quand c'est complet, sauf si l'invité a déjà répondu
                 const blocked = opt.val === 'Confirmé' && isFull && !existingParticipant
@@ -1013,17 +1047,18 @@ export default function InviteClient({ linkId }) {
                     type="button"
                     disabled={isExpired || blocked}
                     onClick={() => setRsvp(opt.val)}
-                    className={`py-4 rounded-xl border-2 text-center transition-all ${
+                    aria-pressed={rsvp === opt.val}
+                    className={`min-h-[72px] py-3 rounded-2xl border-2 bg-white text-center transition-all ${
                       blocked ? 'opacity-40 cursor-not-allowed border-slate-100' :
                       rsvp === opt.val
                         ? opt.val === 'Confirmé' ? 'border-emerald-500 bg-emerald-50'
-                          : opt.val === 'Refusé' ? 'border-red-400 bg-red-50'
-                          : 'border-amber-400 bg-amber-50'
-                        : 'border-slate-100 hover:border-slate-200'
+                          : opt.val === 'Refusé' ? 'border-rose-500 bg-rose-50'
+                          : 'border-amber-500 bg-amber-50'
+                        : 'border-stone-200 hover:border-stone-300'
                     }`}
                   >
-                    <span className="text-2xl block">{opt.emoji}</span>
-                    <span className="text-sm mt-1 block text-slate-600">{opt.label}</span>
+                    <span className="text-2xl block" aria-hidden="true">{opt.emoji}</span>
+                    <span className="text-[15px] mt-1 block font-semibold text-stone-800">{opt.label}</span>
                   </button>
                 )
               })}
@@ -1041,20 +1076,20 @@ export default function InviteClient({ linkId }) {
           {rsvp === 'Confirmé' && (
             <>
               {/* Nombre de personnes */}
-              <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-                <label className="block text-sm font-medium text-slate-700 mb-3">
-                  Tu viens à combien ? <span className="text-blue-500 font-bold">{nbPersonnes}</span>
-                </label>
+              <div className="bg-white rounded-3xl p-4 shadow-sm ring-1 ring-stone-900/5">
+                <p className="font-bold text-stone-900">Vous serez combien ?</p>
+                <p className="text-sm text-stone-600 mb-3">Toi compris{isTournoiComplet ? ' : joueurs et supporters' : ''}</p>
                 <div className="flex gap-2">
                   {[1, 2, 3, 4, 5, 6].map((n) => (
                     <button
                       key={n}
                       type="button"
                       onClick={() => setNbPersonnes(n)}
-                      className={`flex-1 py-3 rounded-xl border-2 text-center font-semibold transition-all ${
+                      aria-pressed={nbPersonnes === n}
+                      className={`flex-1 min-h-[48px] rounded-xl border-2 text-center font-bold transition-all ${
                         nbPersonnes === n
-                          ? 'border-blue-500 bg-blue-50 text-blue-600'
-                          : 'border-slate-100 text-slate-500 hover:border-slate-200'
+                          ? `${theme.selected} text-stone-900`
+                          : 'border-stone-200 text-stone-600 hover:border-stone-300'
                       }`}
                     >
                       {n}
@@ -1066,10 +1101,10 @@ export default function InviteClient({ linkId }) {
                   <div className="mt-3 space-y-2">
                     {companionNames.map((name, i) => (
                       <div key={i}>
-                        <label className="block text-xs font-medium text-slate-600 mb-1">Prénom accompagnant {i + 1}</label>
-                        <input type="text" value={name} onChange={(e) => updateCompanion(i, e.target.value)}
-                          placeholder="Prénom"
-                          className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm" />
+                        <label htmlFor={`companion-${i}`} className="block text-sm font-semibold text-stone-600 mb-1">Prénom accompagnant {i + 1}</label>
+                        <input id={`companion-${i}`} type="text" value={name} onChange={(e) => updateCompanion(i, e.target.value)}
+                          placeholder="Facultatif"
+                          className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-stone-300 focus:border-stone-500 outline-none text-base" />
                       </div>
                     ))}
                   </div>
@@ -1078,7 +1113,7 @@ export default function InviteClient({ linkId }) {
 
               {/* Checklist personnelle (rando) : chacun coche ce qu'il prend POUR LUI, sans verrouillage */}
               {checklistItems.length > 0 && (
-                <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+                <div className="bg-white rounded-3xl p-4 shadow-sm ring-1 ring-stone-900/5">
                   <label className="block text-sm font-medium text-slate-700 mb-1">✅ Équipement & sécurité</label>
                   <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
                     ⚠️ Cette liste est indicative et générée automatiquement. Elle ne remplace pas les consignes de ta fédération, de ton club ou de ton encadrant. Vérifie toujours ton équipement de sécurité avec un professionnel. Sers-toi-en comme mémo : coche au fur et à mesure pour t'assurer, toi et le groupe, de ne rien oublier avant de partir.
@@ -1086,7 +1121,7 @@ export default function InviteClient({ linkId }) {
                   <div className="flex gap-2 mb-3">
                     <button type="button"
                       onClick={() => setCheckedChecklist(Object.fromEntries(checklistItems.map(it => [it.id, true])))}
-                      className="flex-1 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold transition-colors">
+                      className="flex-1 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-semibold transition-colors">
                       ✅ J'ai tout
                     </button>
                     <button type="button"
@@ -1125,34 +1160,20 @@ export default function InviteClient({ linkId }) {
               {event.mode !== 'solo' && allReserved && (
                 <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
                   <p className="text-sm text-emerald-800">
-                    ✅ Super, tout est déjà couvert ! Tu peux ajouter une idée à la liste commune ci-dessous, ou contacter l'organisateur.
+                    ✅ Super, tout est déjà couvert ! Tu peux ajouter une idée à la liste commune plus bas, ou contacter l'organisateur.
                   </p>
                   <ContactOrganizerButton
                     label="💬 Contacter l'organisateur"
-                    className="inline-block mt-3 text-xs font-semibold bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-full transition-colors"
+                    className="inline-block mt-3 text-xs font-semibold bg-green-700 hover:bg-green-800 text-white px-4 py-2 rounded-full transition-colors"
                   />
                 </div>
               )}
 
               {/* Apéro : liste de courses pas encore générée */}
               {isApero && apportItems.length === 0 && (
-                <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm text-center">
+                <div className="bg-white rounded-3xl p-4 shadow-sm ring-1 ring-stone-900/5 text-center">
                   <p className="text-sm text-slate-500">🛒 La liste de courses arrivera une fois qu'on saura qui est partant.</p>
                 </div>
-              )}
-
-              {event.mode !== 'solo' && !isAnnivEnfant && rsvp === 'Confirmé' && (
-                <details className="bg-white rounded-2xl p-4 border border-slate-200">
-                  <summary className="cursor-pointer font-semibold text-slate-800">+ Ajouter quelque chose à la liste commune</summary>
-                  <p className="text-sm text-slate-500 my-2">Une idée en plus ? Elle sera visible par tous dès l’ajout. Chacun pourra ensuite choisir de l’apporter.</p>
-                  <label className="block text-sm">Article<input maxLength={100} value={extraItem.name} onChange={e => setExtraItem(p => ({ ...p, name: e.target.value }))} placeholder="Ex. glaçons, jeu de cartes…" className="block w-full border rounded-lg p-2 my-1" /></label>
-                  <div className="flex gap-3">
-                    <label className="text-sm">Quantité<input type="number" min="1" max="1000" step="1" value={extraItem.quantity} onChange={e => setExtraItem(p => ({ ...p, quantity: e.target.value }))} className="block w-24 border rounded-lg p-2 my-1" /></label>
-                    <label className="text-sm">Unité<input maxLength={30} value={extraItem.unit} onChange={e => setExtraItem(p => ({ ...p, unit: e.target.value }))} className="block w-full border rounded-lg p-2 my-1" /></label>
-                  </div>
-                  <button type="button" disabled={addingItem} onClick={addSharedItem} className="mt-2 rounded-lg bg-blue-600 text-white px-4 py-2 disabled:opacity-50">{addingItem ? 'Ajout…' : 'Proposer cet article à tout le monde'}</button>
-                  {extraFeedback && <p role="status" className="mt-2 text-sm text-slate-600">{extraFeedback}</p>}
-                </details>
               )}
 
               {event.event_type === 'BBQ' && menuInspiration(event.event_options).sources.length > 0 && (
@@ -1165,12 +1186,12 @@ export default function InviteClient({ linkId }) {
 
               {/* Liste d'apports (masquée en mode solo et en anniversaire enfant) */}
               {event.mode !== 'solo' && !isAnnivEnfant && disponibles.length > 0 && (
-                <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    {isApero ? 'Tu prends quoi en charge ?' : "Qu'est-ce que tu apportes ?"}
-                  </label>
-                  <p className="text-xs text-emerald-600 bg-emerald-50 rounded-lg px-3 py-2 mb-3">
-                    {isApero ? 'Réserve une partie des courses (chacun avance sa part) 👇' : 'Plus on partage, plus la fête est réussie ! Choisis ce que tu apportes 👇'}
+                <div className="bg-white rounded-3xl p-4 shadow-sm ring-1 ring-stone-900/5">
+                  <p className="font-bold text-stone-900">
+                    {isApero ? 'Tu prends quoi en charge ?' : 'Ce que tu peux apporter'}
+                  </p>
+                  <p className="text-sm text-stone-600 mt-0.5 mb-3">
+                    {isApero ? 'Réserve une partie des courses : chacun avance sa part.' : 'Touche ce que tu prends. Les quantités sont des repères, pas des obligations.'}
                   </p>
                   {isApero && contributionAmount && (
                     <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 mb-3 text-sm">
@@ -1186,8 +1207,8 @@ export default function InviteClient({ linkId }) {
                   <div className="space-y-4">
                     {[...new Set(disponibles.map(i => i.category || 'Autre'))].map((cat) => (
                       <div key={cat}>
-                        <p className="text-xs font-semibold text-slate-500 mb-2 flex items-center gap-1.5">
-                          <span>{categoryEmojis[cat] || '📦'}</span> {cat}
+                        <p className="text-xs font-bold uppercase tracking-wide text-stone-500 mb-2 flex items-center gap-1.5">
+                          <span aria-hidden="true">{categoryEmojis[cat] || '💡'}</span> {cat === 'Suggestions des invités' ? 'Idées des invités' : cat}
                         </p>
                         {/mat[ée]riel|logistique/i.test(cat) && (
                           <p className="text-xs text-slate-400 mb-2">Coche ce que tu peux apporter.</p>
@@ -1200,60 +1221,58 @@ export default function InviteClient({ linkId }) {
                       return (
                         <div
                           key={item.id}
-                          className={`rounded-xl border-2 transition-all ${
+                          className={`rounded-2xl border-2 transition-all ${
                             selected
-                              ? 'border-emerald-400 bg-emerald-50'
-                              : 'border-slate-100 hover:border-slate-200'
+                              ? 'border-emerald-500 bg-emerald-50'
+                              : 'border-stone-200 hover:border-stone-300'
                           }`}
                         >
                           <button
                             type="button"
                             onClick={() => toggleItem(item.id)}
-                            className="w-full flex items-center justify-between px-3 py-3 text-left"
+                            aria-pressed={selected}
+                            className="w-full min-h-[56px] flex items-center justify-between gap-3 px-3 py-3 text-left"
                           >
-                            <div className="flex items-center gap-3">
-                              <span className="text-lg">{categoryEmojis[item.category] || '📦'}</span>
-                              <div>
-                                <span className="text-sm font-medium text-slate-700">{item.item_name}</span>
-                                <span className="text-xs text-slate-400 ml-2">{item.quantity} {item.unit}</span>
+                            <div className="flex items-center gap-3 min-w-0">
+                              <span className={`shrink-0 w-6 h-6 rounded-md border-2 flex items-center justify-center text-xs ${
+                                selected ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-stone-400 bg-white'
+                              }`} aria-hidden="true">{selected ? '✓' : ''}</span>
+                              <div className="min-w-0">
+                                <span className="text-base text-stone-900 break-words">{item.item_name}</span>
                                 {isApero && item.estimated_price != null && (
-                                  <span className="text-xs text-amber-600 font-medium ml-2">~{Math.round(Number(item.estimated_price))} €</span>
+                                  <span className="text-xs text-amber-800 font-semibold ml-2">~{Math.round(Number(item.estimated_price))} €</span>
                                 )}
                               </div>
                             </div>
-                            <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center text-xs ${
-                              selected
-                                ? 'bg-emerald-500 border-emerald-500 text-white'
-                                : 'border-slate-300'
-                            }`}>
-                              {selected ? '✓' : ''}
-                            </span>
+                            <span className="shrink-0 text-sm font-bold text-amber-950 bg-amber-50 border border-amber-200 rounded-full px-2.5 py-0.5 whitespace-nowrap">{formatQuantity(item.quantity)} {item.unit}</span>
                           </button>
                           {selected && max > 1 && (
                             <div className="flex items-center justify-between px-3 pb-3 pt-1">
-                              <span className="text-xs text-slate-500">Tu en apportes combien ?</span>
+                              <span className="text-sm text-stone-600">Tu en apportes combien ?</span>
                               <div className="flex items-center gap-3">
                                 <button
                                   type="button"
                                   onClick={() => setItemQty(item.id, qty - 1, max)}
                                   disabled={qty <= 1}
-                                  className="w-8 h-8 rounded-lg border-2 border-slate-200 text-slate-600 font-bold disabled:opacity-30"
+                                  aria-label="En apporter un de moins"
+                                  className="w-10 h-10 rounded-xl border-2 border-stone-300 bg-white text-stone-700 font-bold disabled:opacity-30"
                                 >
                                   −
                                 </button>
-                                <span className="text-sm font-semibold text-slate-700 w-14 text-center">{qty} / {max}</span>
+                                <span className="text-sm font-semibold text-slate-700 w-16 text-center tabular-nums">{qty} / {formatQuantity(max)}</span>
                                 <button
                                   type="button"
                                   onClick={() => setItemQty(item.id, qty + 1, max)}
                                   disabled={qty >= max}
-                                  className="w-8 h-8 rounded-lg border-2 border-slate-200 text-slate-600 font-bold disabled:opacity-30"
+                                  aria-label="En apporter un de plus"
+                                  className="w-10 h-10 rounded-xl border-2 border-stone-300 bg-white text-stone-700 font-bold disabled:opacity-30"
                                 >
                                   +
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => setItemQty(item.id, max, max)}
-                                  className="px-2.5 h-8 rounded-lg border-2 border-emerald-300 text-emerald-600 text-xs font-semibold hover:bg-emerald-100 transition-colors"
+                                  className="px-3 h-10 rounded-xl border-2 border-emerald-400 bg-white text-emerald-800 text-sm font-semibold hover:bg-emerald-100 transition-colors"
                                 >
                                   Tout
                                 </button>
@@ -1269,12 +1288,12 @@ export default function InviteClient({ linkId }) {
                   </div>
                   {/* Items déjà pris */}
                   {reserves.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-slate-100">
-                      <p className="text-xs text-slate-400 mb-2">Déjà pris en charge :</p>
+                    <div className="mt-3 pt-3 border-t border-stone-100">
+                      <p className="text-xs font-bold uppercase tracking-wide text-stone-500 mb-2">Déjà pris</p>
                       {reserves.map((item) => (
-                        <div key={item.id} className="flex justify-between items-center py-1 opacity-50">
-                          <span className="text-sm text-slate-400 line-through">{item.item_name}</span>
-                          <span className="text-xs text-emerald-500">{item.assigned_to} ✓</span>
+                        <div key={item.id} className="flex justify-between items-center gap-3 py-2">
+                          <span className="text-sm text-stone-600 min-w-0 break-words">✓ {item.item_name}</span>
+                          <span className="shrink-0 text-xs font-semibold text-emerald-800 bg-emerald-50 rounded-full px-2 py-0.5">{item.assigned_to ? `Pris par ${item.assigned_to}` : 'Pris'}</span>
                         </div>
                       ))}
                     </div>
@@ -1282,9 +1301,23 @@ export default function InviteClient({ linkId }) {
                 </div>
               )}
 
+              {event.mode !== 'solo' && !isAnnivEnfant && rsvp === 'Confirmé' && (
+                <details className="bg-white rounded-3xl p-4 shadow-sm ring-1 ring-stone-900/5">
+                  <summary className="cursor-pointer font-bold text-stone-900 min-h-[28px]">+ Ajouter une idée à la liste commune</summary>
+                  <p className="text-sm text-stone-600 my-2">Elle sera visible par tous les invités. Chacun pourra ensuite choisir de l’apporter.</p>
+                  <label className="block text-sm font-semibold text-stone-600">Article<input maxLength={100} value={extraItem.name} onChange={e => setExtraItem(p => ({ ...p, name: e.target.value }))} placeholder="Ex. glaçons, jeu de cartes…" className="block w-full min-h-[44px] border border-stone-300 rounded-xl px-3 my-1 text-base font-normal text-stone-900" /></label>
+                  <div className="flex gap-3">
+                    <label className="text-sm font-semibold text-stone-600">Quantité<input type="number" min="1" max="1000" step="1" value={extraItem.quantity} onChange={e => setExtraItem(p => ({ ...p, quantity: e.target.value }))} className="block w-24 min-h-[44px] border border-stone-300 rounded-xl px-3 my-1 text-base font-normal text-stone-900" /></label>
+                    <label className="flex-1 text-sm font-semibold text-stone-600">Unité<input maxLength={30} value={extraItem.unit} onChange={e => setExtraItem(p => ({ ...p, unit: e.target.value }))} className="block w-full min-h-[44px] border border-stone-300 rounded-xl px-3 my-1 text-base font-normal text-stone-900" /></label>
+                  </div>
+                  <button type="button" disabled={addingItem} onClick={addSharedItem} className="mt-2 min-h-[48px] w-full rounded-2xl border border-stone-300 bg-white font-semibold text-stone-900 hover:bg-stone-50 disabled:opacity-50">{addingItem ? 'Ajout…' : 'Proposer cet article à tout le monde'}</button>
+                  {extraFeedback && <p role="status" className="mt-2 text-sm text-stone-600">{extraFeedback}</p>}
+                </details>
+              )}
+
               {/* Idées cadeaux */}
               {giftItems.length > 0 && !allReserved && (
-                <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+                <div className="bg-white rounded-3xl p-4 shadow-sm ring-1 ring-stone-900/5">
                   <label className="block text-sm font-medium text-slate-700 mb-1">🎁 Idées cadeaux</label>
                   <p className="text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2 mb-3">
                     Réserve le cadeau que tu offres (pour éviter les doublons), puis achète-le où tu veux. L'app ne gère pas l'achat.
@@ -1311,7 +1344,7 @@ export default function InviteClient({ linkId }) {
                               </span>
                             ) : (
                               <button type="button" onClick={() => reserveGift(gift)} disabled={reservingGiftId === gift.id}
-                                className="shrink-0 text-xs font-semibold bg-pink-500 hover:bg-pink-600 disabled:bg-pink-300 text-white px-3 py-1.5 rounded-full transition-colors">
+                                className="shrink-0 text-xs font-semibold bg-pink-700 hover:bg-pink-800 disabled:bg-pink-300 text-white px-3 py-1.5 rounded-full transition-colors">
                                 {reservingGiftId === gift.id ? '…' : "Je m'en charge"}
                               </button>
                             )}
@@ -1332,7 +1365,7 @@ export default function InviteClient({ linkId }) {
 
               {/* Créneaux d'aide */}
               {slots.length > 0 && (
-                <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+                <div className="bg-white rounded-3xl p-4 shadow-sm ring-1 ring-stone-900/5">
                   <label className="block text-sm font-medium text-slate-700 mb-1">Donne un coup de main ? (optionnel)</label>
                   <p className="text-xs text-slate-400 mb-3">Donne un coup de main si tu peux ! Choisis un ou plusieurs créneaux. Quand un créneau est complet, il se verrouille automatiquement.</p>
                   <div className="space-y-2">
@@ -1395,7 +1428,7 @@ export default function InviteClient({ linkId }) {
 
               {/* Covoiturage */}
               {event.carpool_enabled && (
-                <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+                <div className="bg-white rounded-3xl p-4 shadow-sm ring-1 ring-stone-900/5">
                   <label className="block text-sm font-medium text-slate-700 mb-1">🚗 Covoiturage</label>
                   <p className="text-xs text-slate-400 mb-3">Propose des places ou trouve un trajet avec d'autres invités.</p>
 
@@ -1432,7 +1465,7 @@ export default function InviteClient({ linkId }) {
                           className="flex-1 px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm" />
                       </div>
                       <button type="button" onClick={submitCarpoolOffer} disabled={carpoolSubmitting}
-                        className="w-full py-2.5 bg-blue-500 hover:bg-blue-600 disabled:bg-slate-300 text-white text-sm font-semibold rounded-lg transition-colors">
+                        className="w-full py-2.5 bg-blue-700 hover:bg-blue-800 disabled:bg-slate-300 text-white text-sm font-semibold rounded-lg transition-colors">
                         {carpoolSubmitting ? '…' : 'Publier mon offre'}
                       </button>
                     </div>
@@ -1445,7 +1478,7 @@ export default function InviteClient({ linkId }) {
                         placeholder="Zone de départ (ex : Lyon 3e)"
                         className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm" />
                       <button type="button" onClick={submitCarpoolSearch} disabled={carpoolSubmitting}
-                        className="w-full py-2.5 bg-blue-500 hover:bg-blue-600 disabled:bg-slate-300 text-white text-sm font-semibold rounded-lg transition-colors">
+                        className="w-full py-2.5 bg-blue-700 hover:bg-blue-800 disabled:bg-slate-300 text-white text-sm font-semibold rounded-lg transition-colors">
                         {carpoolSubmitting ? '…' : 'Publier ma demande'}
                       </button>
                     </div>
@@ -1466,7 +1499,7 @@ export default function InviteClient({ linkId }) {
                               </p>
                               {c.phone && (
                                 <a href={`https://wa.me/${cleanPhone(c.phone)}?text=${msg}`} target="_blank" rel="noopener noreferrer"
-                                  className="inline-block mt-1.5 text-xs font-medium bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-full transition-colors">
+                                  className="inline-block mt-1.5 text-xs font-medium bg-green-700 hover:bg-green-800 text-white px-3 py-1 rounded-full transition-colors">
                                   Contacter
                                 </a>
                               )}
@@ -1500,56 +1533,60 @@ export default function InviteClient({ linkId }) {
 
               {/* Vote repas : choix unique parmi les options proposées par l'organisateur */}
               {mealChoices.length > 0 && (
-                <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-                  <label className="block text-sm font-medium text-slate-700 mb-3">🍽 Ton choix de repas</label>
+                <div className="bg-white rounded-3xl p-4 shadow-sm ring-1 ring-stone-900/5">
+                  <p className="font-bold text-stone-900">🍽️ Repas <span className="ml-1 align-middle text-xs font-semibold bg-stone-100 text-stone-700 rounded-full px-2 py-0.5">facultatif</span></p>
+                  <p className="text-sm text-stone-600 mt-0.5 mb-3">Proposé par {event.organizer_name}. Ton choix compte pour tout ton groupe (toi et tes accompagnants).</p>
                   <div className="space-y-2">
                     {mealChoices.map((choice) => (
                       <button
                         key={choice}
                         type="button"
                         onClick={() => setMealChoice(choice)}
-                        className={`w-full text-left rounded-xl border-2 px-3 py-3 transition-all flex items-center justify-between ${
-                          mealChoice === choice ? 'border-emerald-400 bg-emerald-50' : 'border-slate-100 hover:border-slate-200'
+                        aria-pressed={mealChoice === choice}
+                        className={`w-full min-h-[52px] text-left rounded-2xl border-2 px-4 py-3 transition-all flex items-center justify-between ${
+                          mealChoice === choice ? theme.selected : 'border-stone-200 hover:border-stone-300'
                         }`}
                       >
-                        <span className="text-sm font-medium text-slate-700">{choice}</span>
-                        <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center text-xs ${
-                          mealChoice === choice ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-300'
-                        }`}>
+                        <span className="text-base text-stone-900">{choice}</span>
+                        <span className={`w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs ${
+                          mealChoice === choice ? 'bg-stone-900 border-stone-900 text-white' : 'border-stone-400'
+                        }`} aria-hidden="true">
                           {mealChoice === choice ? '✓' : ''}
                         </span>
                       </button>
                     ))}
                   </div>
-                  <p className="text-xs text-slate-400 mt-2">Choisis une préférence pour tout ton groupe (toi + accompagnants). C'est une indication, le repas sera décidé à la majorité.</p>
+                  <p className="text-sm text-stone-600 mt-2">C’est une indication pour l’organisation du repas. Tu peux ne rien choisir.</p>
                 </div>
               )}
 
               {/* Bénévolat (tournoi complet) : simple déclaration d'intérêt */}
               {isTournoiComplet && (
-                <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-                  <label className="flex items-start gap-2 cursor-pointer">
+                <div className="bg-white rounded-3xl p-4 shadow-sm ring-1 ring-stone-900/5">
+                  <label className="flex items-start gap-3 cursor-pointer">
                     <input type="checkbox" checked={isVolunteer}
                       onChange={(e) => setIsVolunteer(e.target.checked)}
-                      className="w-4 h-4 mt-0.5 accent-blue-500" />
-                    <span className="text-sm text-slate-700">🙋 Je suis prêt(e) à donner un coup de main comme bénévole</span>
+                      className={`w-6 h-6 mt-0.5 shrink-0 ${theme.check}`} />
+                    <span><span className="block font-bold text-stone-900">Je peux donner un coup de main</span>
+                      <span className="block text-sm text-stone-600">Installation, buvette, arbitrage… L’organisateur répartit les postes ensuite.</span></span>
                   </label>
                 </div>
               )}
 
               {/* Restrictions alimentaires */}
-              <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-                <label className="block text-sm font-medium text-slate-700 mb-3">Restrictions alimentaires ?</label>
+              <div className="bg-white rounded-3xl p-4 shadow-sm ring-1 ring-stone-900/5">
+                <p className="font-bold text-stone-900 mb-3">Restrictions alimentaires ?</p>
                 <div className="flex flex-wrap gap-2">
                   {restrictions.map((r) => (
                     <button
                       key={r}
                       type="button"
                       onClick={() => setSelectedRestrictions(prev => prev.includes(r) ? prev.filter(x => x !== r) : [...prev, r])}
-                      className={`px-3 py-1.5 rounded-full text-sm border transition-all ${
+                      aria-pressed={selectedRestrictions.includes(r)}
+                      className={`min-h-[40px] px-3.5 rounded-full text-sm border-2 transition-all ${
                         selectedRestrictions.includes(r)
-                          ? 'border-purple-400 bg-purple-50 text-purple-700'
-                          : 'border-slate-200 text-slate-500 hover:border-slate-300'
+                          ? 'border-violet-600 bg-violet-50 text-violet-900 font-semibold'
+                          : 'border-stone-200 text-stone-700 hover:border-stone-300'
                       }`}
                     >
                       {r}
@@ -1559,12 +1596,13 @@ export default function InviteClient({ linkId }) {
               </div>
 
               {/* Commentaire */}
-              <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-                <label className="block text-sm font-medium text-slate-700 mb-2">Commentaire pour l’organisateur</label>
+              <div className="bg-white rounded-3xl p-4 shadow-sm ring-1 ring-stone-900/5">
+                <label htmlFor="guest-comment" className="block font-bold text-stone-900 mb-2">Un mot pour {event.organizer_name} <span className="font-normal text-stone-600">(facultatif)</span></label>
                 <textarea
+                  id="guest-comment"
                   value={commentaire}
                   onChange={(e) => setCommentaire(e.target.value)}
-                  placeholder="Ex. Je serai un peu en retard. Pour ajouter un apport, utilise la liste commune ci-dessus."
+                  placeholder="Allergies, retard prévu…"
                   rows={2}
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none resize-none text-sm"
                 />
@@ -1574,22 +1612,35 @@ export default function InviteClient({ linkId }) {
 
           {/* Submit */}
           {rsvp && (
-            <button
-              type="submit"
-              disabled={submitting || isExpired || !guestName}
-              className="w-full bg-blue-500 hover:bg-blue-600 disabled:bg-slate-300 text-white font-semibold py-4 rounded-2xl transition-colors text-lg mb-8"
-            >
-              {submitting ? '⏳ Envoi...' : existingParticipant ? 'Mettre à jour ma réponse' : 'Confirmer ma réponse'}
-            </button>
+            <div className="sticky bottom-0 z-10 -mx-4 px-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-cream/95 backdrop-blur shadow-[0_-8px_16px_rgba(28,25,23,0.06)]">
+              {rsvp === 'Confirmé' && (
+                <p className="text-sm text-stone-600 text-center mb-2" aria-live="polite">
+                  {[
+                    `${nbPersonnes} personne${nbPersonnes > 1 ? 's' : ''}`,
+                    Object.keys(selectedItems).length > 0 && `${Object.keys(selectedItems).length} apport${Object.keys(selectedItems).length > 1 ? 's' : ''}`,
+                    mealChoice && `repas : ${mealChoice}`,
+                    isVolunteer && 'bénévole',
+                  ].filter(Boolean).join(' · ')}
+                </p>
+              )}
+              {!guestName && <p className="text-sm text-stone-600 text-center mb-2">Indique ton prénom pour envoyer ta réponse.</p>}
+              <button
+                type="submit"
+                disabled={submitting || isExpired || !guestName}
+                className={`w-full min-h-[52px] disabled:bg-stone-300 disabled:text-stone-600 text-white font-bold rounded-2xl transition-colors text-lg ${theme.button}`}
+              >
+                {submitting ? 'Envoi…' : existingParticipant ? 'Mettre à jour ma réponse' : 'Envoyer ma réponse'}
+              </button>
+            </div>
           )}
         </form>
 
         {/* Contact organisateur : toujours disponible si un numéro existe */}
         {organizerWaLink && (
-          <div className="text-center pb-10 -mt-4">
+          <div className="text-center pt-4 pb-10">
             <ContactOrganizerButton
               label="💬 Une question ? Contacter l'organisateur"
-              className="inline-block text-sm font-medium text-green-600 hover:text-green-700 underline"
+              className="inline-block text-sm font-semibold text-green-800 hover:text-green-900 underline"
             />
           </div>
         )}

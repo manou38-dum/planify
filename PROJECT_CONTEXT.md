@@ -1,6 +1,6 @@
 # Planify — contexte partagé du projet
 
-Dernière mise à jour : 29 septembre 2026. Ce fichier est le point de reprise commun pour Claude, Codex et les autres assistants. Ne jamais y mettre de clé ou de valeur d’environnement secrète.
+Dernière mise à jour : 29 septembre 2026 (Claude : design et textes). Ce fichier est le point de reprise commun pour Claude, Codex et les autres assistants. Ne jamais y mettre de clé ou de valeur d’environnement secrète.
 
 ## Produit
 
@@ -43,7 +43,9 @@ Planify aide un organisateur à créer un événement, envoyer un lien d’invit
 
 ## Collaboration et vérification
 
-Codex prend les catégories, les listes et le parcours tournoi. Claude prépare les propositions visuelles mobiles et les textes dans `docs/maquettes/`, sans modifier les pages applicatives avant validation du design.
+Répartition (décision du propriétaire, 29 septembre 2026) : **Claude prend le design et les textes** (présentation mobile, accroches, messages à partager). **Codex garde les corrections fonctionnelles et les rappels automatiques** (catégories, listes, parcours tournoi, logique d'envoi). Ne pas modifier le domaine de l'autre sans note de reprise.
+
+Avancement Claude (29 septembre 2026) : maquette mobile validée par le propriétaire (`docs/maquettes/`). Intégration sur la branche `claude/mobile-ui-refresh`, partie de `codex/outdoor-and-tournament-lists` car la PR #9 n'était pas fusionnée ; la PR de Claude dépend de la PR #9. Changements d'affichage et de textes uniquement : invitation, confirmation, tableau organisateur, `lib/invitation.mjs`, nouveau `lib/ui-theme.mjs`, couleur `cream` dans Tailwind. Aucune requête Supabase, aucun champ `event_options`, aucune migration modifiés. Build et tests existants OK ; parcours vérifiés à 375 px sur une base simulée ; essai sur la vraie base à faire sur l'aperçu Vercel. Détail et points signalés à Codex dans `docs/maquettes/INTEGRATION.md`. Les messages préparés ne promettent aucun envoi automatique.
 
 Tournoi : repas facultatif avec choix modifiables via `event_options.meal_choices`, utilisant le vote existant des invités. Aucune liste de courses à apporter. Désactiver le repas retire les choix lors de la création.
 
