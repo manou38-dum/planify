@@ -1,4 +1,4 @@
-import { LegalLayout, Section, AFaire } from '../components/LegalLayout'
+import { LegalLayout, Section, AFaire, Contact } from '../components/LegalLayout'
 
 export const metadata = {
   title: 'Confidentialité — Planify',
@@ -20,7 +20,7 @@ export default function Confidentialite() {
       </Section>
 
       <Section title="Qui est responsable de vos données">
-        <p>L’éditeur de Planify, décrit dans les <a href="/mentions-legales" className="text-orange-800 font-semibold underline underline-offset-2">mentions légales</a>, est responsable du traitement. Contact pour toute question sur vos données : <AFaire>adresse e-mail de contact</AFaire>.</p>
+        <p>Planify est édité par un particulier, à titre non professionnel (voir les <a href="/mentions-legales" className="text-orange-800 font-semibold underline underline-offset-2">mentions légales</a>). Il est responsable du traitement de vos données. Contact pour toute question sur vos données : <Contact />.</p>
       </Section>
 
       <Section title="Ce que Planify enregistre">
@@ -58,7 +58,7 @@ export default function Confidentialite() {
       </Section>
 
       <Section title="Vos droits">
-        <p>Vous pouvez demander à consulter, corriger ou supprimer vos données, ou vous opposer à leur utilisation, en écrivant à <AFaire>adresse e-mail de contact</AFaire>. Nous répondons sous un mois.</p>
+        <p>Vous pouvez demander à consulter, corriger ou supprimer vos données, ou vous opposer à leur utilisation, en écrivant à <Contact />. Nous répondons sous un mois.</p>
         <p>Si vous estimez que vos droits ne sont pas respectés, vous pouvez saisir la CNIL (cnil.fr).</p>
       </Section>
     </LegalLayout>

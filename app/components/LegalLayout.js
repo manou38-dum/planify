@@ -27,3 +27,11 @@ export function Section({ title, children }) {
 export function AFaire({ children }) {
   return <mark className="bg-amber-100 text-amber-950 rounded px-1">[À compléter : {children}]</mark>
 }
+
+// Adresse de contact affichée sur les pages légales : à renseigner ici une seule fois.
+export const CONTACT_EMAIL = 'contact.planify@manoulabs.com'
+
+export function Contact() {
+  if (!CONTACT_EMAIL) return <AFaire>adresse e-mail de contact</AFaire>
+  return <a href={`mailto:${CONTACT_EMAIL}`} className="text-orange-800 font-semibold underline underline-offset-2">{CONTACT_EMAIL}</a>
+}
