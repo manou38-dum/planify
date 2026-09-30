@@ -1,4 +1,4 @@
-import { LegalLayout, Section, AFaire, Contact } from '../components/LegalLayout'
+import { LegalLayout, Section, Contact } from '../components/LegalLayout'
 
 export const metadata = {
   title: 'Confidentialité — Planify',
@@ -49,7 +49,7 @@ export default function Confidentialite() {
       </Section>
 
       <Section title="Combien de temps">
-        <p>Un événement et ses réponses sont conservés jusqu’à ce que l’organisateur le supprime. <AFaire>durée maximale de conservation après la date de l’événement, par exemple 12 mois, une fois la suppression automatique en place</AFaire></p>
+        <p>Un événement et ses réponses sont conservés jusqu’à ce que l’organisateur le supprime, et au plus 12 mois après la date de l’événement : passé ce délai, l’événement, toutes les réponses et la photo sont supprimés automatiquement, dans les 24 heures.</p>
         <p>Un invité qui souhaite retirer sa réponse peut le demander à l’organisateur ou à nous directement.</p>
       </Section>
 
