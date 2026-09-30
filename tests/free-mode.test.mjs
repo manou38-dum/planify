@@ -57,3 +57,19 @@ test('calculation summary only mentions barbecue for a BBQ and only for chosen l
   assert.match(freeLists(['cadeaux'], 12, {}, 'Anniversaire').menu_resume, /réserver un cadeau/i)
   assert.doesNotMatch(freeLists(['boissons'], 12, {}, 'Soirée').menu_resume, /Repas|Vaisselle/)
 })
+
+test('birthday gifts are concrete suggestions matched to the selected interests', () => {
+  const result = freeLists(['cadeaux'], 12, {
+    anniv_type: 'enfant',
+    age: '8',
+    centres_interet: 'dessin et espace',
+    theme: true,
+    theme_detail: 'astronomie',
+  }, 'Anniversaire')
+  const gifts = result.lists.find(list => list.behavior === 'cadeau')
+  assert.equal(gifts.list_name, 'Idées cadeaux')
+  assert.ok(gifts.items.length >= 4)
+  assert.ok(gifts.items.some(item => /dessin|espace|astronomie/i.test(item.item_name)))
+  assert.ok(gifts.items.every(item => item.quantity === 1 && item.unit === 'cadeau'))
+  assert.ok(gifts.items.every(item => !/a préciser/i.test(item.item_name)))
+})
