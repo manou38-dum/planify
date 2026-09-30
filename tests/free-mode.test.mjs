@@ -42,3 +42,15 @@ test('lists respect selection, vegetarian choice, and dessert option', () => {
   assert.ok(!data.lists[0].items.some(i => /viande|dessert/i.test(i.item_name)))
   assert.equal(freeLists(['planning'], 8).lists.length, 0)
 })
+
+test('calculation summary only mentions barbecue for a BBQ and only for chosen lists', () => {
+  for (const type of ['Soirée', 'Anniversaire', 'Match/Tournoi', 'Randonnée', 'Autre']) {
+    const { menu_resume } = freeLists(['menu', 'boissons', 'materiel'], 12, {}, type)
+    assert.doesNotMatch(menu_resume, /grillade|barbecue|BBQ/i, type)
+    assert.match(menu_resume, /Base pour 12 personnes/)
+  }
+  assert.match(freeLists(['menu', 'materiel'], 12, {}, 'BBQ').menu_resume, /grillades.*barbecue/s)
+  assert.equal(freeLists(['planning'], 12, {}, 'Match/Tournoi').menu_resume, '')
+  assert.equal(freeLists(['cadeaux'], 12, {}, 'Anniversaire').menu_resume, '')
+  assert.doesNotMatch(freeLists(['boissons'], 12, {}, 'Soirée').menu_resume, /Repas|Vaisselle/)
+})
