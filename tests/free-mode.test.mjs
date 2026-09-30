@@ -67,9 +67,10 @@ test('birthday gifts are concrete suggestions matched to the selected interests'
     theme_detail: 'astronomie',
   }, 'Anniversaire')
   const gifts = result.lists.find(list => list.behavior === 'cadeau')
-  assert.equal(gifts.list_name, 'Idées cadeaux')
-  assert.ok(gifts.items.length >= 4)
+  assert.equal(gifts.list_name, 'Ses envies cadeaux')
+  assert.ok(gifts.items.length >= 6)
   assert.ok(gifts.items.some(item => /dessin|espace|astronomie/i.test(item.item_name)))
   assert.ok(gifts.items.every(item => item.quantity === 1 && item.unit === 'cadeau'))
+  assert.ok(gifts.items.every(item => Number.isFinite(item.estimated_price) && item.estimated_price > 0))
   assert.ok(gifts.items.every(item => !/a préciser/i.test(item.item_name)))
 })
