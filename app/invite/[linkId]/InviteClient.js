@@ -529,18 +529,7 @@ export default function InviteClient({ linkId }) {
           await supabase.from('slot_signups').insert(rows)
         }
 
-        // Recalculer current_count de chaque créneau impacté
-        const affected = new Set([
-          ...chosenSlotIds,
-          ...signups.filter(s => s.participant_id === participant.id).map(s => s.slot_id),
-        ])
-        for (const slotId of affected) {
-          const { count } = await supabase
-            .from('slot_signups')
-            .select('*', { count: 'exact', head: true })
-            .eq('slot_id', slotId)
-          await supabase.from('slots').update({ current_count: count || 0 }).eq('id', slotId)
-        }
+        // Le nombre de personnes inscrites est déduit des inscriptions elles-mêmes.
       }
 
       // Mémoriser les créneaux choisis pour le récap post-soumission

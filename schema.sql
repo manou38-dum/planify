@@ -15,6 +15,7 @@ CREATE TABLE events (
   organizer_name TEXT NOT NULL,
   invite_link_id TEXT UNIQUE DEFAULT substr(md5(random()::text), 1, 8),
   status TEXT DEFAULT 'Actif',
+  organizer_token_hash TEXT,
   event_options JSONB DEFAULT '{}'::jsonb,
   created_at TIMESTAMPTZ DEFAULT now()
 );
@@ -93,7 +94,8 @@ CREATE INDEX idx_events_invite ON events(invite_link_id);
 CREATE INDEX idx_lists_event ON lists(event_id);
 CREATE INDEX idx_items_list ON items(list_id);
 
--- ACTIVER Row Level Security (mais tout public pour V1)
+-- ACTIVER Row Level Security. Les politiques sûres sont dans security-rls.sql :
+-- exécute ce fichier juste après celui-ci dans Supabase SQL Editor.
 ALTER TABLE events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE participants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE items ENABLE ROW LEVEL SECURITY;
@@ -102,28 +104,5 @@ ALTER TABLE lists ENABLE ROW LEVEL SECURITY;
 ALTER TABLE checklist_validations ENABLE ROW LEVEL SECURITY;
 
 -- Policies : tout public pour la V1 (on ajoutera l'auth plus tard)
-CREATE POLICY "Public read events" ON events FOR SELECT USING (true);
-CREATE POLICY "Public insert events" ON events FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public update events" ON events FOR UPDATE USING (true);
-
-CREATE POLICY "Public read participants" ON participants FOR SELECT USING (true);
-CREATE POLICY "Public insert participants" ON participants FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public update participants" ON participants FOR UPDATE USING (true);
-
-CREATE POLICY "Public read items" ON items FOR SELECT USING (true);
-CREATE POLICY "Public insert items" ON items FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public update items" ON items FOR UPDATE USING (true);
-
-CREATE POLICY "Public read slots" ON slots FOR SELECT USING (true);
-CREATE POLICY "Public insert slots" ON slots FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public update slots" ON slots FOR UPDATE USING (true);
-
-CREATE POLICY "Public read lists" ON lists FOR SELECT USING (true);
-CREATE POLICY "Public insert lists" ON lists FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public update lists" ON lists FOR UPDATE USING (true);
-CREATE POLICY "Public delete lists" ON lists FOR DELETE USING (true);
-
-CREATE POLICY "Public read checklist_validations" ON checklist_validations FOR SELECT USING (true);
-CREATE POLICY "Public insert checklist_validations" ON checklist_validations FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public update checklist_validations" ON checklist_validations FOR UPDATE USING (true);
-CREATE POLICY "Public delete checklist_validations" ON checklist_validations FOR DELETE USING (true);
+-- Ne crée jamais de politiques `USING (true)` sur ces tables : elles exposeraient
+-- tous les événements via la clé publique. Voir security-rls.sql.

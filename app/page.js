@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { getSupabase } from '@/lib/supabase'
+import { organizerTokenEntries } from '@/lib/event-access'
 import Link from 'next/link'
 import { eventTheme } from '@/lib/ui-theme.mjs'
 
@@ -13,12 +14,11 @@ export default function Home() {
   }, [])
 
   async function loadEvents() {
-    const supabase = getSupabase()
-    const { data } = await supabase
-      .from('events')
-      .select('*')
-      .order('date', { ascending: true })
-    setEvents(data || [])
+    const loaded = await Promise.all(organizerTokenEntries().map(async ([id, organizerToken]) => {
+      const { data } = await getSupabase({ organizerToken }).from('events').select('*').eq('id', id).single()
+      return data
+    }))
+    setEvents(loaded.filter(Boolean).sort((a, b) => new Date(a.date) - new Date(b.date)))
     setLoading(false)
   }
 
@@ -26,7 +26,9 @@ export default function Home() {
     e.preventDefault()
     e.stopPropagation()
     if (!window.confirm('Supprimer cet événement de façon définitive ?')) return
-    const supabase = getSupabase()
+    const organizerToken = organizerTokenEntries().find(([id]) => id === eventId)?.[1]
+    if (!organizerToken) return
+    const supabase = getSupabase({ organizerToken })
     await supabase.from('events').delete().eq('id', eventId)
     setEvents(prev => prev.filter(ev => ev.id !== eventId))
   }
