@@ -5,6 +5,7 @@ import { eventTheme, formatQuantity } from '@/lib/ui-theme.mjs'
 import { useState, useEffect } from 'react'
 import { useSharedItems } from '@/lib/use-shared-items'
 import { getSupabase } from '@/lib/supabase'
+import { organizerTokenFor } from '@/lib/event-access'
 import { useParams, useRouter } from 'next/navigation'
 import { QRCodeSVG } from 'qrcode.react'
 
@@ -36,6 +37,10 @@ export default function EventDashboard() {
   const [signups, setSignups] = useState([])
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
+  // Lien organisateur : gardé dans ce navigateur ; on invite l'organisateur à se l'envoyer une fois.
+  const [adminLink, setAdminLink] = useState('')
+  const [adminSaved, setAdminSaved] = useState(true)
+  const [adminCopied, setAdminCopied] = useState(false)
   const [showQR, setShowQR] = useState(false)
   const [shareNotice, setShareNotice] = useState('')
   const [showAllParticipants, setShowAllParticipants] = useState(false)
@@ -66,6 +71,26 @@ export default function EventDashboard() {
   const [saving, setSaving] = useState(false)
 
   useSharedItems(event?.id, setItems, setLists, saving || recalculating || !!editingItem)
+
+  useEffect(() => {
+    if (!event?.id) return
+    const token = organizerTokenFor(event.id)
+    if (!token) return
+    setAdminLink(`${window.location.origin}/event/${event.id}#admin=${token}`)
+    try { setAdminSaved(window.localStorage.getItem(`planify.admin-saved.${event.id}`) === '1') } catch { setAdminSaved(false) }
+  }, [event?.id])
+
+  function markAdminSaved() {
+    try { window.localStorage.setItem(`planify.admin-saved.${event.id}`, '1') } catch {}
+    setAdminSaved(true)
+  }
+  async function copyAdminLink() {
+    try { await navigator.clipboard.writeText(adminLink); setAdminCopied(true); setTimeout(() => setAdminCopied(false), 2000) } catch {}
+  }
+  function sendAdminLinkToMe() {
+    const text = `Mon lien organisateur Planify pour ${event.event_name} (à garder pour moi, ne pas partager) :\n${adminLink}`
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
+  }
 
   useEffect(() => {
     loadAll()
@@ -823,6 +848,21 @@ export default function EventDashboard() {
         </div>
       </div>
 
+      {/* === LIEN ORGANISATEUR : à garder pour gérer l'événement depuis un autre appareil === */}
+      {adminLink && (
+        adminSaved ? null : (
+          <section aria-labelledby="lien-orga" className="rounded-3xl border-2 border-amber-400 bg-amber-50 p-4 mb-4">
+            <h2 id="lien-orga" className="font-bold text-lg text-amber-950">Garde ton lien organisateur</h2>
+            <p className="text-sm text-amber-950 mt-1">C’est la clé de ton événement. Sans lui, impossible de le gérer depuis un autre téléphone ou si ton navigateur est effacé. Envoie-le-toi, et ne le partage pas.</p>
+            <div className="grid grid-cols-2 gap-2 mt-3">
+              <button onClick={sendAdminLinkToMe} className="min-h-[48px] rounded-2xl bg-green-700 hover:bg-green-800 text-white font-bold text-sm">M’envoyer sur WhatsApp</button>
+              <button onClick={copyAdminLink} className="min-h-[48px] rounded-2xl bg-white border-2 border-amber-300 font-bold text-sm text-stone-900">{adminCopied ? 'Lien copié' : 'Copier le lien'}</button>
+            </div>
+            <button onClick={markAdminSaved} className="w-full mt-2 min-h-[44px] text-sm font-semibold text-amber-900 underline underline-offset-2">C’est fait, je l’ai gardé</button>
+          </section>
+        )
+      )}
+
       {/* === EN UN COUP D'ŒIL : trois chiffres === */}
       <section aria-labelledby="resume" className="bg-white rounded-3xl shadow-sm ring-1 ring-stone-900/5 p-4 mb-4">
         <h2 id="resume" className="text-base font-bold text-stone-900">En un coup d’œil</h2>
@@ -1270,6 +1310,16 @@ export default function EventDashboard() {
       <section id="partager" aria-labelledby="partager-titre" className="scroll-mt-4">
       <h2 id="partager-titre" className="text-lg font-bold text-stone-900 mt-2">Partager et relancer</h2>
       <p className="text-sm text-stone-600 mb-3">Planify prépare le message, c’est toi qui l’envoies, à qui tu veux. Rien ne part tout seul.</p>
+      {adminLink && adminSaved && (
+        <details className="bg-white rounded-2xl ring-1 ring-stone-900/5 px-4 py-3 mb-3">
+          <summary className="cursor-pointer text-sm font-semibold text-stone-800 min-h-[28px]">Ton lien organisateur (privé)</summary>
+          <p className="text-sm text-stone-600 mt-2">Pour gérer l’événement depuis un autre appareil. Ne l’envoie pas à tes invités.</p>
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            <button onClick={sendAdminLinkToMe} className="min-h-[44px] rounded-xl bg-green-700 text-white font-semibold text-sm">M’envoyer sur WhatsApp</button>
+            <button onClick={copyAdminLink} className="min-h-[44px] rounded-xl border-2 border-stone-200 font-semibold text-sm">{adminCopied ? 'Lien copié' : 'Copier le lien'}</button>
+          </div>
+        </details>
+      )}
       {/* === PARTAGE CIBLÉ TOURNOI : familles toujours, bénévoles une fois les postes créés === */}
       {event.event_type === 'Match/Tournoi' && (
         <div className={`grid gap-2 mb-4 ${slots.length > 0 ? 'grid-cols-2' : 'grid-cols-1'}`}>

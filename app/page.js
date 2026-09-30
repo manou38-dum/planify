@@ -99,6 +99,7 @@ export default function Home() {
         <div className="bg-white rounded-3xl shadow-sm ring-1 ring-stone-900/5 p-6 text-center">
           <p className="font-bold text-lg">Aucun événement pour l’instant</p>
           <p className="text-stone-700 mt-1">BBQ, anniversaire, sortie ou tournoi : décris-le en une phrase, Planify prépare l’invitation et la liste.</p>
+          <p className="text-sm text-stone-600 mt-3">Tu as déjà créé un événement sur un autre appareil ? Ouvre ton lien organisateur ici une fois : il réapparaîtra dans cette liste.</p>
         </div>
       ) : (
         <div className="space-y-8">
