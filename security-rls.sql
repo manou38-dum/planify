@@ -3,22 +3,30 @@
 -- La migration est atomique : les anciennes politiques publiques disparaissent avec les nouvelles.
 
 create or replace function public.planify_header(header_name text)
-returns text language sql stable as $$
+returns text language sql stable
+set search_path = public, extensions
+as $$
   select coalesce(current_setting('request.headers', true), '{}')::json ->> lower(header_name)
 $$;
 
 create or replace function public.planify_token_hash(token text)
-returns text language sql immutable strict as $$
-  select encode(digest(token, 'sha256'), 'hex')
+returns text language sql immutable strict
+set search_path = public, extensions
+as $$
+  select encode(extensions.digest(token, 'sha256'), 'hex')
 $$;
 
 create or replace function public.planify_is_owner(token_hash text)
-returns boolean language sql stable as $$
+returns boolean language sql stable
+set search_path = public, extensions
+as $$
   select token_hash is not null and token_hash = public.planify_token_hash(public.planify_header('x-planify-organizer-token'))
 $$;
 
 create or replace function public.planify_has_event_access(event_uuid uuid)
-returns boolean language sql stable as $$
+returns boolean language sql stable
+set search_path = public, extensions
+as $$
   select exists (
     select 1 from public.events e
     where e.id = event_uuid
@@ -30,7 +38,9 @@ returns boolean language sql stable as $$
 $$;
 
 create or replace function public.planify_owns_event(event_uuid uuid)
-returns boolean language sql stable as $$
+returns boolean language sql stable
+set search_path = public, extensions
+as $$
   select exists (
     select 1 from public.events e
     where e.id = event_uuid and public.planify_is_owner(e.organizer_token_hash)

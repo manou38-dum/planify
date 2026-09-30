@@ -12,6 +12,8 @@ test('organizer tokens are strong and only their hash is stored', async () => {
 test('RLS migration has no public access policy and covers every event table', async () => {
   const sql = await readFile(new URL('../security-rls.sql', import.meta.url), 'utf8')
   assert.doesNotMatch(sql, /using\s*\(\s*true\s*\)/i)
+  assert.match(sql, /extensions\.digest\(token, 'sha256'\)/)
+  assert.equal((sql.match(/set search_path = public, extensions/g) || []).length, 5)
   for (const table of ['events', 'participants', 'items', 'lists', 'slots', 'slot_signups', 'carpool', 'checklist_validations']) {
     assert.match(sql, new RegExp(`alter table public\\.${table} enable row level security`, 'i'))
   }
