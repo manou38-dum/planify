@@ -1,5 +1,6 @@
 import { generateText } from '@/lib/ai'
 import { freeLists, useFreeMode } from '@/lib/free-mode.mjs'
+import { activityPlanning, matchSportActivity } from '@/lib/activity-planning.mjs'
 import { SAFETY_CHECKLISTS, matchActivity } from '@/lib/safety-checklists'
 
 // L'IA peut prendre plusieurs secondes : on laisse de la marge côté serveur
@@ -237,19 +238,6 @@ Correspondance :
           { slot_name: 'Rangement', description: 'Ranger, nettoyer, sortir les poubelles. Départs échelonnés : viens quand tu peux.', start_time: fmt(startMin + 180), duration_minutes: 60, max_participants: maxP },
         ]
       }
-      // Tournoi : des POSTES à quotas (arbitrage, buvette, montage…), modifiables par l'organisateur
-      if (type === 'Match/Tournoi') {
-        const postes = [
-          { slot_name: 'Montage des terrains', description: 'Installer les terrains, filets, plots, tables et chaises', start_time: fmt(startMin - 90), duration_minutes: 90, max_participants: 6 },
-          { slot_name: 'Arbitrage', description: 'Arbitrer les matchs selon le planning', start_time: fmt(startMin), duration_minutes: 300, max_participants: 6 },
-          { slot_name: 'Buvette', description: 'Tenir la buvette, servir boissons et snacks', start_time: fmt(startMin), duration_minutes: 300, max_participants: 4 },
-          { slot_name: 'Accueil / Parking', description: 'Accueillir, orienter les familles, gérer le parking', start_time: fmt(startMin - 30), duration_minutes: 120, max_participants: 3 },
-          { slot_name: 'Rangement', description: 'Ranger terrains et matériel, nettoyer. Départs échelonnés.', start_time: fmt(startMin + 300), duration_minutes: 60, max_participants: 6 },
-        ]
-        return event_options?.aide_installation === false
-          ? postes.filter(poste => !/montage|installation/i.test(poste.slot_name))
-          : postes
-      }
       return [
         { slot_name: 'Installation', description: 'Montage tables, chaises, matériel', start_time: fmt(startMin - 120), duration_minutes: 90, max_participants: maxP },
         { slot_name: 'Accueil', description: 'Accueil des invités', start_time: fmt(startMin - 30), duration_minutes: 30, max_participants: maxP },
@@ -276,8 +264,11 @@ Correspondance :
     if (wantsPlanning) {
       if (event_type === 'Match/Tournoi') {
         // Tournoi : postes adaptés au sport proposés par l'IA, repli sur le jeu générique déterministe
+        // Sport reconnu : postes relus du tableau. Sinon : postes de l'IA s'il y en a, puis postes génériques « À remplir ».
         const aiPostes = sanitizePlanning(data.planning)
-        planningFinal = aiPostes.length > 0 ? aiPostes : buildPlanning(heureDebut, nb_participants, event_type)
+        planningFinal = matchSportActivity(event_options?.sport) || aiPostes.length === 0
+          ? activityPlanning(event_options?.sport, heureDebut, nb_participants, event_options || {})
+          : aiPostes
       } else {
         planningFinal = buildPlanning(heureDebut, nb_participants, event_type)
       }
