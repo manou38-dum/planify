@@ -761,7 +761,7 @@ export default function EventDashboard() {
 
   return (
     <div className="min-h-screen bg-cream text-stone-900">
-    <div className="max-w-md mx-auto px-4 py-6 pb-12">
+    <div className="max-w-md mx-auto px-4 py-6 pb-32">
       {/* Retour */}
       <button
         onClick={() => router.push('/')}
@@ -785,62 +785,101 @@ export default function EventDashboard() {
         </div>
       )}
 
-      {/* === EN-TÊTE RÉSUMÉ === */}
-      <div className="bg-white rounded-3xl shadow-sm ring-1 ring-stone-900/5 p-5 mb-4">
+      {/* === EN-TÊTE (maquette v3) === */}
+      <div className={`rounded-3xl px-5 py-4 mb-4 ${eventTheme(event.event_type).hero}`}>
         <div className="flex items-start justify-between gap-3">
-          <h1 className="text-xl font-extrabold text-slate-900 leading-tight flex items-center gap-2">
-            <span>{typeEmoji}</span>
-            <span>{event.event_name}</span>
-          </h1>
-          <span className={`shrink-0 text-xs font-semibold px-3 py-1 rounded-full ${
-            isExpired ? 'bg-slate-100 text-slate-500'
-              : isFull ? 'bg-emerald-700 text-white'
-              : 'bg-emerald-100 text-emerald-700'
-          }`}>
+          <h1 className="text-2xl font-extrabold text-stone-900 leading-tight tracking-tight text-balance min-w-0">{event.event_name}</h1>
+          <span aria-hidden="true" className="text-4xl leading-none shrink-0">{typeEmoji}</span>
+        </div>
+        <p className="text-sm text-stone-800 mt-1 first-letter:uppercase">
+          {new Date(event.date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
+          {event.location ? ` · ${event.location}` : ''}
+        </p>
+        {event.event_type === 'Anniversaire' && (event.event_options?.pour_qui || event.event_options?.surprise) && (
+          <p className="text-sm text-stone-800 mt-1 flex flex-wrap items-center gap-2">
+            {event.event_options?.pour_qui && <span>Pour {event.event_options.pour_qui}</span>}
+            {event.event_options?.surprise && <span className="bg-white/80 text-amber-900 text-xs font-semibold px-2 py-0.5 rounded-full">Surprise</span>}
+          </p>
+        )}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="bg-white/80 text-stone-900 text-xs font-semibold px-3 py-1 rounded-full">
             {isExpired ? 'Inscriptions terminées' : isFull ? 'Complet' : 'Inscriptions ouvertes'}
           </span>
-        </div>
-        <div className="mt-2 space-y-1 text-sm text-slate-600">
-          <p className="flex items-center gap-2">
-            📅 {new Date(event.date).toLocaleDateString('fr-FR', {
-              weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
-            })}
-          </p>
-          {event.location && <p className="flex items-center gap-2">📍 {event.location}</p>}
-          {event.event_type === 'Anniversaire' && (event.event_options?.pour_qui || event.event_options?.surprise) && (
-            <p className="flex items-center gap-2">
-              {event.event_options?.pour_qui && <span>🎉 Pour {event.event_options.pour_qui}</span>}
-              {event.event_options?.surprise && (
-                <span className="bg-amber-100 text-amber-800 text-xs font-semibold px-2 py-0.5 rounded-full">🤫 Surprise</span>
-              )}
-            </p>
+          {event.deadline_rsvp && (
+            <span className="bg-white/80 text-stone-900 text-xs font-semibold px-3 py-1 rounded-full">
+              Réponses avant le {new Date(event.deadline_rsvp).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })}
+            </span>
           )}
         </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center bg-blue-100 text-blue-700 text-sm font-bold px-3 py-1.5 rounded-full">
-            {isApero ? (
-              <>{totalPersonnes}<span className="font-normal text-xs ml-1.5">partant{totalPersonnes > 1 ? 's' : ''}</span></>
-            ) : (
-              <>{totalPersonnes} / {event.nb_participants}<span className="font-normal text-xs ml-1.5">confirmés / attendus</span></>
-            )}
-          </span>
-          <span className={`inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-full ${
-            allCovered ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'
-          }`}>
-            {allCovered ? '🟢 Tout est prêt' : '🟠 Il manque des choses'}
-          </span>
-        </div>
-
-        {/* Relance ciblée : seulement tant que les inscriptions sont ouvertes et s'il manque quelque chose */}
-        {!isClosed && hasMissing && (
-          <button
-            onClick={() => setShareMsg({ title: 'Relancer les invités', text: buildRelance().text })}
-            className="mt-3 w-full min-h-[48px] bg-orange-700 hover:bg-orange-800 text-white font-semibold rounded-2xl transition-colors"
-          >
-            📣 Préparer une relance
-          </button>
-        )}
       </div>
+
+      {/* === EN UN COUP D'ŒIL : trois chiffres === */}
+      <section aria-labelledby="resume" className="bg-white rounded-3xl shadow-sm ring-1 ring-stone-900/5 p-4 mb-4">
+        <h2 id="resume" className="text-base font-bold text-stone-900">En un coup d’œil</h2>
+        <dl className="grid grid-cols-3 gap-2 mt-3 text-center tabular-nums">
+          <div className="rounded-2xl bg-emerald-50 px-2 py-3">
+            <dd className="text-3xl font-extrabold text-emerald-900 leading-none">{totalPersonnes}</dd>
+            <dt className="text-xs font-semibold text-emerald-900 mt-1.5 leading-tight">
+              {isApero ? `partant${totalPersonnes > 1 ? 's' : ''}` : `confirmé${totalPersonnes > 1 ? 's' : ''}`}
+              {totalPersonnes > confirmed.length && <span className="block font-normal">dont {totalPersonnes - confirmed.length} accomp.</span>}
+            </dt>
+          </div>
+          {isApero ? (
+            <div className="rounded-2xl bg-stone-100 px-2 py-3">
+              <dd className="text-3xl font-extrabold text-stone-800 leading-none">{pending.length}</dd>
+              <dt className="text-xs font-semibold text-stone-700 mt-1.5 leading-tight">sans réponse</dt>
+            </div>
+          ) : (
+            <div className="rounded-2xl bg-stone-100 px-2 py-3">
+              <dd className="text-3xl font-extrabold text-stone-800 leading-none">{event.nb_participants || '?'}</dd>
+              <dt className="text-xs font-semibold text-stone-700 mt-1.5 leading-tight">personnes attendues</dt>
+            </div>
+          )}
+          {event.mode !== 'solo' && apportItems.length > 0 ? (
+            <div className="rounded-2xl bg-amber-50 px-2 py-3">
+              <dd className="text-3xl font-extrabold text-amber-900 leading-none">{reserves.length}<span className="text-base font-bold text-amber-800">/{apportItems.length}</span></dd>
+              <dt className="text-xs font-semibold text-amber-900 mt-1.5 leading-tight">apports réservés</dt>
+            </div>
+          ) : (
+            <div className="rounded-2xl bg-stone-100 px-2 py-3">
+              <dd className="text-3xl font-extrabold text-stone-800 leading-none">{pending.length}</dd>
+              <dt className="text-xs font-semibold text-stone-700 mt-1.5 leading-tight">sans réponse</dt>
+            </div>
+          )}
+        </dl>
+        {!isApero && Number(event.nb_participants) > 0 && (
+          <>
+            <div className="h-2.5 bg-stone-100 rounded-full overflow-hidden mt-4" role="img" aria-label={`${totalPersonnes} confirmés sur ${event.nb_participants} attendus`}>
+              <div className="h-full rounded-full bg-emerald-600 transition-all duration-700" style={{ width: `${Math.min(100, Math.round(totalPersonnes / Number(event.nb_participants) * 100))}%` }} />
+            </div>
+            <p className="flex justify-between text-xs text-stone-600 mt-1.5">
+              <span>{event.mode !== 'solo' && apportItems.length > 0 ? `${pending.length} sans réponse` : ''}</span>
+              <span>{refused.length} ne vien{refused.length === 1 ? 't' : 'nent'} pas</span>
+            </p>
+          </>
+        )}
+      </section>
+
+      {/* === À FAIRE MAINTENANT === */}
+      {!isClosed && hasMissing && (() => {
+        const bouts = []
+        if (disponibles.length > 0) bouts.push(`${disponibles.length} apport${disponibles.length > 1 ? 's cherchent' : ' cherche'} encore quelqu’un`)
+        if (slotsIncomplets.length > 0) bouts.push(`${slotsIncomplets.length} poste${slotsIncomplets.length > 1 ? 's' : ''} d’aide ${slotsIncomplets.length > 1 ? 'ne sont pas complets' : 'n’est pas complet'}`)
+        if (pending.length > 0) bouts.push(`${pending.length} personne${pending.length > 1 ? 's n’ont' : ' n’a'} pas répondu`)
+        if (giftDispo.length > 0 && bouts.length === 0) bouts.push(`${giftDispo.length} cadeau${giftDispo.length > 1 ? 'x' : ''} ${giftDispo.length > 1 ? 'restent' : 'reste'} à réserver`)
+        const phrase = bouts.length ? bouts.join(' et ') + '.' : 'Il manque encore quelques réponses.'
+        return (
+          <div className="flex items-center gap-3 bg-stone-900 text-white rounded-3xl px-4 py-3.5 mb-4">
+            <p className="text-[15px] flex-1 min-w-0"><span className="block text-xs font-bold uppercase tracking-wide text-orange-300">À faire maintenant</span>{phrase.charAt(0).toUpperCase() + phrase.slice(1)}</p>
+            <button
+              onClick={() => setShareMsg({ title: 'Relancer les invités', text: buildRelance().text })}
+              className="shrink-0 bg-white text-stone-900 font-bold text-sm rounded-2xl px-3 min-h-[44px]"
+            >
+              Relancer
+            </button>
+          </div>
+        )
+      })()}
 
       {/* === APÉRO PARTICIPATIF : partants, budget, liste de courses === */}
       {isApero && (
@@ -920,89 +959,28 @@ export default function EventDashboard() {
         </div>
       )}
 
-      {/* === BILAN (rédigé, toujours visible) — coloré selon l'état === */}
-      <div role="status" className={`rounded-3xl border p-5 mb-4 ${
-        allCovered ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'
-      }`}>
-        <h2 className="text-base font-bold text-stone-900 mb-2">📋 Bilan</h2>
-        <div className="space-y-1.5 text-[15px] text-stone-800 leading-relaxed">
-          {bilanLines.map((line, idx) => <p key={idx}>{line}</p>)}
-        </div>
-
-        {isClosed && (
-          <button
-            onClick={() => setShareMsg({ title: 'Récap final', text: buildRecapFinal().text })}
-            className="mt-4 w-full min-h-[48px] bg-emerald-700 hover:bg-emerald-800 text-white font-semibold rounded-2xl transition-colors"
-          >
-            ✅ Préparer le récap final
-          </button>
-        )}
-      </div>
-
       {/* === CARTE PRINCIPALE === */}
       <div className="bg-white rounded-3xl shadow-sm ring-1 ring-stone-900/5 overflow-hidden mb-4">
-        {/* Header */}
-        <div className={`px-5 pt-5 pb-4 ${eventTheme(event.event_type).hero}`}>
-          <div className="flex justify-between items-start">
-            <h1 className="text-2xl font-extrabold text-stone-900 leading-tight tracking-tight text-balance">{event.event_name}</h1>
-            <span className="shrink-0 bg-white/80 text-emerald-800 text-xs px-3 py-1 rounded-full font-semibold">
-              {event.status}
-            </span>
-          </div>
-          <p className="text-stone-800 text-sm mt-2 first-letter:uppercase">
-            {new Date(event.date).toLocaleDateString('fr-FR', {
-              weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
-            })}
-          </p>
-          {event.location && <p className="text-stone-700 text-sm">{event.location}</p>}
-          {event.deadline_rsvp && (
-            <p className="text-xs text-stone-800 mt-2 bg-white/80 inline-block px-3 py-1 rounded-full font-semibold">
-              Réponses avant le {new Date(event.deadline_rsvp).toLocaleDateString('fr-FR', {
-                weekday: 'short', day: 'numeric', month: 'short',
-              })}
-            </p>
-          )}
-        </div>
-
-        {/* Stats pastilles */}
-        <dl className="grid grid-cols-3 gap-2 px-4 py-3 border-b border-stone-100 text-center tabular-nums">
-          <div className="rounded-2xl bg-emerald-50 px-2 py-2.5">
-            <dt className="sr-only">Réponses oui</dt>
-            <dd className="text-2xl font-bold text-emerald-900 leading-none">{confirmed.length}<span className="text-sm font-semibold text-emerald-800">/{totalInvites || '?'}</span></dd>
-            <dd className="text-xs font-semibold text-emerald-800 mt-1">oui{totalPersonnes > 0 ? ` · ${totalPersonnes} pers.` : ''}</dd>
-          </div>
-          <div className="rounded-2xl bg-amber-50 px-2 py-2.5">
-            <dt className="sr-only">En attente</dt>
-            <dd className="text-2xl font-bold text-amber-900 leading-none">{pending.length}</dd>
-            <dd className="text-xs font-semibold text-amber-800 mt-1">en attente</dd>
-          </div>
-          <div className="rounded-2xl bg-stone-100 px-2 py-2.5">
-            <dt className="sr-only">Refus</dt>
-            <dd className="text-2xl font-bold text-stone-800 leading-none">{refused.length}</dd>
-            <dd className="text-xs font-semibold text-stone-600 mt-1">ne viennent pas</dd>
-          </div>
-        </dl>
-
         {/* Les deux listes restent visibles, même pendant les modifications. */}
         {event.mode !== 'solo' && (event.event_type !== 'Match/Tournoi' || apportItems.length > 0) && (
           <div className="grid gap-4 p-4 md:grid-cols-2">
-            <section aria-labelledby="remaining-contributions" className="rounded-3xl border-2 border-amber-200 bg-amber-50 p-4">
-              <h2 id="remaining-contributions" className="font-bold text-lg text-amber-950 flex items-baseline gap-2">Reste à apporter <span className="text-sm font-semibold bg-amber-100 rounded-full px-2.5 tabular-nums">{disponibles.length}</span></h2>
-              <p className="text-sm text-amber-800 mt-1">Les quantités qui cherchent encore un volontaire.</p>
+            <section aria-labelledby="remaining-contributions" className="rounded-3xl border-2 border-amber-400 bg-amber-50 p-4">
+              <h2 id="remaining-contributions" className="font-bold text-xl text-amber-950 flex items-center justify-between gap-2">Il reste à apporter <span className="shrink-0 min-w-[34px] h-[34px] grid place-items-center text-base font-extrabold text-white bg-amber-800 rounded-full tabular-nums">{disponibles.length}</span></h2>
+              <p className="text-sm text-amber-800 mt-0.5">Personne ne s’en occupe encore.</p>
               {disponibles.length ? <ul className="mt-4 divide-y divide-amber-200">
                 {disponibles.map(item => <li key={item.id} className="py-3 flex items-start justify-between gap-3">
                   <span className="font-semibold text-stone-900 break-words min-w-0">{item.item_name}{item.category === 'Suggestions des invités' && <span className="block w-fit mt-1 text-xs font-semibold bg-white text-blue-800 rounded-full px-2 py-0.5">Idée d’un invité</span>}</span>
-                  <span className="text-sm font-semibold text-amber-950 text-right shrink-0 max-w-[45%]">{formatQuantity(item.quantity)} {item.unit}</span>
+                  <span className="text-sm font-bold text-amber-950 text-right shrink-0 max-w-[45%] bg-amber-100 rounded-full px-2.5 py-0.5">{formatQuantity(item.quantity)} {item.unit}</span>
                 </li>)}
               </ul> : <p className="mt-4 text-sm text-amber-950">{apportItems.length ? 'Tout est pris en charge, merci à tous !' : 'Aucun article à apporter pour le moment.'}</p>}
             </section>
             <section aria-labelledby="reserved-contributions" className="rounded-3xl border-2 border-emerald-200 bg-emerald-50 p-4">
-              <h2 id="reserved-contributions" className="font-bold text-lg text-emerald-950 flex items-baseline gap-2">Déjà réservé <span className="text-sm font-semibold bg-emerald-100 rounded-full px-2.5 tabular-nums">{reserves.length}</span></h2>
-              <p className="text-sm text-emerald-800 mt-1">Qui apporte quoi.</p>
+              <h2 id="reserved-contributions" className="font-bold text-xl text-emerald-950 flex items-center justify-between gap-2">Déjà réservé <span className="shrink-0 min-w-[34px] h-[34px] grid place-items-center text-base font-extrabold text-white bg-emerald-700 rounded-full tabular-nums">{reserves.length}</span></h2>
+              <p className="text-sm text-emerald-800 mt-0.5">Et par qui.</p>
               {reserves.length ? <ul className="mt-4 divide-y divide-emerald-200">
                 {reserves.map(item => <li key={item.id} className="py-3 flex items-start justify-between gap-3">
-                  <div className="min-w-0"><p className="font-semibold text-stone-900 break-words">{item.item_name}{item.category === 'Suggestions des invités' && <span className="block w-fit mt-1 text-xs font-semibold bg-white text-blue-800 rounded-full px-2 py-0.5">Idée d’un invité</span>}</p><p className="text-sm text-emerald-800 mt-1">{item.assigned_to || participants.find(p => p.id === item.assigned_participant_id)?.participant_name || 'Invité à préciser'}</p></div>
-                  <span className="text-sm font-semibold text-emerald-950 text-right shrink-0 max-w-[45%]">{formatQuantity(item.quantity)} {item.unit}</span>
+                  <div className="min-w-0"><p className="font-semibold text-stone-900 break-words">{item.item_name}{item.category === 'Suggestions des invités' && <span className="block w-fit mt-1 text-xs font-semibold bg-white text-blue-800 rounded-full px-2 py-0.5">Idée d’un invité</span>}</p><p className="text-sm font-semibold text-emerald-800 mt-0.5">{item.assigned_to || participants.find(p => p.id === item.assigned_participant_id)?.participant_name || 'Invité à préciser'}</p></div>
+                  <span className="text-sm font-bold text-emerald-950 text-right shrink-0 max-w-[45%] bg-emerald-100 rounded-full px-2.5 py-0.5">{formatQuantity(item.quantity)} {item.unit}</span>
                 </li>)}
               </ul> : <p className="mt-4 text-sm text-emerald-950">Personne n’a encore réservé d’article.</p>}
             </section>
@@ -1028,6 +1006,25 @@ export default function EventDashboard() {
               />
             </div>
           </div>
+        )}
+      </div>
+
+      {/* === BILAN (rédigé, toujours visible) — coloré selon l'état === */}
+      <div role="status" className={`rounded-3xl border p-5 mb-4 ${
+        allCovered ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'
+      }`}>
+        <h2 className="text-base font-bold text-stone-900 mb-2">📋 Bilan</h2>
+        <div className="space-y-1.5 text-[15px] text-stone-800 leading-relaxed">
+          {bilanLines.map((line, idx) => <p key={idx}>{line}</p>)}
+        </div>
+
+        {isClosed && (
+          <button
+            onClick={() => setShareMsg({ title: 'Récap final', text: buildRecapFinal().text })}
+            className="mt-4 w-full min-h-[48px] bg-emerald-700 hover:bg-emerald-800 text-white font-semibold rounded-2xl transition-colors"
+          >
+            ✅ Préparer le récap final
+          </button>
         )}
       </div>
 
@@ -1226,6 +1223,10 @@ export default function EventDashboard() {
         </div>
       )}
 
+      {/* === PARTAGER ET RELANCER (maquette v3) === */}
+      <section id="partager" aria-labelledby="partager-titre" className="scroll-mt-4">
+      <h2 id="partager-titre" className="text-lg font-bold text-stone-900 mt-2">Partager et relancer</h2>
+      <p className="text-sm text-stone-600 mb-3">Planify prépare le message, c’est toi qui l’envoies, à qui tu veux. Rien ne part tout seul.</p>
       {/* === PARTAGE CIBLÉ TOURNOI : familles toujours, bénévoles une fois les postes créés === */}
       {event.event_type === 'Match/Tournoi' && (
         <div className={`grid gap-2 mb-4 ${slots.length > 0 ? 'grid-cols-2' : 'grid-cols-1'}`}>
@@ -1291,13 +1292,46 @@ export default function EventDashboard() {
         </p>
       )}
 
-      {/* Tester le rappel J-2 sans attendre la date */}
-      <button
-        onClick={() => setShareMsg({ title: 'Rappel aux invités', text: buildReminder().text })}
-        className="w-full mb-4 min-h-[44px] text-center text-sm font-semibold text-stone-600 hover:text-amber-800 transition-colors"
-      >
-        🔔 Voir le message de rappel
-      </button>
+      {/* Messages prêts à envoyer : relance, rappel, récap final */}
+      <div className="grid grid-cols-3 gap-2 mb-4">
+        <button
+          onClick={() => setShareMsg({ title: 'Relancer les invités', text: buildRelance().text })}
+          className="bg-white border-2 border-stone-200 hover:border-orange-300 rounded-2xl min-h-[64px] px-2 py-2 text-sm font-semibold text-stone-800"
+        >
+          Relance<span className="block text-xs font-normal text-stone-600">ce qui manque</span>
+        </button>
+        <button
+          onClick={() => setShareMsg({ title: 'Rappel aux invités', text: buildReminder().text })}
+          className="bg-white border-2 border-stone-200 hover:border-orange-300 rounded-2xl min-h-[64px] px-2 py-2 text-sm font-semibold text-stone-800"
+        >
+          Rappel<span className="block text-xs font-normal text-stone-600">quelques jours avant</span>
+        </button>
+        <button
+          onClick={() => setShareMsg({ title: 'Récap final', text: buildRecapFinal().text })}
+          className="bg-white border-2 border-stone-200 hover:border-orange-300 rounded-2xl min-h-[64px] px-2 py-2 text-sm font-semibold text-stone-800"
+        >
+          Récap final<span className="block text-xs font-normal text-stone-600">quand tout est calé</span>
+        </button>
+      </div>
+      </section>
+
+      {/* === BARRE FIXE : Partager / Relancer === */}
+      <div className="fixed inset-x-0 bottom-0 z-40 bg-white/95 backdrop-blur border-t border-stone-200 px-4 pt-3" style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom, 0px))' }}>
+        <div className="max-w-md mx-auto grid grid-cols-2 gap-2">
+          <button
+            onClick={() => document.getElementById('partager')?.scrollIntoView({ behavior: 'smooth' })}
+            className="min-h-[52px] rounded-2xl border-2 border-stone-200 bg-white font-bold text-stone-900"
+          >
+            Partager
+          </button>
+          <button
+            onClick={() => setShareMsg(isClosed ? { title: 'Récap final', text: buildRecapFinal().text } : { title: 'Relancer les invités', text: buildRelance().text })}
+            className="min-h-[52px] rounded-2xl bg-orange-700 hover:bg-orange-800 font-bold text-white"
+          >
+            {isClosed ? 'Récap final' : 'Relancer'}
+          </button>
+        </div>
+      </div>
 
       {/* === MODAL MESSAGE À PARTAGER (relance / récap) === */}
       {shareMsg && (
