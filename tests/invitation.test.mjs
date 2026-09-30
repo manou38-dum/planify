@@ -21,3 +21,11 @@ test('chosen recipe inspiration changes the dishes without losing portion calibr
   assert.ok(!data.lists[0].items.some(i => /grillades/.test(i.item_name)))
   assert.equal(menuInspiration({ menu_style: 'inconnu' }).label, 'Simple et classique')
 })
+
+test('menu styles give concrete BBQ dishes and keep the calibrated portions', () => {
+  const data = freeLists(['menu'], 12, { menu_style: 'plancha' }, 'BBQ')
+  assert.ok(data.lists[0].items.some(i => /brochettes de bœuf/i.test(i.item_name) && i.quantity === 3))
+  assert.ok(data.lists[0].items.some(i => /taboulé/i.test(i.item_name) && i.quantity === 1.8))
+  assert.ok(data.lists[0].items.some(i => /plancha/i.test(i.item_name) && i.quantity === 1.2))
+  assert.ok(menuInspiration({ menu_style: 'gourmand' }).sources.length > 0)
+})
