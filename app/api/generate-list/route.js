@@ -1,5 +1,6 @@
 import { generateText } from '@/lib/ai'
 import { freeLists, useFreeMode } from '@/lib/free-mode.mjs'
+import { activityPlanning, matchSportActivity } from '@/lib/activity-planning.mjs'
 import { SAFETY_CHECKLISTS, matchActivity } from '@/lib/safety-checklists'
 
 // L'IA peut prendre plusieurs secondes : on laisse de la marge côté serveur
@@ -161,22 +162,19 @@ export async function POST(request) {
     const askedKeys = Object.keys(selected_lists || {}).filter(k => selected_lists[k])
     if (askedKeys.length === 0) askedKeys.push('menu')
 
-    // Checklist de sécurité FIXE (en dur) pour rando / VTT / ski de rando : on ne laisse PAS l'IA
-    // générer ce matériel critique (risque d'oubli d'un élément vital). Les autres activités
-    // (plongée, parapente...) gardent la génération IA.
+    // Checklists de sortie déterministes pour garder des repères disponibles en mode gratuit.
+    // Les conseils liés à la plongée restent explicitement soumis au contrôle du club/encadrant.
     let fixedChecklist = null
     if (event_type === 'Randonnée' && askedKeys.includes('checklist')) {
       const key = matchActivity(event_options?.activite)
-      if (key && SAFETY_CHECKLISTS[key]) {
-        const entry = SAFETY_CHECKLISTS[key]
-        fixedChecklist = {
-          behavior: 'checklist',
-          list_name: entry.label,
-          icon: '🎒',
-          description: 'Équipement individuel : chaque participant coche ce qu\'il a.',
-          ...(entry.warning ? { warning: entry.warning } : {}),
-          items: entry.items.map(it => ({ item_name: it.item_name, quantity: 1, essential: !!it.essential })),
-        }
+      const entry = SAFETY_CHECKLISTS[key] || SAFETY_CHECKLISTS['sortie-generique']
+      fixedChecklist = {
+        behavior: 'checklist',
+        list_name: entry.label,
+        icon: '🎒',
+        description: entry.description || 'Équipement individuel : chaque participant coche ce qu\'il a.',
+        ...(entry.warning ? { warning: entry.warning } : {}),
+        items: entry.items.map(it => ({ item_name: it.item_name, quantity: 1, essential: !!it.essential })),
       }
     }
 
@@ -240,16 +238,6 @@ Correspondance :
           { slot_name: 'Rangement', description: 'Ranger, nettoyer, sortir les poubelles. Départs échelonnés : viens quand tu peux.', start_time: fmt(startMin + 180), duration_minutes: 60, max_participants: maxP },
         ]
       }
-      // Tournoi : des POSTES à quotas (arbitrage, buvette, montage…), modifiables par l'organisateur
-      if (type === 'Match/Tournoi') {
-        return [
-          { slot_name: 'Montage des terrains', description: 'Installer les terrains, filets, plots, tables et chaises', start_time: fmt(startMin - 90), duration_minutes: 90, max_participants: 6 },
-          { slot_name: 'Arbitrage', description: 'Arbitrer les matchs selon le planning', start_time: fmt(startMin), duration_minutes: 300, max_participants: 6 },
-          { slot_name: 'Buvette', description: 'Tenir la buvette, servir boissons et snacks', start_time: fmt(startMin), duration_minutes: 300, max_participants: 4 },
-          { slot_name: 'Accueil / Parking', description: 'Accueillir, orienter les familles, gérer le parking', start_time: fmt(startMin - 30), duration_minutes: 120, max_participants: 3 },
-          { slot_name: 'Rangement', description: 'Ranger terrains et matériel, nettoyer. Départs échelonnés.', start_time: fmt(startMin + 300), duration_minutes: 60, max_participants: 6 },
-        ]
-      }
       return [
         { slot_name: 'Installation', description: 'Montage tables, chaises, matériel', start_time: fmt(startMin - 120), duration_minutes: 90, max_participants: maxP },
         { slot_name: 'Accueil', description: 'Accueil des invités', start_time: fmt(startMin - 30), duration_minutes: 30, max_participants: maxP },
@@ -276,11 +264,17 @@ Correspondance :
     if (wantsPlanning) {
       if (event_type === 'Match/Tournoi') {
         // Tournoi : postes adaptés au sport proposés par l'IA, repli sur le jeu générique déterministe
+        // Sport reconnu : postes relus du tableau. Sinon : postes de l'IA s'il y en a, puis postes génériques « À remplir ».
         const aiPostes = sanitizePlanning(data.planning)
-        planningFinal = aiPostes.length > 0 ? aiPostes : buildPlanning(heureDebut, nb_participants, event_type)
+        planningFinal = matchSportActivity(event_options?.sport) || aiPostes.length === 0
+          ? activityPlanning(event_options?.sport, heureDebut, nb_participants, event_options || {})
+          : aiPostes
       } else {
         planningFinal = buildPlanning(heureDebut, nb_participants, event_type)
       }
+    }
+    if (event_type === 'Match/Tournoi' && event_options?.aide_installation === false) {
+      planningFinal = planningFinal.filter(poste => !/montage|installation/i.test(poste.slot_name || ''))
     }
 
     // Le tournoi ne produit jamais de liste d'apports
@@ -289,7 +283,7 @@ Correspondance :
     const finalLists = fixedChecklist ? [fixedChecklist, ...aiLists] : aiLists
 
     return Response.json({
-      menu_resume: typeof data.menu_resume === 'string' ? data.menu_resume : '',
+      menu_resume: event_type === 'Match/Tournoi' || aiAskedKeys.length === 0 ? '' : (typeof data.menu_resume === 'string' ? data.menu_resume : ''),
       lists: finalLists,
       planning: planningFinal,
     })

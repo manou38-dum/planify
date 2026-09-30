@@ -1,6 +1,7 @@
 'use client'
 import { quantityReview } from '@/lib/quantity-review.mjs'
 import { invitationMessage } from '@/lib/invitation.mjs'
+import { eventTheme, formatQuantity } from '@/lib/ui-theme.mjs'
 import { useState, useEffect } from 'react'
 import { useSharedItems } from '@/lib/use-shared-items'
 import { getSupabase } from '@/lib/supabase'
@@ -439,11 +440,13 @@ export default function EventDashboard() {
       weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
     })
     const lieu = event.location ? ` à ${event.location}` : ''
-    return `Bonjour ! On organise ${event.event_name} le ${dateStr}${lieu}. Viens nombreux ! Dis-nous si tu viens et à combien : ${url}`
+    const repas = Array.isArray(event.event_options?.meal_choices) && event.event_options.meal_choices.length > 0
+      ? ' Un repas est proposé : choisis ton menu en répondant.' : ''
+    return `Bonjour ! *${event.event_name}* le ${dateStr}${lieu}.\nViens jouer ou encourager, en famille ou entre amis.${repas}\nDis-nous si tu viens et à combien :\n${url}`
   }
   function buildMobilizeVolunteers() {
     const url = `${window.location.origin}/invite/${event.invite_link_id}`
-    return `On a besoin de bras pour ${event.event_name} ! Inscris-toi sur un poste (arbitrage, buvette, montage…) : ${url}`
+    return `On a besoin de bras pour *${event.event_name}* !\nInstallation, buvette, arbitrage : même une heure aide beaucoup.\nInscris-toi ici :\n${url}`
   }
 
   function shareWhatsApp() {
@@ -598,7 +601,7 @@ export default function EventDashboard() {
     const unit = (item.unit || '').trim()
     const isMesure = MESURES.includes(unit.toLowerCase())
     const showQty = (Number(item.quantity) > 1) || isMesure
-    return showQty ? `${item.item_name} ${item.quantity} ${unit}`.trim() : item.item_name
+    return showQty ? `${item.item_name} ${formatQuantity(item.quantity)} ${unit}`.trim() : item.item_name
   }
 
   // Tri : confirmés d'abord, puis peut-être / en attente, puis refusés
@@ -622,13 +625,13 @@ export default function EventDashboard() {
       ...giftDispo.map(i => i.item_name),
       ...slotsIncomplets.map(s => `${s.manque} personne${s.manque > 1 ? 's' : ''} pour ${s.slot_name}`),
     ]
-    const lines = [`Salut ! Plus que quelques jours avant ${event.event_name} 🎉`, ``]
+    const lines = [`Salut ! Plus que quelques jours avant *${event.event_name}*.`, ``]
     if (manques.length > 0) {
-      lines.push(`Il manque encore : ${manques.join(', ')}`)
+      lines.push(`Il manque encore : ${manques.join(', ')}.`)
     } else if (reponsesManque > 0) {
-      lines.push(`On attend encore quelques réponses 🙏`)
+      lines.push(`On attend encore quelques réponses pour finaliser l’organisation.`)
     }
-    lines.push(``, `Si tu peux aider : ${url}`, `Merci 🙌`)
+    lines.push(``, `Merci ! Si tu peux en prendre un, c’est ici :`, url)
     return { url, text: lines.join('\n') }
   }
 
@@ -641,10 +644,10 @@ export default function EventDashboard() {
     })
     const jourStr = d.toLocaleDateString('fr-FR', { weekday: 'long' })
     const lines = [
-      `C'est confirmé pour ${event.event_name}, le ${dateStr}${event.location ? ` à ${event.location}` : ''} ! ${typeEmoji}`,
+      `C'est confirmé pour *${event.event_name}*, le ${dateStr}${event.location ? ` à ${event.location}` : ''} !`,
     ]
     if (apportItems.length > 0) lines.push(`Pense à apporter ce que tu as réservé.`)
-    lines.push(`Liste complète et qui apporte quoi : ${url}`, `À ${jourStr} !`)
+    lines.push(`À ${jourStr} ! Liste complète et qui apporte quoi :`, url)
     return { url, text: lines.join('\n') }
   }
 
@@ -656,14 +659,13 @@ export default function EventDashboard() {
     })
     const mealChoices = Array.isArray(event.event_options?.meal_choices) ? event.event_options.meal_choices : []
     const lines = [
-      `On se retrouve bientôt pour ${event.event_name} !`,
+      `On se retrouve bientôt pour *${event.event_name}* !`,
       `Quand : ${dateStr}${event.location ? ` · Où : ${event.location}` : ''}`,
     ]
     if (apportItems.length > 0) lines.push(`Pense à apporter ce que tu as réservé.`)
     if (slots.length > 0) lines.push(`N'oublie pas ton créneau d'aide.`)
-    if (mealChoices.length > 0) lines.push(`Pense à voter pour le repas si ce n'est pas fait.`)
-    lines.push(`Tes apports et les dernières infos sont ici : ${url}`)
-    lines.push(`À très vite !`)
+    if (mealChoices.length > 0) lines.push(`Pense à choisir ton repas si ce n'est pas fait.`)
+    lines.push(`À très vite ! Qui apporte quoi et dernières infos :`, url)
     return { url, text: lines.join('\n') }
   }
 
@@ -756,32 +758,33 @@ export default function EventDashboard() {
   }
 
   return (
+    <div className="min-h-screen bg-cream text-stone-900">
     <div className="max-w-md mx-auto px-4 py-6 pb-12">
       {/* Retour */}
       <button
         onClick={() => router.push('/')}
-        className="text-slate-400 hover:text-slate-600 text-sm mb-4 flex items-center gap-1 transition-colors"
+        className="text-stone-600 hover:text-stone-900 text-sm font-semibold mb-4 flex items-center gap-1 transition-colors min-h-[32px]"
       >
-        ← Mes evenements
+        ← Mes événements
       </button>
 
       {/* === BANDEAU RAPPEL J-2 === */}
       {showReminderBanner && (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4">
           <p className="text-sm font-semibold text-amber-900">
-            ⏰ Ton événement est {reminderDelai} — pense à envoyer le rappel aux invités
+            ⏰ Ton événement est {reminderDelai}. Tu peux préparer un rappel pour tes invités.
           </p>
           <button
             onClick={() => setShareMsg({ title: 'Rappel aux invités', text: buildReminder().text })}
-            className="mt-3 w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm"
+            className="mt-3 w-full min-h-[48px] bg-amber-700 hover:bg-amber-800 text-white font-semibold rounded-2xl transition-colors"
           >
-            📣 Envoyer le rappel
+            📣 Préparer le rappel
           </button>
         </div>
       )}
 
       {/* === EN-TÊTE RÉSUMÉ === */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 mb-4">
+      <div className="bg-white rounded-3xl shadow-sm ring-1 ring-stone-900/5 p-5 mb-4">
         <div className="flex items-start justify-between gap-3">
           <h1 className="text-xl font-extrabold text-slate-900 leading-tight flex items-center gap-2">
             <span>{typeEmoji}</span>
@@ -789,7 +792,7 @@ export default function EventDashboard() {
           </h1>
           <span className={`shrink-0 text-xs font-semibold px-3 py-1 rounded-full ${
             isExpired ? 'bg-slate-100 text-slate-500'
-              : isFull ? 'bg-emerald-500 text-white'
+              : isFull ? 'bg-emerald-700 text-white'
               : 'bg-emerald-100 text-emerald-700'
           }`}>
             {isExpired ? 'Inscriptions terminées' : isFull ? 'Complet' : 'Inscriptions ouvertes'}
@@ -830,16 +833,16 @@ export default function EventDashboard() {
         {!isClosed && hasMissing && (
           <button
             onClick={() => setShareMsg({ title: 'Relancer les invités', text: buildRelance().text })}
-            className="mt-3 w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm"
+            className="mt-3 w-full min-h-[48px] bg-orange-700 hover:bg-orange-800 text-white font-semibold rounded-2xl transition-colors"
           >
-            📣 Relancer les invités
+            📣 Préparer une relance
           </button>
         )}
       </div>
 
       {/* === APÉRO PARTICIPATIF : partants, budget, liste de courses === */}
       {isApero && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 mb-4">
+        <div className="bg-white rounded-3xl shadow-sm ring-1 ring-stone-900/5 p-5 mb-4">
           <h3 className="text-sm font-bold text-slate-800 mb-1">🥂 Apéro participatif</h3>
           <p className="text-sm text-slate-600">
             {totalPersonnes} personne{totalPersonnes > 1 ? 's' : ''} partante{totalPersonnes > 1 ? 's' : ''}
@@ -851,14 +854,14 @@ export default function EventDashboard() {
             <button
               onClick={generateAperoList}
               disabled={generatingApero || totalPersonnes === 0}
-              className="mt-3 w-full bg-amber-500 hover:bg-amber-600 disabled:bg-amber-300 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm"
+              className="mt-3 w-full bg-amber-700 hover:bg-amber-800 disabled:bg-amber-300 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm"
             >
               {generatingApero ? '✨ Génération de la liste...' : '🛒 Générer la liste de courses'}
             </button>
           ) : (
             <button
               onClick={() => setShareMsg({ title: 'Partager la liste de courses', text: buildAperoShareList() })}
-              className="mt-3 w-full bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm"
+              className="mt-3 w-full bg-emerald-700 hover:bg-emerald-800 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm"
             >
               🛒 Partager la liste de courses
             </button>
@@ -916,43 +919,43 @@ export default function EventDashboard() {
       )}
 
       {/* === BILAN (rédigé, toujours visible) — coloré selon l'état === */}
-      <div className={`rounded-2xl shadow-sm border p-5 mb-4 ${
-        allCovered ? 'bg-emerald-50 border-emerald-200' : 'bg-orange-50 border-orange-200'
+      <div role="status" className={`rounded-3xl border p-5 mb-4 ${
+        allCovered ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'
       }`}>
-        <h2 className="text-sm font-bold text-slate-800 mb-3">📋 Bilan</h2>
-        <div className="space-y-2 text-sm text-slate-600 leading-relaxed">
+        <h2 className="text-base font-bold text-stone-900 mb-2">📋 Bilan</h2>
+        <div className="space-y-1.5 text-[15px] text-stone-800 leading-relaxed">
           {bilanLines.map((line, idx) => <p key={idx}>{line}</p>)}
         </div>
 
         {isClosed && (
           <button
             onClick={() => setShareMsg({ title: 'Récap final', text: buildRecapFinal().text })}
-            className="mt-4 w-full bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm"
+            className="mt-4 w-full min-h-[48px] bg-emerald-700 hover:bg-emerald-800 text-white font-semibold rounded-2xl transition-colors"
           >
-            ✅ Envoyer le récap final
+            ✅ Préparer le récap final
           </button>
         )}
       </div>
 
       {/* === CARTE PRINCIPALE === */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mb-4">
+      <div className="bg-white rounded-3xl shadow-sm ring-1 ring-stone-900/5 overflow-hidden mb-4">
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-5 pt-5 pb-4">
+        <div className={`px-5 pt-5 pb-4 ${eventTheme(event.event_type).hero}`}>
           <div className="flex justify-between items-start">
-            <h1 className="text-2xl font-extrabold text-slate-900 leading-tight tracking-tight">{event.event_name}</h1>
-            <span className="bg-emerald-500 text-white text-xs px-3 py-1 rounded-full font-semibold shadow-sm">
+            <h1 className="text-2xl font-extrabold text-stone-900 leading-tight tracking-tight text-balance">{event.event_name}</h1>
+            <span className="shrink-0 bg-white/80 text-emerald-800 text-xs px-3 py-1 rounded-full font-semibold">
               {event.status}
             </span>
           </div>
-          <p className="text-slate-600 text-sm mt-2">
+          <p className="text-stone-800 text-sm mt-2 first-letter:uppercase">
             {new Date(event.date).toLocaleDateString('fr-FR', {
               weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
             })}
           </p>
-          {event.location && <p className="text-slate-500 text-sm">{event.location}</p>}
+          {event.location && <p className="text-stone-700 text-sm">{event.location}</p>}
           {event.deadline_rsvp && (
-            <p className="text-xs text-orange-600 mt-2 bg-orange-100 inline-block px-3 py-1 rounded-full font-medium">
-              Reponses avant le {new Date(event.deadline_rsvp).toLocaleDateString('fr-FR', {
+            <p className="text-xs text-stone-800 mt-2 bg-white/80 inline-block px-3 py-1 rounded-full font-semibold">
+              Réponses avant le {new Date(event.deadline_rsvp).toLocaleDateString('fr-FR', {
                 weekday: 'short', day: 'numeric', month: 'short',
               })}
             </p>
@@ -960,44 +963,44 @@ export default function EventDashboard() {
         </div>
 
         {/* Stats pastilles */}
-        <div className="flex items-center gap-2 px-5 py-3 border-b border-slate-100">
-          <span className="flex items-center gap-1.5 bg-blue-100 text-blue-700 text-sm font-bold px-3 py-1.5 rounded-full">
-            {confirmed.length}/{totalInvites || '?'}
-            <span className="font-normal text-xs">Confirmes</span>
-          </span>
-          <span className="flex items-center gap-1.5 bg-red-100 text-red-600 text-sm font-bold px-3 py-1.5 rounded-full">
-            {refused.length}
-            <span className="font-normal text-xs">Refuses</span>
-          </span>
-          <span className="flex items-center gap-1.5 bg-amber-100 text-amber-600 text-sm font-bold px-3 py-1.5 rounded-full">
-            {pending.length}
-            <span className="font-normal text-xs">En attente</span>
-          </span>
-          {totalPersonnes > 0 && (
-            <span className="text-xs text-slate-400 ml-auto">{totalPersonnes} pers.</span>
-          )}
-        </div>
+        <dl className="grid grid-cols-3 gap-2 px-4 py-3 border-b border-stone-100 text-center tabular-nums">
+          <div className="rounded-2xl bg-emerald-50 px-2 py-2.5">
+            <dt className="sr-only">Réponses oui</dt>
+            <dd className="text-2xl font-bold text-emerald-900 leading-none">{confirmed.length}<span className="text-sm font-semibold text-emerald-800">/{totalInvites || '?'}</span></dd>
+            <dd className="text-xs font-semibold text-emerald-800 mt-1">oui{totalPersonnes > 0 ? ` · ${totalPersonnes} pers.` : ''}</dd>
+          </div>
+          <div className="rounded-2xl bg-amber-50 px-2 py-2.5">
+            <dt className="sr-only">En attente</dt>
+            <dd className="text-2xl font-bold text-amber-900 leading-none">{pending.length}</dd>
+            <dd className="text-xs font-semibold text-amber-800 mt-1">en attente</dd>
+          </div>
+          <div className="rounded-2xl bg-stone-100 px-2 py-2.5">
+            <dt className="sr-only">Refus</dt>
+            <dd className="text-2xl font-bold text-stone-800 leading-none">{refused.length}</dd>
+            <dd className="text-xs font-semibold text-stone-600 mt-1">ne viennent pas</dd>
+          </div>
+        </dl>
 
         {/* Les deux listes restent visibles, même pendant les modifications. */}
-        {event.mode !== 'solo' && (
+        {event.mode !== 'solo' && (event.event_type !== 'Match/Tournoi' || apportItems.length > 0) && (
           <div className="grid gap-4 p-4 md:grid-cols-2">
-            <section aria-labelledby="remaining-contributions" className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-              <h2 id="remaining-contributions" className="font-bold text-lg text-amber-950">Reste à apporter <span className="text-sm font-normal">({disponibles.length})</span></h2>
+            <section aria-labelledby="remaining-contributions" className="rounded-3xl border-2 border-amber-200 bg-amber-50 p-4">
+              <h2 id="remaining-contributions" className="font-bold text-lg text-amber-950 flex items-baseline gap-2">Reste à apporter <span className="text-sm font-semibold bg-amber-100 rounded-full px-2.5 tabular-nums">{disponibles.length}</span></h2>
               <p className="text-sm text-amber-800 mt-1">Les quantités qui cherchent encore un volontaire.</p>
               {disponibles.length ? <ul className="mt-4 divide-y divide-amber-200">
                 {disponibles.map(item => <li key={item.id} className="py-3 flex items-start justify-between gap-3">
-                  <span className="font-medium text-slate-900 break-words min-w-0">{item.item_name}</span>
-                  <span className="text-sm font-semibold text-amber-950 text-right shrink-0 max-w-[45%]">{item.quantity ?? 'À préciser'} {item.unit}</span>
+                  <span className="font-semibold text-stone-900 break-words min-w-0">{item.item_name}{item.category === 'Suggestions des invités' && <span className="block w-fit mt-1 text-xs font-semibold bg-white text-blue-800 rounded-full px-2 py-0.5">Idée d’un invité</span>}</span>
+                  <span className="text-sm font-semibold text-amber-950 text-right shrink-0 max-w-[45%]">{formatQuantity(item.quantity)} {item.unit}</span>
                 </li>)}
               </ul> : <p className="mt-4 text-sm text-amber-950">{apportItems.length ? 'Tout est pris en charge, merci à tous !' : 'Aucun article à apporter pour le moment.'}</p>}
             </section>
-            <section aria-labelledby="reserved-contributions" className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-              <h2 id="reserved-contributions" className="font-bold text-lg text-emerald-950">Déjà réservé <span className="text-sm font-normal">({reserves.length})</span></h2>
-              <p className="text-sm text-emerald-800 mt-1">Qui apporte quoi : les engagements des invités.</p>
+            <section aria-labelledby="reserved-contributions" className="rounded-3xl border-2 border-emerald-200 bg-emerald-50 p-4">
+              <h2 id="reserved-contributions" className="font-bold text-lg text-emerald-950 flex items-baseline gap-2">Déjà réservé <span className="text-sm font-semibold bg-emerald-100 rounded-full px-2.5 tabular-nums">{reserves.length}</span></h2>
+              <p className="text-sm text-emerald-800 mt-1">Qui apporte quoi.</p>
               {reserves.length ? <ul className="mt-4 divide-y divide-emerald-200">
                 {reserves.map(item => <li key={item.id} className="py-3 flex items-start justify-between gap-3">
-                  <div className="min-w-0"><p className="font-medium text-slate-900 break-words">{item.item_name}</p><p className="text-sm text-emerald-800 mt-1">{item.assigned_to || participants.find(p => p.id === item.assigned_participant_id)?.participant_name || 'Invité à préciser'}</p></div>
-                  <span className="text-sm font-semibold text-emerald-950 text-right shrink-0 max-w-[45%]">{item.quantity ?? 'À préciser'} {item.unit}</span>
+                  <div className="min-w-0"><p className="font-semibold text-stone-900 break-words">{item.item_name}{item.category === 'Suggestions des invités' && <span className="block w-fit mt-1 text-xs font-semibold bg-white text-blue-800 rounded-full px-2 py-0.5">Idée d’un invité</span>}</p><p className="text-sm text-emerald-800 mt-1">{item.assigned_to || participants.find(p => p.id === item.assigned_participant_id)?.participant_name || 'Invité à préciser'}</p></div>
+                  <span className="text-sm font-semibold text-emerald-950 text-right shrink-0 max-w-[45%]">{formatQuantity(item.quantity)} {item.unit}</span>
                 </li>)}
               </ul> : <p className="mt-4 text-sm text-emerald-950">Personne n’a encore réservé d’article.</p>}
             </section>
@@ -1027,7 +1030,7 @@ export default function EventDashboard() {
       </div>
 
       {/* === BOUTON MODIFIER LA LISTE (masqué en mode solo) === */}
-      {event.mode !== 'solo' && (
+      {event.mode !== 'solo' && (event.event_type !== 'Match/Tournoi' || apportItems.length > 0) && (
         <button
           onClick={() => setEditMode(!editMode)}
           className={`w-full mb-4 py-3 rounded-xl font-semibold text-sm transition-all border ${
@@ -1042,7 +1045,7 @@ export default function EventDashboard() {
 
       {/* === MODE EDITION === */}
       {editMode && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mb-4">
+        <div className="bg-white rounded-3xl shadow-sm ring-1 ring-stone-900/5 overflow-hidden mb-4">
           <div className="px-5 py-3 border-b border-slate-100 bg-blue-50">
             <h3 className="text-sm font-bold text-blue-800">Liste de courses</h3>
             <p className="text-xs text-blue-500">Supprime, modifie ou ajoute des articles</p>
@@ -1061,7 +1064,7 @@ export default function EventDashboard() {
               <button
                 onClick={recalculateQuantities}
                 disabled={recalculating}
-                className="w-full bg-amber-500 hover:bg-amber-600 disabled:bg-amber-300 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm"
+                className="w-full bg-amber-700 hover:bg-amber-800 disabled:bg-amber-300 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm"
               >
                 {recalculating ? '✨ Recalcul en cours...' : '🔄 Recalculer les quantités'}
               </button>
@@ -1114,7 +1117,7 @@ export default function EventDashboard() {
                       <button
                         onClick={saveEditItem}
                         disabled={saving}
-                        className="px-4 py-1.5 bg-blue-500 text-white text-xs font-medium rounded-lg hover:bg-blue-600"
+                        className="px-4 py-1.5 bg-blue-700 text-white text-xs font-medium rounded-lg hover:bg-blue-800"
                       >
                         {saving ? '...' : 'Enregistrer'}
                       </button>
@@ -1131,7 +1134,7 @@ export default function EventDashboard() {
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
                       <span className="text-sm font-medium text-slate-700">{item.item_name}</span>
-                      <span className="text-xs text-slate-400 ml-2">{item.quantity} {item.unit}</span>
+                      <span className="text-xs text-slate-500 ml-2">{formatQuantity(item.quantity)} {item.unit}</span>
                       {item.assigned_to && (
                         <span className="text-xs bg-emerald-100 text-emerald-600 px-2 py-0.5 rounded-full ml-2">
                           {item.assigned_to}
@@ -1211,7 +1214,7 @@ export default function EventDashboard() {
                 <button
                   type="submit"
                   disabled={saving || !newItem.item_name}
-                  className="px-5 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-slate-300 text-white text-sm font-semibold rounded-lg transition-colors"
+                  className="px-5 py-2 bg-blue-700 hover:bg-blue-800 disabled:bg-slate-300 text-white text-sm font-semibold rounded-lg transition-colors"
                 >
                   {saving ? '...' : 'Ajouter'}
                 </button>
@@ -1226,14 +1229,14 @@ export default function EventDashboard() {
         <div className={`grid gap-2 mb-4 ${slots.length > 0 ? 'grid-cols-2' : 'grid-cols-1'}`}>
           <button
             onClick={() => setShareMsg({ title: 'Inviter les familles', text: buildInviteFamilies() })}
-            className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 rounded-xl transition-colors text-sm"
+            className="bg-blue-700 hover:bg-blue-800 text-white font-semibold py-3 rounded-xl transition-colors text-sm"
           >
             📣 Inviter les familles
           </button>
           {slots.length > 0 && (
             <button
               onClick={() => setShareMsg({ title: 'Mobiliser les bénévoles', text: buildMobilizeVolunteers() })}
-              className="bg-amber-500 hover:bg-amber-600 text-white font-semibold py-3 rounded-xl transition-colors text-sm"
+              className="bg-amber-700 hover:bg-amber-800 text-white font-semibold py-3 rounded-xl transition-colors text-sm"
             >
               🙋 Mobiliser les bénévoles
             </button>
@@ -1252,7 +1255,7 @@ export default function EventDashboard() {
         </button>
         <button
           onClick={shareWhatsApp}
-          className="flex flex-col items-center gap-1 bg-green-500 hover:bg-green-600 text-white font-medium py-3 rounded-xl transition-all text-xs shadow-sm"
+          className="flex flex-col items-center gap-1 bg-green-700 hover:bg-green-800 text-white font-semibold py-3 rounded-2xl transition-all text-xs shadow-sm"
         >
           <span className="text-lg">💬</span>
           WhatsApp
@@ -1289,9 +1292,9 @@ export default function EventDashboard() {
       {/* Tester le rappel J-2 sans attendre la date */}
       <button
         onClick={() => setShareMsg({ title: 'Rappel aux invités', text: buildReminder().text })}
-        className="w-full mb-4 text-center text-sm font-medium text-slate-500 hover:text-amber-600 transition-colors"
+        className="w-full mb-4 min-h-[44px] text-center text-sm font-semibold text-stone-600 hover:text-amber-800 transition-colors"
       >
-        🔔 Tester le rappel maintenant
+        🔔 Voir le message de rappel
       </button>
 
       {/* === MODAL MESSAGE À PARTAGER (relance / récap) === */}
@@ -1299,7 +1302,7 @@ export default function EventDashboard() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4" onClick={() => setShareMsg(null)}>
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-bold text-slate-800 mb-1">{shareMsg.title}</h3>
-            <p className="text-xs text-slate-400 mb-3">Tu rédiges, tu envoies toi-même. Rien n'est envoyé automatiquement.</p>
+            <p className="text-sm text-stone-600 mb-3">Planify prépare le texte à partir de ce qui manque. C’est toi qui l’envoies : rien n’est envoyé automatiquement.</p>
             <textarea
               readOnly
               value={shareMsg.text}
@@ -1315,7 +1318,7 @@ export default function EventDashboard() {
               </button>
               <button
                 onClick={shareMsgWhatsApp}
-                className="bg-green-500 hover:bg-green-600 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm"
+                className="bg-green-700 hover:bg-green-800 text-white font-semibold min-h-[44px] rounded-xl transition-colors text-sm"
               >
                 💬 WhatsApp
               </button>
@@ -1355,7 +1358,7 @@ export default function EventDashboard() {
             </p>
             <button
               onClick={copyInviteLink}
-              className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm"
+              className="w-full bg-blue-700 hover:bg-blue-800 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm"
             >
               {copied ? 'Copié !' : 'Copier le lien'}
             </button>
@@ -1371,10 +1374,10 @@ export default function EventDashboard() {
 
       {/* === PARTICIPANTS === (masqué pour l'apéro : fusionné dans "Qui vient et qui prend quoi") */}
       {participants.length > 0 && !isApero && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+        <div className="bg-white rounded-3xl shadow-sm ring-1 ring-stone-900/5 overflow-hidden">
           <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100">
             <h3 className="text-sm font-bold text-slate-800">Participants</h3>
-            <span className="text-xs text-slate-400">{totalPersonnes} personnes ({participants.length} reponses)</span>
+            <span className="text-xs text-slate-400">{totalPersonnes} personnes ({participants.length} réponses)</span>
           </div>
           <div className="divide-y divide-slate-50">
             {(showAllParticipants ? sortedParticipants : sortedParticipants.slice(0, 5)).map((p) => {
@@ -1399,7 +1402,7 @@ export default function EventDashboard() {
                         )}
                       </p>
                       {c.accompagnants.length > 0 && (
-                        <p className="text-xs text-blue-500 truncate">avec {c.accompagnants.join(', ')}</p>
+                        <p className="text-xs text-blue-800 truncate">avec {c.accompagnants.join(', ')}</p>
                       )}
                       {p.restriction_alimentaire && (
                         <span className="inline-block text-xs bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full mt-0.5">
@@ -1449,7 +1452,7 @@ export default function EventDashboard() {
                       p.rsvp_status === 'Refusé' ? 'bg-red-100 text-red-600' :
                       'bg-amber-100 text-amber-600'
                     }`}>
-                      {p.rsvp_status === 'Confirmé' ? 'Oui' : p.rsvp_status === 'Refusé' ? 'Non' : 'Peut-etre'}
+                      {p.rsvp_status === 'Confirmé' ? 'Oui' : p.rsvp_status === 'Refusé' ? 'Non' : 'Peut-être'}
                     </span>
                     <button
                       onClick={() => deleteParticipant(p)}
@@ -1465,7 +1468,7 @@ export default function EventDashboard() {
           </div>
           <div className="bg-slate-50 px-5 py-3 border-t border-slate-100 flex items-center justify-between">
             <span className="text-sm font-medium text-slate-600">Total</span>
-            <span className="text-sm font-bold text-slate-800">{totalPersonnes} personnes confirmees</span>
+            <span className="text-sm font-bold text-slate-800">{totalPersonnes} personnes confirmées</span>
           </div>
           {participants.length > 5 && (
             <button
@@ -1480,7 +1483,7 @@ export default function EventDashboard() {
 
       {/* === TEMPS 2 TOURNOI : préparer le planning bénévole === */}
       {event.event_type === 'Match/Tournoi' && slots.length === 0 && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mt-4">
+        <div className="bg-white rounded-3xl shadow-sm ring-1 ring-stone-900/5 overflow-hidden mt-4">
           <div className="px-5 py-3 border-b border-slate-100">
             <h3 className="text-sm font-bold text-slate-800">Planning bénévole</h3>
             <p className="text-xs text-slate-400 mt-0.5">
@@ -1495,7 +1498,7 @@ export default function EventDashboard() {
               <button
                 onClick={prepareVolunteerPlanning}
                 disabled={preparingPlanning}
-                className="w-full bg-amber-500 hover:bg-amber-600 disabled:bg-amber-300 text-white font-semibold py-3 rounded-xl transition-colors text-sm"
+                className="w-full bg-amber-700 hover:bg-amber-800 disabled:bg-amber-300 text-white font-semibold py-3 rounded-xl transition-colors text-sm"
               >
                 {preparingPlanning
                   ? '✨ Génération des postes...'
@@ -1555,7 +1558,7 @@ export default function EventDashboard() {
                   Annuler
                 </button>
                 <button type="button" onClick={saveVolunteerPlanning} disabled={savingPlanning}
-                  className="flex-1 bg-emerald-500 hover:bg-emerald-600 disabled:bg-emerald-300 text-white font-semibold py-3 rounded-xl transition-colors text-sm">
+                  className="flex-1 bg-emerald-700 hover:bg-emerald-800 disabled:bg-emerald-300 text-white font-semibold py-3 rounded-xl transition-colors text-sm">
                   {savingPlanning ? '⏳ Enregistrement...' : 'Enregistrer le planning'}
                 </button>
               </div>
@@ -1566,7 +1569,7 @@ export default function EventDashboard() {
 
       {/* === PLANNING D'AIDE === */}
       {slots.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mt-4">
+        <div className="bg-white rounded-3xl shadow-sm ring-1 ring-stone-900/5 overflow-hidden mt-4">
           <div className="px-5 py-3 border-b border-slate-100">
             <h3 className="text-sm font-bold text-slate-800">Planning d'aide</h3>
             <p className="text-xs text-slate-400 mt-0.5">Qui aide et quand. Les invités s'inscrivent eux-mêmes depuis leur invitation.</p>
@@ -1642,7 +1645,7 @@ export default function EventDashboard() {
         const nbEnCours = rows.filter(r => r.statut === 'encours').length
         const nbPas = rows.filter(r => r.statut === 'pas').length
         return (
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mt-4">
+          <div className="bg-white rounded-3xl shadow-sm ring-1 ring-stone-900/5 overflow-hidden mt-4">
             <div className="px-5 py-3 border-b border-slate-100">
               <h3 className="text-sm font-bold text-slate-800">✅ Équipement des participants</h3>
               <p className="text-xs text-slate-400 mt-0.5">{nbPret} prêt{nbPret > 1 ? 's' : ''} · {nbEnCours} en cours · {nbPas} pas commencé</p>
@@ -1694,9 +1697,10 @@ export default function EventDashboard() {
       {participants.length === 0 && (
         <div className="bg-slate-50 rounded-2xl p-6 text-center">
           <p className="text-slate-500 text-sm mb-1">Personne n'a encore repondu</p>
-          <p className="text-slate-400 text-xs">Partage le lien pour lancer les reponses</p>
+          <p className="text-slate-400 text-xs">Partage le lien pour recevoir les premières réponses</p>
         </div>
       )}
+    </div>
     </div>
   )
 }
