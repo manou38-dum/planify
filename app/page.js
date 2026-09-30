@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { getSupabase } from '@/lib/supabase'
 import Link from 'next/link'
+import { eventTheme } from '@/lib/ui-theme.mjs'
 
 export default function Home() {
   const [events, setEvents] = useState([])
@@ -31,89 +32,89 @@ export default function Home() {
   }
 
   const statusColors = {
-    'Actif': 'bg-emerald-100 text-emerald-700',
-    'Brouillon': 'bg-amber-100 text-amber-700',
-    'Terminé': 'bg-slate-100 text-slate-500',
+    'Actif': 'bg-emerald-100 text-emerald-900',
+    'Brouillon': 'bg-amber-100 text-amber-900',
+    'Terminé': 'bg-stone-200 text-stone-700',
   }
 
-  const typeEmojis = {
-    'BBQ': '🍖',
-    'Anniversaire': '🎂',
-    'Tournoi': '⚽',
-    'Créneau récurrent': '📅',
-    'Autre': '🎉',
+  const now = new Date()
+  const upcoming = events.filter(ev => new Date(ev.date) >= new Date(now.getTime() - 12 * 3600 * 1000))
+  const past = events.filter(ev => !upcoming.includes(ev)).reverse()
+
+  function EventCard({ event }) {
+    const theme = eventTheme(event.event_type)
+    return (
+      <Link
+        href={`/event/${event.id}`}
+        className="flex items-stretch gap-3 bg-white rounded-3xl p-3 shadow-sm ring-1 ring-stone-900/5 hover:ring-orange-300 transition-all"
+      >
+        <span aria-hidden="true" className={`shrink-0 w-14 rounded-2xl grid place-items-center text-2xl ${theme.hero}`}>{theme.emoji}</span>
+        <div className="min-w-0 flex-1 py-0.5">
+          <h3 className="font-bold text-stone-900 leading-snug break-words">{event.event_name}</h3>
+          <p className="text-sm text-stone-700 first-letter:uppercase">
+            {new Date(event.date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
+          </p>
+          {event.location && <p className="text-sm text-stone-600 truncate">{event.location}</p>}
+          {event.status && (
+            <span className={`inline-block mt-1.5 text-xs px-2 py-0.5 rounded-full font-semibold ${statusColors[event.status] || 'bg-stone-100 text-stone-700'}`}>
+              {event.status}
+            </span>
+          )}
+        </div>
+        <button
+          onClick={(e) => deleteEvent(e, event.id)}
+          className="shrink-0 self-start w-11 h-11 grid place-items-center rounded-xl text-stone-400 hover:bg-red-50 hover:text-red-700 transition-colors"
+          title="Supprimer l'événement"
+          aria-label={`Supprimer ${event.event_name}`}
+        >
+          ✕
+        </button>
+      </Link>
+    )
   }
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900">🎉 Planify</h1>
-        <p className="text-slate-500 mt-1">Tes événements, zéro tracas</p>
-      </div>
+    <div className="min-h-screen bg-cream text-stone-900">
+    <div className="max-w-md mx-auto px-4 py-8">
+      {/* En-tête */}
+      <header className="mb-6">
+        <h1 className="text-3xl font-extrabold tracking-tight">Planify</h1>
+        <p className="text-stone-700 mt-1">Invite, chacun répond et choisit ce qu’il apporte. Tu vois tout d’un coup d’œil.</p>
+      </header>
 
       {/* Bouton créer */}
       <Link
         href="/create"
-        className="block w-full bg-blue-500 hover:bg-blue-600 text-white text-center font-semibold py-4 rounded-2xl mb-8 transition-colors text-lg"
+        className="flex items-center justify-center w-full min-h-[56px] bg-orange-700 hover:bg-orange-800 text-white font-bold rounded-2xl mb-8 transition-colors text-lg shadow-sm"
       >
-        + Créer un événement
+        Créer un événement
       </Link>
 
       {/* Liste des événements */}
       {loading ? (
-        <div className="text-center py-12 text-slate-400">Chargement...</div>
+        <p className="text-center py-12 text-stone-600">Chargement de tes événements…</p>
       ) : events.length === 0 ? (
-        <div className="text-center py-12">
-          <p className="text-5xl mb-4">📋</p>
-          <p className="text-slate-500">Aucun événement pour l'instant</p>
-          <p className="text-slate-400 text-sm mt-1">Crée ton premier événement en 30 secondes</p>
+        <div className="bg-white rounded-3xl shadow-sm ring-1 ring-stone-900/5 p-6 text-center">
+          <p className="font-bold text-lg">Aucun événement pour l’instant</p>
+          <p className="text-stone-700 mt-1">BBQ, anniversaire, sortie ou tournoi : décris-le en une phrase, Planify prépare l’invitation et la liste.</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {events.map((event) => (
-            <Link
-              key={event.id}
-              href={`/event/${event.id}`}
-              className="block bg-white rounded-2xl p-4 border border-slate-100 hover:border-blue-200 hover:shadow-sm transition-all"
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">{typeEmojis[event.event_type] || '🎉'}</span>
-                  <div>
-                    <h3 className="font-semibold text-slate-900">{event.event_name}</h3>
-                    <p className="text-sm text-slate-500">
-                      {new Date(event.date).toLocaleDateString('fr-FR', {
-                        weekday: 'long',
-                        day: 'numeric',
-                        month: 'long',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </p>
-                    {event.location && (
-                      <p className="text-sm text-slate-400">📍 {event.location}</p>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${statusColors[event.status] || ''}`}>
-                    {event.status}
-                  </span>
-                  <button
-                    onClick={(e) => deleteEvent(e, event.id)}
-                    className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-300 hover:bg-red-50 hover:text-red-500 transition-colors"
-                    title="Supprimer l'événement"
-                    aria-label="Supprimer l'événement"
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
-            </Link>
-          ))}
+        <div className="space-y-8">
+          {upcoming.length > 0 && (
+            <section aria-labelledby="a-venir">
+              <h2 id="a-venir" className="text-sm font-bold uppercase tracking-wide text-stone-600 mb-3">À venir</h2>
+              <div className="space-y-3">{upcoming.map(event => <EventCard key={event.id} event={event} />)}</div>
+            </section>
+          )}
+          {past.length > 0 && (
+            <section aria-labelledby="passes">
+              <h2 id="passes" className="text-sm font-bold uppercase tracking-wide text-stone-600 mb-3">Passés</h2>
+              <div className="space-y-3 opacity-80">{past.map(event => <EventCard key={event.id} event={event} />)}</div>
+            </section>
+          )}
         </div>
       )}
+    </div>
     </div>
   )
 }
