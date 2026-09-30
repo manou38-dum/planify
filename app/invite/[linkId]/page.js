@@ -1,4 +1,4 @@
-import { invitationHook } from '@/lib/invitation.mjs'
+import { invitationPreviewText } from '@/lib/invitation.mjs'
 import { getSupabase } from '@/lib/supabase'
 import InviteClient from './InviteClient'
 
@@ -42,7 +42,7 @@ export async function generateMetadata({ params }) {
   }
 
   const title = event.event_name
-  const description = `${event.organizer_name} t’invite : ${invitationHook(event)} Rendez-vous ${formatDateFr(event.date)}.`
+  const description = invitationPreviewText(event)
 
   return {
     title,

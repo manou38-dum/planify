@@ -42,3 +42,18 @@ test('missing items are listed briefly', () => {
   assert.equal(listeManques(['a', 'b', 'c', 'd', 'e', 'f']), 'a, b, c, d et 2 autres')
   assert.equal(listeManques(['a', 'b', 'c', 'd', 'e']), 'a, b, c, d et 1 autre')
 })
+
+test('outdoor invitation: clean activity name, gear call to action, no repeated preview', async () => {
+  const { invitationMessage, invitationPreviewText, invitationHook } = await import('../lib/invitation.mjs')
+  const ev = { ...base, event_type: 'Randonnée', event_name: 'thomas', organizer_name: 'numi', event_options: { activite: 'RANDONNEE', selected_lists: { checklist: true } } }
+  const { text } = invitationMessage(ev, 'https://x')
+  assert.match(text, /^numi t’invite : \*thomas\*\n/)
+  assert.equal((text.match(/thomas/g) || []).length, 1)
+  assert.match(text, /Une randonnée au grand air/)
+  assert.doesNotMatch(text, /RANDONNEE|apportes/)
+  assert.match(text, /coche ton matériel/)
+  assert.match(invitationHook({ ...ev, event_options: { activite: 'VTT' } }), /sortie VTT/)
+  assert.match(invitationHook({ ...ev, event_options: { activite: 'Parapente' } }), /sortie parapente/)
+  const preview = invitationPreviewText(ev)
+  assert.doesNotMatch(preview, /grand air|octobre|thomas/)
+})

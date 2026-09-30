@@ -518,6 +518,11 @@ export default function EventDashboard() {
   const checklistItems = items.filter(i => listBehavior[i.list_id] === 'checklist')
   const apportItems = items.filter(i => listBehavior[i.list_id] !== 'cadeau' && listBehavior[i.list_id] !== 'checklist')
 
+  // Matériel des sorties : qui a coché quoi (données déjà enregistrées dans le commentaire du participant)
+  const gearIds = p => parseCommentaire(p.commentaire).checklist || []
+  const gearByItem = checklistItems.map(it => ({ item: it, manquants: confirmed.filter(p => !gearIds(p).includes(it.id)) }))
+  const gearReady = confirmed.filter(p => checklistItems.every(it => gearIds(p).includes(it.id)))
+  const gearIncomplete = checklistItems.length > 0 && confirmed.length > 0 && gearReady.length < confirmed.length
   const disponibles = apportItems.filter(i => i.status === 'Disponible')
   const reserves = apportItems.filter(i => i.status === 'Réservé')
   const giftReserves = giftItems.filter(i => i.status === 'Réservé')
@@ -626,10 +631,15 @@ export default function EventDashboard() {
       ...slotsIncomplets.map(s => `${s.manque} personne${s.manque > 1 ? 's' : ''} pour ${s.slot_name}`),
     ]
     const lines = [`Salut ! *${event.event_name}* approche.`, ``]
+    const gearManque = gearByItem.filter(g => g.manquants.length > 0).map(g => g.item.item_name)
+    if (gearManque.length > 0) {
+      lines.push(`Pour le matériel, pense à vérifier et cocher : ${listeManques(gearManque)}.`)
+      if (manques.length === 0) lines.push(`Tout se fait depuis ta réponse :`)
+    }
     if (manques.length > 0) {
       lines.push(`Il manque encore : ${listeManques(manques)}.`)
       lines.push(`Si tu peux t’en charger, réserve-le ici, ça évite les doublons :`)
-    } else {
+    } else if (gearManque.length === 0) {
       lines.push(`Si tu n’as pas encore répondu, un oui ou un non nous aide beaucoup à tout prévoir :`)
     }
     lines.push(url)
@@ -840,6 +850,11 @@ export default function EventDashboard() {
               <dd className="text-3xl font-extrabold text-amber-900 leading-none">{reserves.length}<span className="text-base font-bold text-amber-800">/{apportItems.length}</span></dd>
               <dt className="text-xs font-semibold text-amber-900 mt-1.5 leading-tight">apports réservés</dt>
             </div>
+          ) : checklistItems.length > 0 && confirmed.length > 0 ? (
+            <div className="rounded-2xl bg-teal-50 px-2 py-3">
+              <dd className="text-3xl font-extrabold text-teal-900 leading-none">{gearReady.length}<span className="text-base font-bold text-teal-800">/{confirmed.length}</span></dd>
+              <dt className="text-xs font-semibold text-teal-900 mt-1.5 leading-tight">équipés</dt>
+            </div>
           ) : (
             <div className="rounded-2xl bg-stone-100 px-2 py-3">
               <dd className="text-3xl font-extrabold text-stone-800 leading-none">{pending.length}</dd>
@@ -853,7 +868,7 @@ export default function EventDashboard() {
               <div className="h-full rounded-full bg-emerald-600 transition-all duration-700" style={{ width: `${Math.min(100, Math.round(totalPersonnes / Number(event.nb_participants) * 100))}%` }} />
             </div>
             <p className="flex justify-between text-xs text-stone-600 mt-1.5">
-              <span>{event.mode !== 'solo' && apportItems.length > 0 ? `${pending.length} sans réponse` : ''}</span>
+              <span>{event.mode !== 'solo' && (apportItems.length > 0 || (checklistItems.length > 0 && confirmed.length > 0)) ? `${pending.length} sans réponse` : ''}</span>
               <span>{refused.length} ne vien{refused.length === 1 ? 't' : 'nent'} pas</span>
             </p>
           </>
@@ -861,8 +876,9 @@ export default function EventDashboard() {
       </section>
 
       {/* === À FAIRE MAINTENANT === */}
-      {!isClosed && hasMissing && (() => {
+      {!isClosed && (hasMissing || gearIncomplete) && (() => {
         const bouts = []
+        if (gearIncomplete) { const n = confirmed.length - gearReady.length; bouts.push(`${n} participant${n > 1 ? 's n’ont' : ' n’a'} pas tout son matériel`) }
         if (disponibles.length > 0) bouts.push(`${disponibles.length} apport${disponibles.length > 1 ? 's cherchent' : ' cherche'} encore quelqu’un`)
         if (slotsIncomplets.length > 0) bouts.push(`${slotsIncomplets.length} poste${slotsIncomplets.length > 1 ? 's' : ''} d’aide ${slotsIncomplets.length > 1 ? 'ne sont pas complets' : 'n’est pas complet'}`)
         if (pending.length > 0) bouts.push(`${pending.length} personne${pending.length > 1 ? 's n’ont' : ' n’a'} pas répondu`)
@@ -880,6 +896,33 @@ export default function EventDashboard() {
           </div>
         )
       })()}
+
+      {/* === MATÉRIEL DE CHACUN (sorties avec checklist) : même lecture que les apports === */}
+      {checklistItems.length > 0 && confirmed.length > 0 && (
+        <section aria-labelledby="materiel" className={`rounded-3xl border-2 p-4 mb-4 ${gearIncomplete ? 'border-amber-400 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}>
+          <h2 id="materiel" className="font-bold text-xl text-stone-900 flex items-center justify-between gap-2">
+            Matériel de chacun
+            <span className={`shrink-0 min-w-[34px] h-[34px] px-2 grid place-items-center text-base font-extrabold text-white rounded-full tabular-nums ${gearIncomplete ? 'bg-amber-800' : 'bg-emerald-700'}`}>{gearReady.length}/{confirmed.length}</span>
+          </h2>
+          <p className={`text-sm mt-0.5 ${gearIncomplete ? 'text-amber-900' : 'text-emerald-800'}`}>
+            {gearIncomplete ? 'Chaque participant coche son matériel en répondant. Voici ce qui manque encore.' : 'Tout le monde a coché son matériel.'}
+          </p>
+          <ul className="mt-3 space-y-2">
+            {gearByItem.map(({ item, manquants }) => (
+              <li key={item.id} className="bg-white rounded-2xl px-3 py-2.5 flex items-start justify-between gap-3">
+                <span className="min-w-0">
+                  <span className="font-semibold text-stone-900 break-words">{item.item_name}</span>
+                  {manquants.length > 0 && <span className="block text-sm text-amber-900 mt-0.5">Pas coché : {manquants.map(p => p.participant_name).join(', ')}</span>}
+                </span>
+                <span className={`shrink-0 text-sm font-bold rounded-full px-2.5 py-0.5 tabular-nums ${manquants.length ? 'bg-amber-100 text-amber-950' : 'bg-emerald-100 text-emerald-950'}`}>
+                  {confirmed.length - manquants.length}/{confirmed.length}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {pending.length > 0 && <p className="text-xs text-stone-600 mt-3">{pending.length > 1 ? `Les ${pending.length} personnes sans réponse ne sont pas comptées.` : 'La personne sans réponse n’est pas comptée.'}</p>}
+        </section>
+      )}
 
       {/* === APÉRO PARTICIPATIF : partants, budget, liste de courses === */}
       {isApero && (
@@ -960,9 +1003,9 @@ export default function EventDashboard() {
       )}
 
       {/* === CARTE PRINCIPALE === */}
-      <div className="bg-white rounded-3xl shadow-sm ring-1 ring-stone-900/5 overflow-hidden mb-4">
+      <div className={`bg-white rounded-3xl shadow-sm ring-1 ring-stone-900/5 overflow-hidden mb-4 ${apportItems.length === 0 && checklistItems.length > 0 ? 'hidden' : ''}`}>
         {/* Les deux listes restent visibles, même pendant les modifications. */}
-        {event.mode !== 'solo' && (event.event_type !== 'Match/Tournoi' || apportItems.length > 0) && (
+        {event.mode !== 'solo' && (event.event_type !== 'Match/Tournoi' || apportItems.length > 0) && !(apportItems.length === 0 && checklistItems.length > 0) && (
           <div className="grid gap-4 p-4 md:grid-cols-2">
             <section aria-labelledby="remaining-contributions" className="rounded-3xl border-2 border-amber-400 bg-amber-50 p-4">
               <h2 id="remaining-contributions" className="font-bold text-xl text-amber-950 flex items-center justify-between gap-2">Il reste à apporter <span className="shrink-0 min-w-[34px] h-[34px] grid place-items-center text-base font-extrabold text-white bg-amber-800 rounded-full tabular-nums">{disponibles.length}</span></h2>
@@ -1038,7 +1081,7 @@ export default function EventDashboard() {
               : 'bg-white text-blue-600 border-blue-200 hover:bg-blue-50'
           }`}
         >
-          {editMode ? 'Terminer les modifications' : 'Modifier la liste de courses'}
+          {editMode ? 'Terminer les modifications' : (apportItems.length === 0 && checklistItems.length > 0 ? 'Modifier la liste de matériel' : 'Modifier la liste de courses')}
         </button>
       )}
 
