@@ -6,7 +6,7 @@ create or replace function public.planify_header(header_name text)
 returns text language sql stable
 set search_path = public, extensions
 as $$
-  select coalesce(current_setting('request.headers', true), '{}')::json ->> lower(header_name)
+  select coalesce(nullif(current_setting('request.headers', true), ''), '{}')::json ->> lower(header_name)
 $$;
 
 create or replace function public.planify_token_hash(token text)
