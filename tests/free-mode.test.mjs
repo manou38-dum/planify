@@ -44,13 +44,16 @@ test('lists respect selection, vegetarian choice, and dessert option', () => {
 })
 
 test('calculation summary only mentions barbecue for a BBQ and only for chosen lists', () => {
-  for (const type of ['Soirée', 'Anniversaire', 'Match/Tournoi', 'Randonnée', 'Autre']) {
+  for (const type of ['Soirée', 'Match/Tournoi', 'Randonnée', 'Autre']) {
     const { menu_resume } = freeLists(['menu', 'boissons', 'materiel'], 12, {}, type)
     assert.doesNotMatch(menu_resume, /grillade|barbecue|BBQ/i, type)
     assert.match(menu_resume, /Base pour 12 personnes/)
   }
+  const anniversaire = freeLists(['menu', 'boissons', 'materiel'], 12, {}, 'Anniversaire').menu_resume
+  assert.doesNotMatch(anniversaire, /grillade|barbecue|BBQ/i)
+  assert.match(anniversaire, /Repères de buffet par personne/)
   assert.match(freeLists(['menu', 'materiel'], 12, {}, 'BBQ').menu_resume, /grillades.*barbecue/s)
   assert.equal(freeLists(['planning'], 12, {}, 'Match/Tournoi').menu_resume, '')
-  assert.equal(freeLists(['cadeaux'], 12, {}, 'Anniversaire').menu_resume, '')
+  assert.match(freeLists(['cadeaux'], 12, {}, 'Anniversaire').menu_resume, /réserver un cadeau/i)
   assert.doesNotMatch(freeLists(['boissons'], 12, {}, 'Soirée').menu_resume, /Repas|Vaisselle/)
 })
