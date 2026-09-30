@@ -1,6 +1,6 @@
 'use client'
 import { quantityReview } from '@/lib/quantity-review.mjs'
-import { invitationMessage } from '@/lib/invitation.mjs'
+import { invitationMessage, listeManques } from '@/lib/invitation.mjs'
 import { eventTheme, formatQuantity } from '@/lib/ui-theme.mjs'
 import { useState, useEffect } from 'react'
 import { useSharedItems } from '@/lib/use-shared-items'
@@ -439,14 +439,14 @@ export default function EventDashboard() {
     const dateStr = new Date(event.date).toLocaleDateString('fr-FR', {
       weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
     })
-    const lieu = event.location ? ` à ${event.location}` : ''
+    const lieu = event.location ? `, ${event.location}` : ''
     const repas = Array.isArray(event.event_options?.meal_choices) && event.event_options.meal_choices.length > 0
-      ? ' Un repas est proposé : choisis ton menu en répondant.' : ''
-    return `Bonjour ! *${event.event_name}* le ${dateStr}${lieu}.\nViens jouer ou encourager, en famille ou entre amis.${repas}\nDis-nous si tu viens et à combien :\n${url}`
+      ? '\nUn repas est prévu : tu choisis ton menu en répondant.' : ''
+    return `Salut ! *${event.event_name}*, ${dateStr}${lieu}.\nOn vient jouer ou encourager, en famille ou entre amis.${repas}\nDis-nous si tu viens et à combien :\n${url}`
   }
   function buildMobilizeVolunteers() {
     const url = `${window.location.origin}/invite/${event.invite_link_id}`
-    return `On a besoin de bras pour *${event.event_name}* !\nInstallation, buvette, arbitrage : même une heure aide beaucoup.\nInscris-toi ici :\n${url}`
+    return `Un coup de main pour *${event.event_name}* ?\nChaque poste compte, même pour une heure. Choisis celui qui te va :\n${url}`
   }
 
   function shareWhatsApp() {
@@ -625,13 +625,14 @@ export default function EventDashboard() {
       ...giftDispo.map(i => i.item_name),
       ...slotsIncomplets.map(s => `${s.manque} personne${s.manque > 1 ? 's' : ''} pour ${s.slot_name}`),
     ]
-    const lines = [`Salut ! Plus que quelques jours avant *${event.event_name}*.`, ``]
+    const lines = [`Salut ! *${event.event_name}* approche.`, ``]
     if (manques.length > 0) {
-      lines.push(`Il manque encore : ${manques.join(', ')}.`)
-    } else if (reponsesManque > 0) {
-      lines.push(`On attend encore quelques réponses pour finaliser l’organisation.`)
+      lines.push(`Il manque encore : ${listeManques(manques)}.`)
+      lines.push(`Si tu peux t’en charger, réserve-le ici, ça évite les doublons :`)
+    } else {
+      lines.push(`Si tu n’as pas encore répondu, un oui ou un non nous aide beaucoup à tout prévoir :`)
     }
-    lines.push(``, `Merci ! Si tu peux en prendre un, c’est ici :`, url)
+    lines.push(url)
     return { url, text: lines.join('\n') }
   }
 
@@ -644,10 +645,11 @@ export default function EventDashboard() {
     })
     const jourStr = d.toLocaleDateString('fr-FR', { weekday: 'long' })
     const lines = [
-      `C'est confirmé pour *${event.event_name}*, le ${dateStr}${event.location ? ` à ${event.location}` : ''} !`,
+      `C’est bouclé pour *${event.event_name}* ! Merci à tous.`,
+      `Rendez-vous ${dateStr}${event.location ? `, ${event.location}` : ''}.`,
     ]
-    if (apportItems.length > 0) lines.push(`Pense à apporter ce que tu as réservé.`)
-    lines.push(`À ${jourStr} ! Liste complète et qui apporte quoi :`, url)
+    if (apportItems.length > 0) lines.push(`N’oublie pas ce que tu as réservé.`)
+    lines.push(`À ${jourStr} ! Qui apporte quoi, en un coup d’œil :`, url)
     return { url, text: lines.join('\n') }
   }
 
@@ -659,13 +661,13 @@ export default function EventDashboard() {
     })
     const mealChoices = Array.isArray(event.event_options?.meal_choices) ? event.event_options.meal_choices : []
     const lines = [
-      `On se retrouve bientôt pour *${event.event_name}* !`,
+      `Plus que quelques jours avant *${event.event_name}* !`,
       `Quand : ${dateStr}${event.location ? ` · Où : ${event.location}` : ''}`,
     ]
-    if (apportItems.length > 0) lines.push(`Pense à apporter ce que tu as réservé.`)
-    if (slots.length > 0) lines.push(`N'oublie pas ton créneau d'aide.`)
-    if (mealChoices.length > 0) lines.push(`Pense à choisir ton repas si ce n'est pas fait.`)
-    lines.push(`À très vite ! Qui apporte quoi et dernières infos :`, url)
+    if (apportItems.length > 0) lines.push(`Pense à ce que tu as réservé.`)
+    if (slots.length > 0) lines.push(`Et à ton créneau d’aide si tu en as pris un.`)
+    if (mealChoices.length > 0) lines.push(`Ton repas n’est pas encore choisi ? C’est le moment.`)
+    lines.push(`À très vite ! Les dernières infos sont ici :`, url)
     return { url, text: lines.join('\n') }
   }
 
