@@ -4,7 +4,7 @@ import InviteClient from './InviteClient'
 
 async function fetchEvent(linkId) {
   try {
-    const supabase = getSupabase()
+    const supabase = getSupabase({ inviteLinkId: linkId })
     const { data } = await supabase
       .from('events')
       .select('*')

@@ -18,7 +18,7 @@ const DEFAULT_GRADIENT = 'linear-gradient(135deg, #60a5fa 0%, #2563eb 55%, #1e3a
 
 async function fetchEvent(linkId) {
   try {
-    const supabase = getSupabase()
+    const supabase = getSupabase({ inviteLinkId: linkId })
     const { data } = await supabase
       .from('events')
       .select('*')

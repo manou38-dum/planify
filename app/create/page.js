@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { getSupabase } from '@/lib/supabase'
+import { createOrganizerToken, organizerTokenHash, rememberOrganizerToken } from '@/lib/event-access'
 import { safeGiftUrl, giftSearchUrl } from '@/lib/birthday-lists.mjs'
 import { MENU_INSPIRATIONS, menuInspiration } from '@/lib/menu-inspirations.mjs'
 import { useRouter } from 'next/navigation'
@@ -1036,7 +1037,9 @@ export default function CreateEvent() {
   async function handleCreate() {
     setCreating(true)
     try {
-      const supabase = getSupabase()
+      const organizerToken = createOrganizerToken()
+      const organizer_token_hash = await organizerTokenHash(organizerToken)
+      const supabase = getSupabase({ organizerToken })
 
       // Nettoie les choix de repas (retire les vides) avant l'enregistrement
       const cleanedOptions = { ...eventOptions }
@@ -1065,10 +1068,12 @@ export default function CreateEvent() {
           carpool_enabled: form.carpool_enabled,
           contribution_amount: cleanedOptions.contribution_amount ? Number(cleanedOptions.contribution_amount) || null : null,
           event_options: { ...cleanedOptions, selected_lists: selectedLists, ...(menuResume ? { menu_resume: menuResume } : {}) },
+          organizer_token_hash,
         })
         .select()
         .single()
       if (error) throw error
+      rememberOrganizerToken(event.id, organizerToken)
 
       // 2. Listes + items (sautées en mode solo : aucun apport)
       for (let i = 0; form.mode !== 'solo' && i < generatedLists.length; i++) {
@@ -1134,7 +1139,7 @@ export default function CreateEvent() {
       }
 
       // 4. Redirection
-      router.push(`/event/${event.id}`)
+      router.push(`/event/${event.id}#admin=${organizerToken}`)
     } catch (err) {
       alert(/failed to fetch|networkerror|load failed/i.test(err.message || '')
         ? "Impossible de joindre la base de données. Tes informations restent dans ce formulaire. Vérifie ta connexion ; si elle fonctionne, la base du projet peut être en pause ou indisponible."
