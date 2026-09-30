@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Planify — Suivi organisateur v3</title>
+<style>
+/* Maquette v3 du suivi organisateur (30/09/2026). Même palette que la v2 intégrée (Tailwind stone,
+   orange, amber, emerald) : intégration en classes Tailwind, sans nouvelle dépendance.
+   Police système, aucun chargement externe. Données fictives. */
+:root{
+  --cream:#FFF8F1; --surface:#FFFFFF; --ink:#1C1917; --muted:#57534E; --line:#E7E5E4;
+  --primary:#C2410C; --primary-press:#9A3412; --primary-soft:#FFEDD5;
+  --amber-50:#FFFBEB; --amber-200:#FDE68A; --amber-400:#FBBF24; --amber-800:#92400E; --amber-950:#451A03;
+  --em-50:#ECFDF5; --em-200:#A7F3D0; --em-700:#047857; --em-800:#065F46; --em-950:#022C22;
+  --wa:#15803D; --radius:20px; --shadow:0 1px 2px rgba(28,25,23,.06),0 8px 24px rgba(28,25,23,.06);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#F5F0EA;color:var(--ink);line-height:1.45;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:3px solid #2563EB;outline-offset:2px;border-radius:8px}
+
+.intro{max-width:1000px;margin:0 auto;padding:28px 16px 8px}
+.intro h1{font-size:24px;letter-spacing:-.01em}
+.intro p{color:var(--muted);max-width:720px;margin-top:6px;font-size:15px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 4px}
+.chip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 14px;font-size:14px;font-weight:600}
+.chip[aria-current="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.stage{max-width:1000px;margin:0 auto;padding:16px;display:flex;gap:28px;justify-content:center;flex-wrap:wrap}
+.shot>h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 10px 6px}
+.phone{width:390px;height:820px;border-radius:44px;border:10px solid #1C1917;background:var(--cream);overflow:hidden;position:relative;box-shadow:0 30px 60px rgba(28,25,23,.18)}
+.scroll{height:100%;overflow-y:auto;padding-bottom:110px}
+.scroll::-webkit-scrollbar{width:0}
+@media (max-width:480px){
+  .stage{display:block;padding:0}
+  .shot{display:none}
+  .shot.on{display:block}
+  .shot>h2{display:none}
+  .phone{width:100%;height:auto;min-height:100vh;border:0;border-radius:0;box-shadow:none}
+  .scroll{height:auto;overflow:visible}
+  .sticky{position:fixed!important}
+}
+
+/* Barre du haut */
+.top{display:flex;justify-content:space-between;align-items:center;padding:14px 16px 4px;font-size:14px;font-weight:600;color:var(--muted)}
+.top a{color:inherit;text-decoration:none}
+
+/* En-tête compact de l'événement */
+.hero{margin:8px 12px 0;border-radius:24px;padding:16px 18px;background:linear-gradient(160deg,#FFEDD5 0%,#FED7AA 60%,#FDBA74 100%);position:relative}
+.hero h1{font-size:22px;line-height:1.15;letter-spacing:-.01em;padding-right:48px}
+.hero p{font-size:14px;color:#44403C;margin-top:4px}
+.hero .emo{position:absolute;right:14px;top:10px;font-size:38px}
+
+/* Résumé */
+.card{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;margin:12px}
+.card h2{font-size:17px}
+.help{font-size:14px;color:var(--muted)}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.kpi{border-radius:16px;padding:12px 8px;text-align:center;background:#FAFAF9}
+.kpi b{display:block;font-size:30px;line-height:1;letter-spacing:-.02em}
+.kpi span{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-top:6px;line-height:1.2}
+.kpi.ok{background:var(--em-50)} .kpi.ok b{color:var(--em-800)}
+.kpi.bring{background:var(--amber-50)} .kpi.bring b{color:var(--amber-800)}
+.kpi small{font-size:16px;font-weight:700;color:var(--muted)}
+.bar{height:10px;border-radius:999px;background:#F5F5F4;margin-top:14px;overflow:hidden}
+.bar i{display:block;height:100%;width:60%;background:#059669;border-radius:999px}
+.bar-legend{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-top:6px}
+
+/* Prochaine action */
+.next{display:flex;gap:12px;align-items:center;background:var(--ink);color:#fff;border-radius:20px;padding:14px 16px;margin:12px}
+.next p{font-size:15px;flex:1}
+.next p b{display:block;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#FDBA74}
+.next button{background:#fff;color:var(--ink);border:0;border-radius:14px;padding:10px 12px;font-weight:700;font-size:14px;min-height:44px;white-space:nowrap}
+
+/* Deux panneaux */
+.panel{border-radius:22px;padding:16px;margin:12px;border:2px solid}
+.panel.todo{background:var(--amber-50);border-color:var(--amber-400)}
+.panel.done{background:var(--em-50);border-color:var(--em-200)}
+.panel header{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.panel h2{font-size:19px;letter-spacing:-.01em}
+.panel.todo h2{color:var(--amber-950)} .panel.done h2{color:var(--em-950)}
+.count{min-width:34px;height:34px;border-radius:999px;display:grid;place-items:center;font-weight:800;font-size:16px;color:#fff}
+.todo .count{background:var(--amber-800)} .done .count{background:var(--em-700)}
+.panel .sub{font-size:14px;margin-top:2px}
+.todo .sub{color:var(--amber-800)} .done .sub{color:var(--em-800)}
+.rows{list-style:none;margin-top:10px;display:flex;flex-direction:column;gap:8px}
+.rows li{background:#fff;border-radius:14px;padding:12px;display:flex;justify-content:space-between;gap:12px;align-items:center}
+.rows .name{font-weight:600;font-size:15px}
+.rows .who{display:block;font-size:13px;color:var(--em-800);font-weight:600;margin-top:2px}
+.rows .qty{font-weight:700;font-size:14px;white-space:nowrap;border-radius:999px;padding:4px 10px}
+.todo .qty{background:#FEF3C7;color:var(--amber-950)} .done .qty{background:#D1FAE5;color:var(--em-950)}
+.tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;background:#E0E7FF;color:#3730A3;border-radius:6px;padding:2px 6px;margin-left:6px;vertical-align:2px}
+.more{display:block;width:100%;margin-top:10px;background:transparent;border:0;font-weight:700;font-size:14px;color:var(--em-800);min-height:44px}
+
+/* Barre fixe */
+.sticky{position:absolute;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding:12px 16px 18px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btn{min-height:52px;border-radius:16px;font-weight:700;font-size:16px;border:0}
+.btn.primary{background:var(--primary);color:#fff}
+.btn.primary:active{background:var(--primary-press)}
+.btn.ghost{background:#fff;border:2px solid var(--line)}
+
+/* Écran 2 */
+.section-title{font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:18px 16px 0}
+.bubble{background:#DCF8C6;border-radius:16px 16px 4px 16px;padding:12px 14px;font-size:14px;white-space:pre-line;margin-top:12px;color:#111827;line-height:1.4}
+.bubble .link{color:#1D4ED8;text-decoration:underline;word-break:break-all}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.actions .wa{background:var(--wa);color:#fff;grid-column:1/-1}
+.actions button{min-height:48px;border-radius:14px;font-weight:700;font-size:14px;white-space:nowrap;border:2px solid var(--line);background:#fff}
+.actions .wa{border-color:var(--wa)}
+.step{display:flex;gap:12px;align-items:flex-start}
+.step .dot{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:14px;flex:0 0 auto;background:#F5F5F4;color:var(--muted)}
+.step.now .dot{background:var(--primary);color:#fff}
+.step h3{font-size:16px}
+.badge{display:inline-block;font-size:12px;font-weight:700;background:var(--primary-soft);color:var(--primary-press);border-radius:999px;padding:2px 8px;margin-left:6px;vertical-align:1px}
+.honest{display:flex;gap:10px;background:#F5F5F4;border-radius:16px;padding:12px 14px;margin:12px;font-size:14px;color:#44403C}
+details.step-card summary{list-style:none;cursor:pointer}
+details.step-card summary::-webkit-details-marker{display:none}
+.chev{margin-left:auto;font-size:14px;color:var(--muted);align-self:center}
+
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 16px;border-radius:14px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw}
+.toast.on{opacity:1}
+</style>
+</head>
+<body>
+
+<header class="intro">
+  <h1>Planify — Suivi organisateur v3</h1>
+  <p>Deux écrans pensés pour le téléphone : ce que l'organisateur voit en ouvrant son événement, puis tout ce qu'il faut pour partager et relancer. Données fictives. Aucune fonction nouvelle : tout ce qui est montré existe déjà dans l'application.</p>
+  <nav class="chips" aria-label="Écrans">
+    <button class="chip" data-go="s1" aria-current="true">1. Suivi</button>
+    <button class="chip" data-go="s2" aria-current="false">2. Partager et relancer</button>
+  </nav>
+</header>
+
+<main class="stage">
+
+  <!-- ===================== ÉCRAN 1 : SUIVI ===================== -->
+  <section class="shot on" id="s1">
+    <h2>1. Suivi — en ouvrant l'événement</h2>
+    <div class="phone"><div class="scroll">
+      <div class="top"><a href="#">← Mes événements</a><a href="#">Modifier</a></div>
+
+      <div class="hero">
+        <span class="emo" aria-hidden="true">🔥</span>
+        <h1>BBQ chez Manu</h1>
+        <p>Samedi 3 octobre · 14h15 · Au jardin</p>
+        <p>Réponses souhaitées avant jeudi 1er octobre</p>
+      </div>
+
+      <section class="card" aria-labelledby="t-resume">
+        <h2 id="t-resume">En un coup d'œil</h2>
+        <div class="kpis">
+          <div class="kpi ok"><b>12</b><span>confirmés<br>dont 3 accomp.</span></div>
+          <div class="kpi"><b>20</b><span>personnes<br>attendues</span></div>
+          <div class="kpi bring"><b>4<small>/7</small></b><span>apports<br>réservés</span></div>
+        </div>
+        <div class="bar" role="img" aria-label="12 confirmés sur 20 attendus"><i></i></div>
+        <div class="bar-legend"><span>4 sans réponse</span><span>2 ne viennent pas</span></div>
+      </section>
+
+      <div class="next">
+        <p><b>À faire maintenant</b>3 apports cherchent encore quelqu'un et 4 personnes n'ont pas répondu.</p>
+        <button data-go="s2">Relancer</button>
+      </div>
+
+      <section class="panel todo" aria-labelledby="t-todo">
+        <header>
+          <div><h2 id="t-todo">Il reste à apporter</h2><p class="sub">Personne ne s'en occupe encore</p></div>
+          <span class="count" aria-label="3 articles">3</span>
+        </header>
+        <ul class="rows">
+          <li><span class="name">Merguez</span><span class="qty">2 kg</span></li>
+          <li><span class="name">Chips</span><span class="qty">3 paquets</span></li>
+          <li><span class="name">Eau</span><span class="qty">6 × 1,5 L</span></li>
+        </ul>
+      </section>
+
+      <section class="panel done" aria-labelledby="t-done">
+        <header>
+          <div><h2 id="t-done">Déjà réservé</h2><p class="sub">Et par qui</p></div>
+          <span class="count" aria-label="4 articles">4</span>
+        </header>
+        <ul class="rows">
+          <li><span><span class="name">Salade de pâtes</span><span class="who">Julie</span></span><span class="qty">2 kg</span></li>
+          <li><span><span class="name">Baguettes</span><span class="who">Karim</span></span><span class="qty">5</span></li>
+          <li><span><span class="name">Chipolatas</span><span class="who">Sophie</span></span><span class="qty">1,5 kg</span></li>
+          <li><span><span class="name">Glacière<span class="tag">Idée d'un invité</span></span><span class="who">Paul</span></span><span class="qty">1</span></li>
+        </ul>
+      </section>
+
+      <p class="help" style="margin:4px 16px 0">Plus bas, sans changement : liste des réponses, covoiturage, planning d'aide, liste de courses modifiable.</p>
+    </div>
+    <div class="sticky">
+      <button class="btn ghost" data-go="s2">Partager</button>
+      <button class="btn primary" data-go="s2">Relancer</button>
+    </div>
+    </div>
+  </section>
+
+  <!-- ===================== ÉCRAN 2 : PARTAGER ET RELANCER ===================== -->
+  <section class="shot" id="s2">
+    <h2>2. Partager et relancer</h2>
+    <div class="phone"><div class="scroll">
+      <div class="top"><a href="#" data-go="s1">← Suivi</a><span></span></div>
+
+      <p class="section-title">Inviter</p>
+      <section class="card" aria-labelledby="t-invite">
+        <h2 id="t-invite">Ton invitation est prête</h2>
+        <p class="help">Envoie-la dans tes groupes. Chacun répond depuis le lien, sans compte ni application.</p>
+        <div class="bubble">Manu t’invite !
+
+<b>BBQ chez Manu</b>
+Le barbecue chauffe, il ne manque plus que toi. Tu viens ?
+
+Quand : samedi 3 octobre à 14:15
+Où : Au jardin
+
+Réponse idéalement avant le jeudi 1 octobre.
+Dis-nous si tu viens, avec qui, et choisis ce que tu apportes :
+<span class="link">planify.manoulabs.com/invite/k3x9</span></div>
+        <div class="actions">
+          <button class="wa" data-toast="Ouvrirait WhatsApp avec ce message : tu choisis le groupe.">Envoyer sur WhatsApp</button>
+          <button data-toast="Copierait le message complet.">Copier le message</button>
+          <button data-toast="Afficherait le QR code à scanner.">QR code</button>
+        </div>
+      </section>
+
+      <p class="section-title">Relancer</p>
+      <div class="honest"><span aria-hidden="true">✋</span><span>Planify prépare le message, c'est toi qui l'envoies, à qui tu veux. Rien ne part tout seul.</span></div>
+
+      <section class="card">
+        <div class="step now">
+          <span class="dot">1</span>
+          <div style="flex:1">
+            <h3>Relance <span class="badge">Conseillé maintenant</span></h3>
+            <p class="help">Avant la date de réponse. Le message cite ce qui manque.</p>
+            <div class="bubble">Salut ! <b>BBQ chez Manu</b> approche.
+
+Il manque encore : Merguez, Chips, Eau.
+Si tu peux t’en charger, réserve-le ici, ça évite les doublons :
+<span class="link">planify.manoulabs.com/invite/k3x9</span></div>
+            <div class="actions">
+              <button class="wa" data-toast="Ouvrirait WhatsApp avec la relance.">Envoyer sur WhatsApp</button>
+              <button data-toast="Copierait la relance." style="grid-column:1/-1">Copier le message</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <details class="card step-card">
+        <summary class="step"><span class="dot">2</span><div><h3>Rappel</h3><p class="help">Quelques jours avant : date, lieu, ce que chacun a réservé.</p></div><span class="chev" aria-hidden="true">▾</span></summary>
+        <div class="bubble">Plus que quelques jours avant <b>BBQ chez Manu</b> !
+Quand : samedi 3 octobre à 14:15 · Où : Au jardin
+Pense à ce que tu as réservé.
+À très vite ! Les dernières infos sont ici :
+<span class="link">planify.manoulabs.com/invite/k3x9?recap=1</span></div>
+      </details>
+
+      <details class="card step-card">
+        <summary class="step"><span class="dot">3</span><div><h3>Récap final</h3><p class="help">Une fois tout calé : merci et qui apporte quoi.</p></div><span class="chev" aria-hidden="true">▾</span></summary>
+        <div class="bubble">C’est bouclé pour <b>BBQ chez Manu</b> ! Merci à tous.
+Rendez-vous samedi 3 octobre à 14:15, Au jardin.
+N’oublie pas ce que tu as réservé.
+À samedi ! Qui apporte quoi, en un coup d’œil :
+<span class="link">planify.manoulabs.com/invite/k3x9?recap=1</span></div>
+      </details>
+    </div></div>
+  </section>
+</main>
+
+<div class="toast" role="status" aria-live="polite"></div>
+
+<script>
+// Navigation de la maquette uniquement : sur téléphone, un écran à la fois.
+const shots = document.querySelectorAll('.shot')
+const chips = document.querySelectorAll('.chip')
+document.querySelectorAll('[data-go]').forEach(el => el.addEventListener('click', e => {
+  e.preventDefault()
+  const id = el.dataset.go
+  shots.forEach(s => s.classList.toggle('on', s.id === id))
+  chips.forEach(c => c.setAttribute('aria-current', String(c.dataset.go === id)))
+  if (window.innerWidth > 480) document.getElementById(id).scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+  else window.scrollTo({ top: 0 })
+}))
+const toast = document.querySelector('.toast')
+document.querySelectorAll('[data-toast]').forEach(b => b.addEventListener('click', () => {
+  toast.textContent = 'Maquette : ' + b.dataset.toast
+  toast.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => toast.classList.remove('on'), 2600)
+}))
+</script>
+</body>
+</html>
