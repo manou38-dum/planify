@@ -8,6 +8,8 @@ import { invitationHook } from '@/lib/invitation.mjs'
 import { eventTheme, formatQuantity } from '@/lib/ui-theme.mjs'
 import { menuInspiration } from '@/lib/menu-inspirations.mjs'
 import { useSearchParams } from 'next/navigation'
+import { findSportFormat } from '@/lib/tournament-formats.mjs'
+import MyMatches from './MyMatches'
 
 export default function InviteClient({ linkId }) {
   const searchParams = useSearchParams()
@@ -1019,6 +1021,15 @@ export default function InviteClient({ linkId }) {
               )
             })()}
           </div>
+
+          {/* Tournoi : les rencontres du joueur retrouvé, et toute la grille */}
+          {event.event_type === 'Match/Tournoi' && event.event_options?.match_schedule?.rounds?.length > 0 && (
+            <MyMatches
+              schedule={event.event_options.match_schedule}
+              name={lookup.status === 'found' ? lookup.participant?.participant_name : lookup.status === 'companion' ? lookup.name : ''}
+              place={Array.isArray(event.event_options.court_word) ? event.event_options.court_word : (findSportFormat(event.event_options.sport)?.place || ['terrain', 'terrains'])}
+            />
+          )}
 
           {/* Accès discret au formulaire */}
           {!formRevealed && (
