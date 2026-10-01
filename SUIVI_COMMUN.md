@@ -1,5 +1,13 @@
 # Planify — suivi commun des IA
 
+## Bêta et sécurité — 30 septembre 2026
+
+- PR #24 (Codex) : suppression automatique 12 mois après la date de l'événement. Tâche Vercel Cron quotidienne `17 3 * * *` UTC, activée et testée en production le 30/09 : réponse 200, aucun événement supprimé ; le plus ancien date du 25/06/2026. `CRON_SECRET` et `SUPABASE_SERVICE_ROLE_KEY` sont configurées dans Vercel Production. Un appel sans secret renvoie 401.
+- PR #25 (Claude) : page Confidentialité, durée de conservation de 12 mois. Il ne reste aucun « À faire » sur les pages légales.
+- `security-rls.sql` reprend la correction de production pour `planify_header` : une valeur vide de `request.headers` est traitée comme un objet JSON vide.
+- Bêta : du lundi 5 au dimanche 25 octobre 2026, avec 5 à 10 organisateurs et de vrais événements. Le plan est dans `docs/BETA.md` et le bilan de lecture seule dans `docs/bilan-beta.sql`.
+- Pendant la bêta : gel des fonctionnalités. Codex traite seulement un bug signalé par PR, sans texte, design ni modification du schéma de base. Toute donnée de test en production commence par « TEST » puis est supprimée ; elle est exclue des statistiques.
+
 Dernière mise à jour : 28 septembre 2026, par Codex.
 
 ## Invitations et contributions — 28 septembre
