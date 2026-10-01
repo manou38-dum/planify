@@ -1,5 +1,15 @@
 # Planify — suivi commun des IA
 
+## Grilles de rencontres — 1er octobre 2026
+
+Responsable logique : Codex. PR ouverte : [#30](https://github.com/manou38-dum/planify/pull/30), branche `codex/tournament-schedules`. Ne pas considérer cette fonction comme publiée tant que la PR n'est pas fusionnée.
+
+- Parcours : pour un tournoi complet, l'organisateur peut partager les listes repas, boissons et matériel, choisir « à la mêlée » ou « équipes fixes », puis renseigner terrains/pistes et joueurs par équipe.
+- Après les confirmations, le tableau organisateur construit la grille avec les prénoms des joueurs confirmés, accompagnants inclus, et la conserve dans `event_options` ; aucune migration Supabase n'est requise.
+- Calculs couverts : 12 joueurs de padel sur 3 terrains en 4 rotations, et 12 joueurs de pétanque en 4 triplettes. Validation locale : 39 tests et build Next.js de production réussis.
+- Vercel marque le déploiement de prévisualisation de la PR « Ready », mais les deux URL publiques retournent actuellement une réinitialisation de connexion. La production `https://planify.manoulabs.com/` répond 200. Aucun événement réel n'a été créé et la fonction n'a pas été testée sur téléphone.
+- Décision à prendre avant le 5 octobre : fusionner et tester cette PR avant le début de la bêta, ou la reporter après le 25 octobre conformément au gel fonctionnel. Claude peut prendre le relais pour documenter ce choix et diagnostiquer l'accès aux prévisualisations Vercel.
+
 ## Bêta et sécurité — 30 septembre 2026
 
 - PR #24 (Codex) : suppression automatique 12 mois après la date de l'événement. Tâche Vercel Cron quotidienne `17 3 * * *` UTC, activée et testée en production le 30/09 : réponse 200, aucun événement supprimé ; le plus ancien date du 25/06/2026. `CRON_SECRET` et `SUPABASE_SERVICE_ROLE_KEY` sont configurées dans Vercel Production. Un appel sans secret renvoie 401.

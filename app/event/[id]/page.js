@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react'
 import { useSharedItems } from '@/lib/use-shared-items'
 import { getSupabase } from '@/lib/supabase'
 import { organizerTokenFor } from '@/lib/event-access'
+import { buildTournamentSchedule, playerNames } from '@/lib/tournament-schedules.mjs'
 import { useParams, useRouter } from 'next/navigation'
 import { QRCodeSVG } from 'qrcode.react'
 
@@ -59,6 +60,7 @@ export default function EventDashboard() {
   const [preparingPlanning, setPreparingPlanning] = useState(false)
   const [draftSlots, setDraftSlots] = useState(null) // null = pas encore généré ; [] = en cours d'édition
   const [savingPlanning, setSavingPlanning] = useState(false)
+  const [matchSchedule, setMatchSchedule] = useState(null)
 
   // Recalcul des quantités après modification manuelle de la liste
   const [recalculating, setRecalculating] = useState(false)
@@ -106,6 +108,7 @@ export default function EventDashboard() {
       supabase.from('slots').select('*').eq('event_id', id).order('slot_date'),
     ])
     setEvent(evtRes.data)
+    setMatchSchedule(evtRes.data?.event_options?.match_schedule || null)
     setParticipants(partRes.data || [])
     setItems(itemRes.data || [])
     setLists(listRes.data || [])
@@ -120,6 +123,22 @@ export default function EventDashboard() {
       setSignups([])
     }
     setLoading(false)
+  }
+
+  async function prepareMatchSchedule() {
+    const options = event?.event_options || {}
+    const schedule = buildTournamentSchedule({
+      players: playerNames(participants),
+      format: options.match_format,
+      courts: options.court_count,
+      teamSize: options.team_size,
+    })
+    if (schedule.reason) { alert(schedule.reason); return }
+    const nextOptions = { ...options, match_schedule: schedule }
+    const { error } = await getSupabase().from('events').update({ event_options: nextOptions }).eq('id', event.id)
+    if (error) { alert(`Impossible d’enregistrer la grille : ${error.message}`); return }
+    setEvent(prev => ({ ...prev, event_options: nextOptions }))
+    setMatchSchedule(schedule)
   }
 
   // ── Temps 2 du tournoi : préparer le planning bénévole ──
@@ -1606,6 +1625,26 @@ export default function EventDashboard() {
             >
               {showAllParticipants ? 'Reduire' : `Voir les ${participants.length - 5} autres`}
             </button>
+          )}
+        </div>
+      )}
+
+      {/* === TEMPS 2 TOURNOI : créer la grille avec les personnes confirmées === */}
+      {event.event_type === 'Match/Tournoi' && event.event_options?.match_format && event.event_options.match_format !== 'none' && (
+        <div className="bg-white rounded-3xl shadow-sm ring-1 ring-stone-900/5 overflow-hidden mt-4">
+          <div className="px-5 py-3 border-b border-slate-100">
+            <h3 className="text-sm font-bold text-slate-800">Grille des rencontres</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Préparée avec les joueurs confirmés, accompagnants compris. Tu peux la refaire si les réponses changent.</p>
+          </div>
+          {!matchSchedule ? <div className="p-5"><button onClick={prepareMatchSchedule} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-colors text-sm">Préparer les rencontres ({totalPersonnes} joueurs confirmés)</button></div> : (
+            <div className="p-4 space-y-3">
+              {matchSchedule.rounds.map((round, index) => <div key={index} className="rounded-xl bg-slate-50 p-3">
+                <p className="text-sm font-bold text-slate-800">{round.label}</p>
+                <div className="mt-2 space-y-1.5">{round.matches.map(match => <p key={match.court} className="text-sm text-slate-700"><span className="font-medium text-blue-700">Terrain {match.court}</span> · {match.equipes[0].join(' · ')} <span className="text-slate-400">contre</span> {match.equipes[1].join(' · ')}</p>)}</div>
+                {round.waiting?.length > 0 && <p className="mt-2 text-xs text-amber-700">Repos : {round.waiting.join(', ')}</p>}
+              </div>)}
+              <button onClick={prepareMatchSchedule} className="w-full py-2 text-sm font-medium text-blue-600 hover:text-blue-700">Recalculer avec les réponses actuelles</button>
+            </div>
           )}
         </div>
       )}

@@ -1,6 +1,13 @@
 # Planify — contexte partagé du projet
 
-Dernière mise à jour : 29 septembre 2026 (Claude : design et textes). Ce fichier est le point de reprise commun pour Claude, Codex et les autres assistants. Ne jamais y mettre de clé ou de valeur d’environnement secrète.
+Dernière mise à jour : 1er octobre 2026 (Codex : grilles de rencontres). Ce fichier est le point de reprise commun pour Claude, Codex et les autres assistants. Ne jamais y mettre de clé ou de valeur d’environnement secrète.
+
+## Relais — PR #30 en attente
+
+- PR ouverte : https://github.com/manou38-dum/planify/pull/30 (`codex/tournament-schedules`). Elle ajoute les apports pour un tournoi complet et les grilles à la mêlée ou en équipes fixes, calculées après les confirmations, accompagnants inclus.
+- Les grilles sont calculées dans `lib/tournament-schedules.mjs`, affichées par `app/event/[id]/page.js`, et enregistrées dans `events.event_options.match_schedule`. Aucun schéma Supabase n'a changé.
+- Validation Codex : 39 tests et build production réussis. Le déploiement Vercel de prévisualisation est indiqué « Ready », mais ses deux URL renvoient actuellement une réinitialisation de connexion ; la production répond 200. Ne pas présenter la PR comme testée sur téléphone.
+- Avant la bêta du 5 au 25 octobre : l'utilisateur doit arbitrer entre fusion/test avant le 5 ou report après le 25. Pendant la bêta, aucune fonctionnalité nouvelle.
 
 ## Produit
 
