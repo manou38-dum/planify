@@ -71,13 +71,13 @@ export default function TournamentSetup({ options, nbParticipants, setOptions, w
               <p className="mt-1 text-sm text-stone-700">{sport.sizes[0].label}{teamSize > 1 && !/\d/.test(sport.sizes[0].label) ? ` (${teamSize} par équipe)` : ''}.</p>
             ) : (
               <label className="mt-1 block text-sm text-stone-700">Joueurs par équipe
-                <input type="number" min="1" max="15" value={teamSize} onChange={e => patch({ team_size: e.target.value })}
+                <input type="number" inputMode="numeric" min="1" max="15" value={options.team_size ?? teamSize} onChange={e => patch({ team_size: e.target.value })}
                   className="mt-1 block w-24 px-3 py-2 rounded-xl border border-stone-200 bg-white text-sm" />
               </label>
             )}
             <label className="mt-3 flex items-center gap-3 text-sm text-stone-700">
               <span>Nombre de {place[1]} disponibles</span>
-              <input type="number" min="1" max="50" value={courts} onChange={e => patch({ court_count: e.target.value, court_word: place })}
+              <input type="number" inputMode="numeric" min="1" max="50" value={options.court_count ?? 1} onChange={e => patch({ court_count: e.target.value, court_word: place })}
                 className="w-20 px-3 py-2 rounded-xl border border-stone-200 bg-white text-sm" />
             </label>
             {players > 0 && (
