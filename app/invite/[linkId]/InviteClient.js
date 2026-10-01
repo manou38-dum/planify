@@ -68,6 +68,8 @@ export default function InviteClient({ linkId }) {
   const [checkedChecklist, setCheckedChecklist] = useState({}) // checklist perso (rando) : id -> true
   const [selectedItemDetails, setSelectedItemDetails] = useState([])
   const [existingParticipant, setExistingParticipant] = useState(null)
+  // Recherche « Retrouve ta réponse » : état affiché à l'invité (trouvé, introuvable, erreur)
+  const [lookup, setLookup] = useState({ status: '', name: '', participant: null, suggestions: [] })
 
   const [slots, setSlots] = useState([])
   const [signups, setSignups] = useState([])
@@ -107,29 +109,58 @@ export default function InviteClient({ linkId }) {
   }
 
   // Vérifie (avec debounce) si le prénom correspond à une réponse déjà enregistrée
+  // Sur cet appareil, on se souvient du prénom utilisé pour répondre : la réponse se retrouve toute seule.
+  useEffect(() => {
+    if (!event || guestName) return
+    try {
+      const saved = localStorage.getItem(`planify.guest-name.${linkId}`)
+      if (saved) setGuestName(saved)
+    } catch {}
+  }, [event])
+
   useEffect(() => {
     if (!event || !guestName.trim()) {
       setExistingParticipant(null)
+      setLookup({ status: '', name: '', participant: null, suggestions: [] })
       return
     }
     const t = setTimeout(() => checkExistingGuest(guestName), 500)
     return () => clearTimeout(t)
   }, [guestName, event])
 
+  // Prénom comparé sans majuscules, accents ni espaces superflus (« Élodie » = « elodie »).
+  const foldName = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
+
   async function checkExistingGuest(name) {
     if (!event || !name.trim()) return
+    setLookup(prev => ({ ...prev, status: 'loading', name: name.trim() }))
     const supabase = getSupabase()
-    const { data: parts } = await supabase
+    const { data: parts, error } = await supabase
       .from('participants')
       .select('*')
       .eq('event_id', event.id)
-      .ilike('participant_name', name.trim()) // exact, insensible à la casse
-
-    const match = parts && parts[0]
-    if (!match) {
-      setExistingParticipant(null)
+    if (error) {
+      setLookup({ status: 'error', name: name.trim(), participant: null, suggestions: [] })
       return
     }
+    const wanted = foldName(name)
+    const all = parts || []
+    const match = all.find(p => foldName(p.participant_name) === wanted)
+    if (!match) {
+      setExistingParticipant(null)
+      // Inscrit comme accompagnant ? On montre la réponse de la personne qui l'a inscrit.
+      const host = all.find(p => {
+        try { return (JSON.parse(p.commentaire || '{}').accompagnants || []).some(c => foldName(c) === wanted) } catch { return false }
+      })
+      if (host) {
+        setLookup({ status: 'companion', name: name.trim(), participant: host, suggestions: [] })
+        return
+      }
+      const suggestions = all.map(p => p.participant_name).filter(n => foldName(n).startsWith(wanted.slice(0, 2)) || wanted.startsWith(foldName(n).slice(0, 2))).slice(0, 3)
+      setLookup({ status: 'notfound', name: name.trim(), participant: null, suggestions })
+      return
+    }
+    setLookup({ status: 'found', name: name.trim(), participant: match, suggestions: [] })
 
     // Pré-remplir le formulaire avec sa réponse précédente
     setExistingParticipant(match)
@@ -545,6 +576,7 @@ export default function InviteClient({ linkId }) {
         }
       })
       setSelectedItemDetails(details)
+      try { localStorage.setItem(`planify.guest-name.${linkId}`, guestName.trim()) } catch {}
 
       setSubmitted(true)
     } catch (err) {
@@ -915,15 +947,35 @@ export default function InviteClient({ linkId }) {
 
           {/* Retrouve ta réponse */}
           <div className="bg-white rounded-3xl p-4 shadow-sm ring-1 ring-stone-900/5 mt-3">
-            <label className="block text-sm font-semibold text-slate-700 mb-2">Retrouve ta réponse</label>
-            <input
-              type="text"
-              value={guestName}
-              onChange={(e) => setGuestName(e.target.value)}
-              onBlur={(e) => checkExistingGuest(e.target.value)}
-              placeholder="Ton prénom"
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none"
-            />
+            <form onSubmit={e => { e.preventDefault(); checkExistingGuest(guestName) }}>
+              <label htmlFor="retrouve" className="block text-sm font-semibold text-slate-700 mb-2">Retrouve ta réponse</label>
+              <div className="flex gap-2">
+                <input
+                  id="retrouve"
+                  type="text"
+                  value={guestName}
+                  onChange={(e) => setGuestName(e.target.value)}
+                  placeholder="Le prénom avec lequel tu as répondu"
+                  autoComplete="given-name"
+                  enterKeyHint="search"
+                  className="min-w-0 flex-1 px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none"
+                />
+                <button type="submit" className="shrink-0 min-h-[48px] px-4 rounded-xl bg-stone-900 text-white font-bold text-sm">Voir</button>
+              </div>
+            </form>
+            {lookup.status === 'loading' && <p className="mt-2 text-sm text-slate-500">Recherche…</p>}
+            {lookup.status === 'notfound' && (
+              <p role="status" className="mt-3 text-sm text-amber-900 bg-amber-50 rounded-xl px-3 py-2">
+                Aucune réponse au nom de « {lookup.name} ».
+                {lookup.suggestions.length > 0 ? <> Tu as peut-être répondu en tant que : {lookup.suggestions.map((n, i) => <button key={n} type="button" onClick={() => { setGuestName(n); checkExistingGuest(n) }} className="font-bold underline underline-offset-2 mx-0.5">{n}</button>)}</> : ' Vérifie l’orthographe, ou réponds avec le bouton ci-dessous.'}
+              </p>
+            )}
+            {lookup.status === 'companion' && lookup.participant && (
+              <p role="status" className="mt-3 text-sm text-emerald-900 bg-emerald-50 rounded-xl px-3 py-2">
+                {lookup.name.charAt(0).toUpperCase() + lookup.name.slice(1)} est inscrit(e) par <strong>{lookup.participant.participant_name}</strong> : c’est sa réponse qui compte pour vous deux. Tape « {lookup.participant.participant_name} » pour la voir en détail.
+              </p>
+            )}
+            {lookup.status === 'error' && <p role="alert" className="mt-3 text-sm text-amber-900 bg-amber-50 rounded-xl px-3 py-2">Impossible de vérifier pour l’instant. Réessaie dans un instant.</p>}
             {existingParticipant && (() => {
               const monApport = items.filter(i =>
                 i.status === 'Réservé' &&
