@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react'
 import { getSupabase } from '@/lib/supabase'
 import { organizerTokenEntries } from '@/lib/event-access'
 import Link from 'next/link'
+import InstallCard from './components/InstallCard'
+import { GUIDES } from './guides/guides.mjs'
 import { eventTheme } from '@/lib/ui-theme.mjs'
 
 export default function Home() {
@@ -117,6 +119,24 @@ export default function Home() {
           )}
         </div>
       )}
+
+      <div className="mt-10">
+        <InstallCard />
+      </div>
+
+      {/* Guides publics : utiles aux organisateurs et liens internes pour le référencement */}
+      <section aria-labelledby="guides" className="mt-2">
+        <h2 id="guides" className="text-sm font-bold uppercase tracking-wide text-stone-600 mb-3">Guides pratiques</h2>
+        <ul className="space-y-2">
+          {GUIDES.map(g => (
+            <li key={g.slug}>
+              <Link href={`/guides/${g.slug}`} className="flex items-center gap-3 bg-white rounded-2xl ring-1 ring-stone-900/5 px-4 min-h-[52px] font-semibold hover:ring-orange-300">
+                <span aria-hidden="true">{g.icon}</span>{g.short}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
     </div>
     </div>
   )

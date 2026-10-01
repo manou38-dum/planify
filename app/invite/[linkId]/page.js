@@ -26,11 +26,15 @@ function formatDateFr(date) {
   }
 }
 
+// Invitation privée : l'aperçu WhatsApp reste lisible, mais Google ne l'indexe pas.
+const NOINDEX = { index: false, follow: false }
+
 export async function generateMetadata({ params }) {
   const event = await fetchEvent(params.linkId)
 
   if (!event) {
     return {
+      robots: NOINDEX,
       title: 'Invitation Planify',
       description: 'Tu es invité(e) ! Confirme ta venue avec Planify.',
       openGraph: {
@@ -45,6 +49,7 @@ export async function generateMetadata({ params }) {
   const description = invitationPreviewText(event)
 
   return {
+    robots: NOINDEX,
     title,
     description,
     openGraph: {
