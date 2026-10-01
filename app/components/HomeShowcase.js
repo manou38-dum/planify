@@ -1,3 +1,5 @@
+'use client'
+import { useState } from 'react'
 import Link from 'next/link'
 
 // Vitrine de la page d'accueil : textes et visuels uniquement, aucune logique métier.
@@ -11,16 +13,26 @@ export function CtaButton({ children = 'Organiser mon événement', className = 
   )
 }
 
+// Ce que Planify gère, affiché d'un coup d'œil sous l'accroche.
+const FEATURES = ['Invitations', 'Réponses', 'Qui apporte quoi', 'Bénévoles et créneaux', 'Matériel', 'Covoiturage']
+
 export function Hero({ ctaRef }) {
   return (
     <section aria-labelledby="titre" className="pt-2">
-      <p className="text-sm font-semibold text-orange-800">Barbecue · Anniversaire · Sortie · Tournoi</p>
-      <h1 id="titre" className="mt-2 text-[2rem] leading-[1.1] sm:text-5xl font-extrabold tracking-tight text-stone-900">
-        Qui vient&nbsp;? Qui apporte quoi&nbsp;?<br /><span className="text-orange-700">Planify s’en occupe.</span>
+      <p className="text-sm font-semibold text-orange-800">Fête · Sortie · Tournoi · Club · Association</p>
+      <h1 id="titre" className="mt-2 text-[2.1rem] leading-[1.08] sm:text-5xl font-extrabold tracking-tight text-stone-900">
+        Tout ton événement,<br /><span className="text-orange-700">organisé de A à Z.</span>
       </h1>
       <p className="mt-4 text-[17px] leading-relaxed text-stone-700">
-        Tu crées l’invitation en 2 minutes et tu la partages sur WhatsApp. Chacun répond en un clic et réserve ce qu’il apporte. Toi, tu vois tout d’un coup d’œil.
+        Planify prépare l’invitation, les listes, les postes de bénévoles et le covoiturage. Tu partages un seul lien : chacun répond, choisit ce qu’il apporte ou son créneau, et tu vois tout d’un coup d’œil.
       </p>
+      <ul className="mt-4 flex flex-wrap gap-2" aria-label="Ce que Planify organise">
+        {FEATURES.map(feature => (
+          <li key={feature} className="text-sm font-semibold text-stone-800 bg-white ring-1 ring-stone-900/10 rounded-full px-3 py-1.5">
+            <span aria-hidden="true" className="text-emerald-700">✓ </span>{feature}
+          </li>
+        ))}
+      </ul>
       <div ref={ctaRef} className="mt-6">
         <CtaButton />
         <p className="mt-3 text-sm text-stone-600 text-center">Gratuit · Sans compte · Tes invités n’installent rien</p>
@@ -29,41 +41,74 @@ export function Hero({ ctaRef }) {
   )
 }
 
-// Aperçu d'un événement, dessiné en HTML : net sur tous les écrans, aucun poids d'image.
+// Aperçu de ce que voit l'organisateur, dessiné en HTML (net partout, aucun poids d'image).
+// Trois exemples pour montrer que Planify ne se limite pas aux repas.
+const DEMOS = {
+  fete: {
+    tab: '🔥 Barbecue',
+    hero: 'from-orange-100 via-orange-200 to-orange-300', kicker: 'text-orange-900',
+    title: '🔥 BBQ chez Manu', when: 'Samedi 14 h · Au jardin',
+    stats: [['12', 'viennent', 'text-emerald-800'], ['3', 'sans réponse', 'text-amber-800'], ['3/5', 'apports pris', 'text-stone-900']],
+    rows: [['Merguez et saucisses', 'Julie', true], ['Salade de pâtes', 'Karim', true], ['5 baguettes', 'à prendre', false], ['14 bouteilles d’eau', 'Léa', true], ['Chips et apéritif', 'à prendre', false]],
+    alert: 'Il manque le pain et les chips',
+  },
+  tournoi: {
+    tab: '🏆 Tournoi',
+    hero: 'from-blue-100 via-blue-200 to-blue-300', kicker: 'text-blue-900',
+    title: '🏆 Tournoi de foot du club', when: 'Dimanche 9 h · Stade municipal',
+    stats: [['48', 'joueurs', 'text-emerald-800'], ['9', 'bénévoles', 'text-stone-900'], ['3', 'postes vides', 'text-amber-800']],
+    rows: [['8 h 30 · Accueil des équipes', '2/2', true], ['9 h · Arbitrage des matchs', '4/4', true], ['9 h · Buvette et repas', '3/4', false], ['17 h · Rangement', '0/2', false], ['Covoiturage', '4 voitures', true]],
+    alert: 'Il manque 3 bénévoles',
+  },
+  sortie: {
+    tab: '🧭 Sortie',
+    hero: 'from-teal-100 via-teal-200 to-teal-300', kicker: 'text-teal-900',
+    title: '🧭 Rando au lac Blanc', when: 'Samedi 8 h · Parking du col',
+    stats: [['9', 'viennent', 'text-emerald-800'], ['7/9', 'équipés', 'text-stone-900'], ['3', 'voitures', 'text-stone-900']],
+    rows: [['Julie', 'équipée', true], ['Karim', 'manque : frontale', false], ['Léa', 'équipée', true], ['Covoiturage · Léa', '3 places', true], ['Tom', 'manque : veste', false]],
+    alert: 'Karim et Tom pas équipés',
+  },
+}
+
 export function PhoneDemo() {
-  const items = [
-    { name: 'Merguez et saucisses', who: 'Julie', done: true },
-    { name: 'Salade de pâtes', who: 'Karim', done: true },
-    { name: '5 baguettes', who: null, done: false },
-    { name: '14 bouteilles d’eau', who: 'Léa', done: true },
-    { name: 'Chips et apéritif', who: null, done: false },
-  ]
+  const [current, setCurrent] = useState('fete')
+  const demo = DEMOS[current]
   return (
-    <figure className="mx-auto w-full max-w-[20rem]" aria-label="Exemple : un barbecue organisé avec Planify">
-      <div className="rounded-[2.2rem] bg-stone-900 p-2.5 shadow-xl">
+    <figure className="mx-auto w-full max-w-[20rem]" aria-label="Exemples d’événements organisés avec Planify">
+      <div role="tablist" aria-label="Choisir un exemple" className="mb-3 grid grid-cols-3 gap-1 bg-white rounded-2xl p-1 ring-1 ring-stone-900/10">
+        {Object.entries(DEMOS).map(([key, d]) => (
+          <button key={key} type="button" role="tab" aria-selected={current === key} onClick={() => setCurrent(key)}
+            className={`min-h-[44px] rounded-xl text-sm font-bold transition-colors ${current === key ? 'bg-stone-900 text-white' : 'text-stone-700 hover:bg-stone-100'}`}>
+            {d.tab}
+          </button>
+        ))}
+      </div>
+      <div className="rounded-[2.2rem] bg-stone-900 p-2.5 shadow-xl" role="tabpanel">
         <div className="rounded-[1.7rem] bg-cream overflow-hidden">
-          <div className="bg-gradient-to-br from-orange-100 via-orange-200 to-orange-300 px-4 pt-5 pb-4">
-            <p className="text-xs font-semibold text-orange-900">Manu t’invite</p>
-            <p className="text-xl font-extrabold text-stone-900 leading-tight">🔥 BBQ chez Manu</p>
-            <p className="text-sm text-stone-800">Samedi 14 h · Au jardin</p>
+          <div className={`bg-gradient-to-br ${demo.hero} px-4 pt-5 pb-4`}>
+            <p className={`text-xs font-semibold ${demo.kicker}`}>Tableau de l’organisateur</p>
+            <p className="text-xl font-extrabold text-stone-900 leading-tight">{demo.title}</p>
+            <p className="text-sm text-stone-800">{demo.when}</p>
           </div>
           <div className="px-3 py-3 space-y-2.5">
             <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="bg-white rounded-xl py-2 ring-1 ring-stone-900/5"><p className="text-lg font-extrabold text-emerald-800">12</p><p className="text-[11px] text-stone-600">viennent</p></div>
-              <div className="bg-white rounded-xl py-2 ring-1 ring-stone-900/5"><p className="text-lg font-extrabold text-amber-800">3</p><p className="text-[11px] text-stone-600">sans réponse</p></div>
-              <div className="bg-white rounded-xl py-2 ring-1 ring-stone-900/5"><p className="text-lg font-extrabold text-stone-900">3/5</p><p className="text-[11px] text-stone-600">apports pris</p></div>
+              {demo.stats.map(([value, label, tone]) => (
+                <div key={label} className="bg-white rounded-xl py-2 ring-1 ring-stone-900/5">
+                  <p className={`text-lg font-extrabold ${tone}`}>{value}</p><p className="text-[11px] text-stone-600">{label}</p>
+                </div>
+              ))}
             </div>
             <ul className="bg-white rounded-xl ring-1 ring-stone-900/5 divide-y divide-stone-100 text-sm">
-              {items.map(item => (
-                <li key={item.name} className="flex items-center gap-2 px-3 py-2">
-                  <span aria-hidden="true" className={`w-5 h-5 shrink-0 rounded-full grid place-items-center text-[11px] font-bold ${item.done ? 'bg-emerald-600 text-white' : 'ring-2 ring-amber-500'}`}>{item.done ? '✓' : ''}</span>
-                  <span className={`flex-1 ${item.done ? 'text-stone-500 line-through decoration-stone-300' : 'text-stone-900 font-semibold'}`}>{item.name}</span>
-                  <span className={`text-xs ${item.done ? 'text-emerald-800 font-semibold' : 'text-amber-800 font-semibold'}`}>{item.who || 'à prendre'}</span>
+              {demo.rows.map(([name, status, done]) => (
+                <li key={name} className="flex items-center gap-2 px-3 py-2">
+                  <span aria-hidden="true" className={`w-5 h-5 shrink-0 rounded-full grid place-items-center text-[11px] font-bold ${done ? 'bg-emerald-600 text-white' : 'ring-2 ring-amber-500'}`}>{done ? '✓' : ''}</span>
+                  <span className={`flex-1 min-w-0 ${done ? 'text-stone-600' : 'text-stone-900 font-semibold'}`}>{name}</span>
+                  <span className={`shrink-0 text-xs font-semibold ${done ? 'text-emerald-800' : 'text-amber-800'}`}>{status}</span>
                 </li>
               ))}
             </ul>
-            <div className="rounded-xl bg-stone-900 text-white text-sm px-3 py-2.5 flex items-center justify-between">
-              <span>Il manque le pain et les chips</span>
+            <div className="rounded-xl bg-stone-900 text-white text-sm px-3 py-2.5 flex items-center justify-between gap-2">
+              <span>{demo.alert}</span>
               <span className="font-bold text-orange-300">Relancer</span>
             </div>
           </div>
@@ -76,9 +121,9 @@ export function PhoneDemo() {
 
 export function HowItWorks() {
   const steps = [
-    { n: '1', title: 'Décris ton événement', text: 'En une phrase, même à la voix : « BBQ samedi 14 h chez moi, 15 personnes ». Planify prépare l’invitation et la liste de ce qu’il faut.' },
+    { n: '1', title: 'Décris ton événement', text: 'En une phrase, même à la voix : « tournoi de foot dimanche 9 h au stade, 48 joueurs ». Planify prépare l’invitation, les listes, les postes et le planning.' },
     { n: '2', title: 'Partage le lien', text: 'Sur WhatsApp, par SMS ou par QR code. Tes invités ouvrent le lien : pas d’appli, pas de compte.' },
-    { n: '3', title: 'Chacun répond et choisit', text: 'Oui ou non, avec qui, et ce qu’il apporte. Ce qui est pris n’est plus proposé : fini les doublons.' },
+    { n: '3', title: 'Chacun répond et choisit', text: 'Oui ou non, avec qui, ce qu’il apporte, son créneau de bénévole ou sa place en covoiturage. Ce qui est pris n’est plus proposé : fini les doublons.' },
   ]
   return (
     <section aria-labelledby="comment" className="mt-14">
