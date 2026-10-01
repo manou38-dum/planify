@@ -2,6 +2,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { getSupabase } from '@/lib/supabase'
 import { createOrganizerToken, organizerTokenHash, rememberOrganizerToken } from '@/lib/event-access'
+import { findSportFormat } from '@/lib/tournament-formats.mjs'
+import TournamentSetup from './TournamentSetup'
 import { safeGiftUrl, giftSearchUrl } from '@/lib/birthday-lists.mjs'
 import { MENU_INSPIRATIONS, menuInspiration } from '@/lib/menu-inspirations.mjs'
 import { useRouter } from 'next/navigation'
@@ -94,12 +96,8 @@ const OPTIONS_BY_TYPE = {
       { showIf: 'theme', key: 'theme_detail', label: 'Thème / dress code', placeholder: 'Années 80, blanc, déguisé...' },
     ],
   },
-  'Match/Tournoi': {
-    fields: [
-      { key: 'sport', label: 'Sport', placeholder: 'Foot, padel...' },
-      { key: 'nb_equipes', label: "Nb d'équipes", placeholder: '4' },
-    ],
-  },
+  // Match/Tournoi : préférences dédiées (sport puis options du sport) dans TournamentSetup.
+  'Match/Tournoi': {},
   'Apero': {
     fields: [
       { key: 'contribution_amount', label: 'Mise indicative par personne en €', placeholder: 'ex : 10' },
@@ -1045,6 +1043,18 @@ export default function CreateEvent() {
       const cleanedOptions = { ...eventOptions }
       cleanedOptions.gift_links = Object.fromEntries(generatedLists.filter(list => list.behavior === 'cadeau').flatMap(list => (list.items || []).filter(item => safeGiftUrl(item.purchase_url)).map(item => [item.item_name, safeGiftUrl(item.purchase_url)])))
       if (form.event_type === 'Match/Tournoi' && (eventOptions.tournoi_mode !== 'complet' || !eventOptions.repas_enabled)) delete cleanedOptions.meal_choices
+      // Tournoi complet : si le sport est connu mais les options n'ont pas été touchées, on garde celles conseillées pour ce sport.
+      if (form.event_type === 'Match/Tournoi' && eventOptions.tournoi_mode === 'complet') {
+        const sportFormat = findSportFormat(cleanedOptions.sport)
+        if (sportFormat) {
+          cleanedOptions.team_size = cleanedOptions.team_size || sportFormat.defaultSize
+          cleanedOptions.match_format = cleanedOptions.match_format || sportFormat.defaultFormat
+          cleanedOptions.court_word = cleanedOptions.court_word || sportFormat.place
+        }
+      }
+      if (form.event_type === 'Match/Tournoi' && eventOptions.tournoi_mode !== 'complet') {
+        for (const key of ['match_format', 'team_size', 'court_count', 'court_word']) delete cleanedOptions[key]
+      }
       if (Array.isArray(cleanedOptions.meal_choices)) {
         const cleaned = cleanedOptions.meal_choices.map(c => (c || '').trim()).filter(Boolean)
         if (cleaned.length) cleanedOptions.meal_choices = cleaned
@@ -1142,7 +1152,7 @@ export default function CreateEvent() {
       router.push(`/event/${event.id}#admin=${organizerToken}`)
     } catch (err) {
       alert(/failed to fetch|networkerror|load failed/i.test(err.message || '')
-        ? "Impossible de joindre la base de données. Tes informations restent dans ce formulaire. Vérifie ta connexion ; si elle fonctionne, la base du projet peut être en pause ou indisponible."
+        ? "Planify n’arrive pas à enregistrer depuis ce réseau. Tes informations restent dans ce formulaire : réessaie dans un instant. Si ça recommence, essaie depuis ton téléphone en 4G, car certains réseaux d’entreprise ou de box bloquent le service."
         : 'Erreur création : ' + err.message)
       setCreating(false)
     }
@@ -1498,19 +1508,6 @@ export default function CreateEvent() {
                         className="mt-0.5 h-4 w-4 accent-blue-500" />
                       <span><strong>Prévoir l’installation</strong><span className="block text-xs text-slate-500">Ajoute un créneau de montage des terrains, tables et matériel au planning bénévoles.</span></span>
                     </label>
-                    <div className="rounded-xl border border-blue-100 bg-blue-50 p-3">
-                      <p className="text-sm font-semibold text-slate-800">Préparer les rencontres ?</p>
-                      <p className="mt-1 text-xs text-slate-600">La grille sera créée plus tard avec les personnes qui ont réellement confirmé.</p>
-                      <div className="mt-2 grid grid-cols-3 gap-2">
-                        {[['none', 'Plus tard'], ['melee', 'À la mêlée'], ['equipes', 'Équipes fixes']].map(([value, label]) => <button key={value} type="button"
-                          onClick={() => updateOption('match_format', value)}
-                          className={`rounded-lg border px-2 py-2 text-xs font-medium ${String(eventOptions.match_format || 'none') === value ? 'border-blue-500 bg-white text-blue-700' : 'border-blue-100 bg-white/60 text-slate-600'}`}>{label}</button>)}
-                      </div>
-                      {eventOptions.match_format && eventOptions.match_format !== 'none' && <div className="mt-2 grid grid-cols-2 gap-2">
-                        <label className="text-xs text-slate-600">Terrains / pistes<input type="number" min="1" value={eventOptions.court_count || 1} onChange={e => updateOption('court_count', e.target.value)} className="mt-1 block w-full rounded-lg border border-slate-200 bg-white p-2 text-sm" /></label>
-                        <label className="text-xs text-slate-600">Joueurs par équipe<input type="number" min="1" max="11" value={eventOptions.team_size || 2} onChange={e => updateOption('team_size', e.target.value)} className="mt-1 block w-full rounded-lg border border-slate-200 bg-white p-2 text-sm" /></label>
-                      </div>}
-                    </div>
                   </div>
                 )}
               </div>
@@ -1633,7 +1630,7 @@ export default function CreateEvent() {
             {/* Pas de jauge fixe pour l'apéro participatif : on masque le nombre de personnes attendues */}
             {form.event_type !== 'Apero' && (
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">{form.event_type === 'Anniversaire' ? 'Nombre d’invités attendus *' : 'Nombre prévu pour les courses, toi compris *'}</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{form.event_type === 'Anniversaire' ? 'Nombre d’invités attendus *' : form.event_type === 'Match/Tournoi' ? 'Nombre de participants attendus, toi compris *' : 'Nombre prévu pour les courses, toi compris *'}</label>
                 <input type="number" min={1} value={form.nb_participants}
                   onChange={(e) => updateForm('nb_participants', e.target.value === '' ? '' : Number(e.target.value))}
                   className="w-32 px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none text-sm text-slate-900" />
@@ -1696,6 +1693,11 @@ export default function CreateEvent() {
                     className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-blue-400 outline-none text-sm resize-none bg-white" />
                 )}
               </div>
+            )}
+
+            {/* Tournoi : d'abord le sport, puis les options qui existent pour ce sport */}
+            {form.event_type === 'Match/Tournoi' && eventOptions.tournoi_mode && (
+              <TournamentSetup options={eventOptions} nbParticipants={form.nb_participants} setOptions={setEventOptions} withMatches={eventOptions.tournoi_mode === 'complet'} />
             )}
 
             {/* Vote repas (tournoi complet) : l'organisateur définit les choix proposés */}

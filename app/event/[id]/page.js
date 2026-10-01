@@ -7,6 +7,7 @@ import { useSharedItems } from '@/lib/use-shared-items'
 import { getSupabase } from '@/lib/supabase'
 import { organizerTokenFor } from '@/lib/event-access'
 import { buildTournamentSchedule, playerNames, scheduleText } from '@/lib/tournament-schedules.mjs'
+import { findSportFormat, formatChoices, placeWord } from '@/lib/tournament-formats.mjs'
 import { useParams, useRouter } from 'next/navigation'
 import { QRCodeSVG } from 'qrcode.react'
 
@@ -63,6 +64,7 @@ export default function EventDashboard() {
   const [matchSchedule, setMatchSchedule] = useState(null)
   const [scheduleError, setScheduleError] = useState('')
   const [scheduleCopied, setScheduleCopied] = useState(false)
+  const [formatDraft, setFormatDraft] = useState({})
 
   // Recalcul des quantités après modification manuelle de la liste
   const [recalculating, setRecalculating] = useState(false)
@@ -127,8 +129,8 @@ export default function EventDashboard() {
     setLoading(false)
   }
 
-  async function prepareMatchSchedule() {
-    const options = event?.event_options || {}
+  async function prepareMatchSchedule(overrides = {}) {
+    const options = { ...(event?.event_options || {}), ...overrides }
     setScheduleError('')
     const schedule = buildTournamentSchedule({
       players: playerNames(participants),
@@ -145,7 +147,7 @@ export default function EventDashboard() {
   }
 
   function shareSchedule(channel) {
-    const text = scheduleText(matchSchedule, event?.event_name)
+    const text = scheduleText(matchSchedule, event?.event_name, event?.event_options?.court_word)
     if (channel === 'whatsapp') { window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank'); return }
     navigator.clipboard?.writeText(text).then(() => { setScheduleCopied(true); setTimeout(() => setScheduleCopied(false), 2000) }).catch(() => {})
   }
@@ -1639,30 +1641,67 @@ export default function EventDashboard() {
       )}
 
       {/* === TEMPS 2 TOURNOI : créer la grille avec les personnes confirmées === */}
-      {event.event_type === 'Match/Tournoi' && event.event_options?.match_format && event.event_options.match_format !== 'none' && (() => {
-        const opts = event.event_options
-        const isTeams = opts.match_format === 'equipes'
-        const teamSize = Number(opts.team_size) || 2
-        const courts = Number(opts.court_count) || 1
-        const formatLabel = `${isTeams ? 'Équipes fixes' : 'À la mêlée'} · ${teamSize} par équipe · ${courts} terrain${courts > 1 ? 's' : ''}`
+      {event.event_type === 'Match/Tournoi' && (event.event_options?.tournoi_mode === 'complet' || (event.event_options?.match_format && event.event_options.match_format !== 'none')) && (() => {
+        const opts = event.event_options || {}
+        const sportFormat = findSportFormat(opts.sport)
+        const place = Array.isArray(opts.court_word) ? opts.court_word : (sportFormat?.place || ['terrain', 'terrains'])
+        const chosen = opts.match_format && opts.match_format !== 'none'
+        const draft = { match_format: formatDraft.match_format || sportFormat?.defaultFormat || 'melee', team_size: Number(formatDraft.team_size || opts.team_size || sportFormat?.defaultSize || 2), court_count: Number(formatDraft.court_count || opts.court_count || 1) }
+        const isTeams = (chosen ? opts.match_format : draft.match_format) === 'equipes'
+        const teamSize = chosen ? (Number(opts.team_size) || 2) : draft.team_size
+        const courts = chosen ? (Number(opts.court_count) || 1) : draft.court_count
+        const sizeLabel = sportFormat?.sizes.find(size => size.n === teamSize)?.label || (teamSize === 1 ? 'Un contre un' : `${teamSize} par équipe`)
+        const formatLabel = `${opts.sport ? `${opts.sport} · ` : ''}${sizeLabel} · ${isTeams ? (teamSize === 1 ? 'championnat' : 'équipes fixes') : (teamSize === 1 ? 'adversaire différent à chaque tour' : 'à la mêlée')} · ${courts} ${placeWord(place, courts)}`
         return (
           <section aria-labelledby="grille" className="bg-white rounded-3xl shadow-sm ring-1 ring-stone-900/5 overflow-hidden mt-4">
             <div className="px-5 pt-5 pb-3 bg-gradient-to-br from-blue-50 to-blue-100">
               <h3 id="grille" className="text-lg font-bold text-stone-900">🏆 Grille des rencontres</h3>
-              <p className="text-sm text-stone-700 mt-0.5">{formatLabel}</p>
-              {matchSchedule && <p className="text-sm text-stone-700">{matchSchedule.players} joueurs · {matchSchedule.matchCount} matchs · {matchSchedule.rounds.length} {isTeams ? 'créneaux' : 'rotations'}</p>}
+              {chosen && <p className="text-sm text-stone-700 mt-0.5">{formatLabel}</p>}
+              {matchSchedule && <p className="text-sm text-stone-700">{matchSchedule.players} joueurs · {matchSchedule.matchCount} matchs · {matchSchedule.rounds.length} {isTeams ? 'créneaux' : 'tours'}</p>}
             </div>
-            {!matchSchedule ? (
+            {!chosen && !matchSchedule ? (
+              <div className="p-5 space-y-4">
+                <p className="text-sm text-stone-700">Choisis comment vous jouez : la grille se fera avec les joueurs qui ont confirmé.</p>
+                {sportFormat?.sizes.length > 1 && (
+                  <div className="flex flex-wrap gap-2">
+                    {sportFormat.sizes.map(size => (
+                      <button key={size.n} type="button" aria-pressed={draft.team_size === size.n} onClick={() => setFormatDraft(prev => ({ ...prev, team_size: size.n }))}
+                        className={`min-h-[44px] rounded-xl border-2 px-3 text-sm font-semibold ${draft.team_size === size.n ? 'border-blue-600 text-blue-800' : 'border-stone-200 text-stone-700'}`}>{size.label}</button>
+                    ))}
+                  </div>
+                )}
+                {!sportFormat && (
+                  <label className="block text-sm text-stone-700">Joueurs par équipe
+                    <input type="number" min="1" max="15" value={draft.team_size} onChange={e => setFormatDraft(prev => ({ ...prev, team_size: e.target.value }))} className="mt-1 block w-24 px-3 py-2 rounded-xl border border-stone-200 text-sm" />
+                  </label>
+                )}
+                <label className="flex items-center gap-3 text-sm text-stone-700">Nombre de {place[1]}
+                  <input type="number" min="1" max="50" value={draft.court_count} onChange={e => setFormatDraft(prev => ({ ...prev, court_count: e.target.value }))} className="w-20 px-3 py-2 rounded-xl border border-stone-200 text-sm" />
+                </label>
+                <div className="space-y-2">
+                  {formatChoices(draft.team_size).filter(choice => choice.value !== 'none').map(choice => (
+                    <label key={choice.value} className={`flex items-start gap-3 rounded-xl border-2 p-3 cursor-pointer ${draft.match_format === choice.value ? 'border-blue-600' : 'border-stone-200'}`}>
+                      <input type="radio" name="format-tableau" checked={draft.match_format === choice.value} onChange={() => setFormatDraft(prev => ({ ...prev, match_format: choice.value }))} className="mt-1 w-4 h-4 accent-blue-700" />
+                      <span><span className="block text-sm font-semibold text-stone-900">{choice.title}</span><span className="block text-xs text-stone-600">{choice.hint}</span></span>
+                    </label>
+                  ))}
+                </div>
+                <button onClick={() => prepareMatchSchedule({ ...draft, court_word: place })} className="w-full min-h-[52px] bg-blue-700 hover:bg-blue-800 text-white font-bold rounded-2xl transition-colors">
+                  Préparer les rencontres ({totalPersonnes} joueur{totalPersonnes > 1 ? 's' : ''} confirmé{totalPersonnes > 1 ? 's' : ''})
+                </button>
+                {scheduleError && <p role="alert" className="text-sm font-semibold text-amber-900 bg-amber-50 rounded-xl px-3 py-2">{scheduleError}</p>}
+              </div>
+            ) : !matchSchedule ? (
               <div className="p-5">
-                <p className="text-sm text-stone-700">La grille se fait avec les joueurs qui ont confirmé, accompagnants compris. {isTeams ? 'Chaque équipe rencontre toutes les autres.' : 'Les équipes changent à chaque rotation, avec le moins possible de partenaires répétés.'}</p>
-                <button onClick={prepareMatchSchedule} className="mt-4 w-full min-h-[52px] bg-blue-700 hover:bg-blue-800 text-white font-bold rounded-2xl transition-colors">
+                <p className="text-sm text-stone-700">La grille se fait avec les joueurs qui ont confirmé, accompagnants compris. {isTeams ? (teamSize === 1 ? 'Chacun affronte tous les autres.' : 'Chaque équipe rencontre toutes les autres.') : 'Les équipes changent à chaque tour, avec le moins possible de partenaires répétés.'}</p>
+                <button onClick={() => prepareMatchSchedule()} className="mt-4 w-full min-h-[52px] bg-blue-700 hover:bg-blue-800 text-white font-bold rounded-2xl transition-colors">
                   Préparer les rencontres ({totalPersonnes} joueur{totalPersonnes > 1 ? 's' : ''} confirmé{totalPersonnes > 1 ? 's' : ''})
                 </button>
                 {scheduleError && <p role="alert" className="mt-3 text-sm font-semibold text-amber-900 bg-amber-50 rounded-xl px-3 py-2">{scheduleError}</p>}
               </div>
             ) : (
               <div className="p-4 space-y-3">
-                {isTeams && matchSchedule.teams?.length > 0 && (
+                {isTeams && matchSchedule.teams?.length > 0 && teamSize > 1 && (
                   <details className="rounded-2xl bg-stone-50 p-3">
                     <summary className="text-sm font-bold text-stone-900 cursor-pointer min-h-[28px]">Les {matchSchedule.teams.length} équipes</summary>
                     <ul className="mt-2 space-y-1 text-sm text-stone-700">
@@ -1677,7 +1716,7 @@ export default function EventDashboard() {
                     <ul className="mt-2 space-y-2">
                       {round.matches.map(match => (
                         <li key={match.court} className="flex gap-3 items-start">
-                          <span className="shrink-0 mt-0.5 text-xs font-bold text-white bg-blue-700 rounded-lg px-2 py-1">T{match.court}</span>
+                          <span className="shrink-0 mt-0.5 text-xs font-bold text-white bg-blue-700 rounded-lg px-2 py-1" title={`${place[0]} ${match.court}`}>{place[0].charAt(0).toUpperCase()}{match.court}</span>
                           <span className="text-sm text-stone-800 leading-snug">
                             {(match.noms || [match.equipes[0].join(' + ')])[0]} <span className="text-stone-500">contre</span> {(match.noms || [null, match.equipes[1].join(' + ')])[1]}
                           </span>
@@ -1691,7 +1730,7 @@ export default function EventDashboard() {
                   <button onClick={() => shareSchedule('whatsapp')} className="min-h-[48px] rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-sm">Envoyer sur WhatsApp</button>
                   <button onClick={() => shareSchedule('copy')} className="min-h-[48px] rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-900 font-bold text-sm">{scheduleCopied ? 'Copié !' : 'Copier la grille'}</button>
                 </div>
-                <button onClick={prepareMatchSchedule} className="w-full min-h-[44px] text-sm font-semibold text-blue-800 hover:text-blue-900">Refaire la grille avec les réponses actuelles</button>
+                <button onClick={() => prepareMatchSchedule()} className="w-full min-h-[44px] text-sm font-semibold text-blue-800 hover:text-blue-900">Refaire la grille avec les réponses actuelles</button>
                 {scheduleError && <p role="alert" className="text-sm font-semibold text-amber-900 bg-amber-50 rounded-xl px-3 py-2">{scheduleError}</p>}
               </div>
             )}
