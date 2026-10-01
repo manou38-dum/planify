@@ -150,10 +150,10 @@ const DEFAULT_LISTS = {
 function annivLists(annivType) {
   return annivType === 'enfant' ? ['cadeaux'] : ['menu', 'boissons', 'cadeaux']
 }
-// Le tournoi prépare un planning bénévole, sans liste d'apports.
-// Le vote repas (mode 'complet') est géré à part via event_options.meal_choices.
-function tournoiLists() {
-  return []
+// Un tournoi complet peut aussi partager le repas, les boissons et le matériel.
+// Le vote repas reste une option distincte : il sert à compter les choix de chacun.
+function tournoiLists(mode) {
+  return mode === 'complet' ? ['menu', 'boissons', 'materiel', 'planning'] : ['planning']
 }
 function availableListsFor(type, options) {
   if (type === 'Anniversaire') return options?.anniv_type ? annivLists(options.anniv_type) : []
@@ -970,7 +970,7 @@ export default function CreateEvent() {
           location: form.location,
           description: eventDescription,
           date: form.date,
-          selected_lists: form.event_type === 'Match/Tournoi' ? { planning: true } : selectedLists,
+              selected_lists: selectedLists,
         }),
       })
       const data = await res.json()
@@ -1491,12 +1491,27 @@ export default function CreateEvent() {
                   </button>
                 </div>
                 {eventOptions.tournoi_mode === 'complet' && (
-                  <label className="mt-3 flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-sm text-slate-700">
-                    <input type="checkbox" checked={eventOptions.aide_installation !== false}
-                      onChange={e => updateOption('aide_installation', e.target.checked)}
-                      className="mt-0.5 h-4 w-4 accent-blue-500" />
-                    <span><strong>Prévoir l’installation</strong><span className="block text-xs text-slate-500">Ajoute un créneau de montage des terrains, tables et matériel au planning bénévoles.</span></span>
-                  </label>
+                  <div className="mt-3 space-y-3">
+                    <label className="flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-sm text-slate-700">
+                      <input type="checkbox" checked={eventOptions.aide_installation !== false}
+                        onChange={e => updateOption('aide_installation', e.target.checked)}
+                        className="mt-0.5 h-4 w-4 accent-blue-500" />
+                      <span><strong>Prévoir l’installation</strong><span className="block text-xs text-slate-500">Ajoute un créneau de montage des terrains, tables et matériel au planning bénévoles.</span></span>
+                    </label>
+                    <div className="rounded-xl border border-blue-100 bg-blue-50 p-3">
+                      <p className="text-sm font-semibold text-slate-800">Préparer les rencontres ?</p>
+                      <p className="mt-1 text-xs text-slate-600">La grille sera créée plus tard avec les personnes qui ont réellement confirmé.</p>
+                      <div className="mt-2 grid grid-cols-3 gap-2">
+                        {[['none', 'Plus tard'], ['melee', 'À la mêlée'], ['equipes', 'Équipes fixes']].map(([value, label]) => <button key={value} type="button"
+                          onClick={() => updateOption('match_format', value)}
+                          className={`rounded-lg border px-2 py-2 text-xs font-medium ${String(eventOptions.match_format || 'none') === value ? 'border-blue-500 bg-white text-blue-700' : 'border-blue-100 bg-white/60 text-slate-600'}`}>{label}</button>)}
+                      </div>
+                      {eventOptions.match_format && eventOptions.match_format !== 'none' && <div className="mt-2 grid grid-cols-2 gap-2">
+                        <label className="text-xs text-slate-600">Terrains / pistes<input type="number" min="1" value={eventOptions.court_count || 1} onChange={e => updateOption('court_count', e.target.value)} className="mt-1 block w-full rounded-lg border border-slate-200 bg-white p-2 text-sm" /></label>
+                        <label className="text-xs text-slate-600">Joueurs par équipe<input type="number" min="1" max="11" value={eventOptions.team_size || 2} onChange={e => updateOption('team_size', e.target.value)} className="mt-1 block w-full rounded-lg border border-slate-200 bg-white p-2 text-sm" /></label>
+                      </div>}
+                    </div>
+                  </div>
                 )}
               </div>
             )}

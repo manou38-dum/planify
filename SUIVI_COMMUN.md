@@ -1,5 +1,16 @@
 # Planify — suivi commun des IA
 
+## Grilles de rencontres — 1er octobre 2026
+
+Base : PR #30 de Codex (parcours de création, listes partagées, grille dans `event_options`, sans migration). Reprise par Claude à la demande de l'utilisateur, branche `claude/tournoi-grilles`, qui remplace la PR #30.
+
+- Mêlée : tirage déterministe qui limite d'abord les partenaires répétés, puis les adversaires répétés (400 essais par rotation) ; le repos tourne équitablement quand le nombre de joueurs ne tombe pas juste. Mesure sur 12 joueurs, 4 rotations : partenaires répétés 12 → 0 en doublettes et 16 → 2 en triplettes ; chaque joueur croise 8 personnes sur 11 au lieu de 6.
+- Équipes fixes : championnat complet (chaque équipe rencontre toutes les autres) rangé en créneaux qui remplissent tous les terrains. 8 équipes sur 2 terrains = 28 matchs en 14 créneaux (avant : 14 matchs sur 28 perdus). Équipes en nombre impair et remplaçants gérés.
+- Accompagnants sans prénom comptés (« Ana (2) »), prénoms en double distingués.
+- Carte « Grille des rencontres » au style v3 : résumé (joueurs, matchs, rotations), liste des équipes, terrains, repos, boutons « Envoyer sur WhatsApp » et « Copier la grille », message d'erreur dans la page au lieu d'une alerte.
+- Validation : tests unitaires (10 sur les grilles) et build réussis ; test navigateur 390 px avec base fictive, 13 joueurs, mêlée 3 terrains et équipes fixes 2 terrains. Aucun événement réel créé.
+- À tester par l'utilisateur en production avec un événement « TEST tournoi » avant le 5 octobre ; ensuite gel jusqu'au 25 octobre.
+
 ## Bêta et sécurité — 30 septembre 2026
 
 - PR #24 (Codex) : suppression automatique 12 mois après la date de l'événement. Tâche Vercel Cron quotidienne `17 3 * * *` UTC, activée et testée en production le 30/09 : réponse 200, aucun événement supprimé ; le plus ancien date du 25/06/2026. `CRON_SECRET` et `SUPABASE_SERVICE_ROLE_KEY` sont configurées dans Vercel Production. Un appel sans secret renvoie 401.

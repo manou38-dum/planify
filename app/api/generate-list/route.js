@@ -70,7 +70,7 @@ STRUCTURE DES LISTES PAR TYPE :
   * liste "apport" "Boissons" : softs, eau, jus, et alcool (vin, bière) SEULEMENT si event_options.sans_alcool n'est pas coché. Prévois un peu plus que pour un repas (soirée souvent longue/dansante). Ratios et arrondi habituels.
   * liste "apport" "Apéro & snacks" (uniquement si la liste snacks/menu est demandée) : chips, cacahuètes, olives, charcuterie, fromage apéro, mini-pizzas, dips. PAS de plat principal. Vise ~150 g de snacks salés par personne.
   * liste "apport" "Matériel" (uniquement si demandée) : gobelets, assiettes, serviettes, glaçons, enceinte, déco. Objets physiques uniquement, jamais de tâches.
-- Match/Tournoi : ne génère JAMAIS de liste d'apports (lists = []), quel que soit tournoi_mode. Un participant à un tournoi n'apporte rien : l'intendance est gérée par l'organisateur/club. Le tournoi ne produit QUE des postes bénévoles dans le champ "planning" (voir RÈGLES DE PLANNING TOURNOI).
+- Match/Tournoi : si l'organisateur a demandé menu, boissons ou matériel, génère des listes d'apports simples et adaptées à une rencontre amateur. Les joueurs peuvent réserver ce qu'ils apportent. Si ces listes ne sont pas demandées, n'en génère aucune. Le planning bénévole reste dans le champ "planning".
 - Sortie / Activité (type "Randonnée") : lis event_options.activite (OBLIGATOIRE, ex : randonnée, plongée, parapente, VTT, ski de rando, canyoning), event_options.duree, event_options.niveau, event_options.bivouac, event_options.enfants.
   * liste behavior 'checklist' "Équipement & sécurité" : génère l'équipement INDIVIDUEL que CHAQUE participant doit avoir, ADAPTÉ À L'ACTIVITÉ déclarée, à la durée, au niveau et au bivouac. Exemples selon l'activité :
     - randonnée → eau 1,5 L, chaussures de rando, vêtement de pluie, trousse de secours, en-cas, crème solaire ;
@@ -277,13 +277,12 @@ Correspondance :
       planningFinal = planningFinal.filter(poste => !/montage|installation/i.test(poste.slot_name || ''))
     }
 
-    // Le tournoi ne produit jamais de liste d'apports
-    const aiLists = event_type === 'Match/Tournoi' ? [] : (Array.isArray(data.lists) ? data.lists : [])
+    const aiLists = Array.isArray(data.lists) ? data.lists : []
     // La checklist de sécurité fixe (si applicable) passe en tête, devant les listes générées par l'IA
     const finalLists = fixedChecklist ? [fixedChecklist, ...aiLists] : aiLists
 
     return Response.json({
-      menu_resume: event_type === 'Match/Tournoi' || aiAskedKeys.length === 0 ? '' : (typeof data.menu_resume === 'string' ? data.menu_resume : ''),
+      menu_resume: aiAskedKeys.length === 0 ? '' : (typeof data.menu_resume === 'string' ? data.menu_resume : ''),
       lists: finalLists,
       planning: planningFinal,
     })
