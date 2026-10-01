@@ -9,6 +9,8 @@ export const metadata = {
   appleWebApp: { capable: true, title: 'Planify', statusBarStyle: 'default' },
   formatDetection: { telephone: false },
   openGraph: { siteName: 'Planify', locale: 'fr_FR', type: 'website' },
+  // Validation Google Search Console (valeur publique, visible dans le code de la page).
+  verification: { google: 'iHXX9gSHnkdSkoNB3aKkg2CZuppTlYNL6E-lH25QRYY' },
 }
 
 export const viewport = {
