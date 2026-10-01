@@ -1647,6 +1647,8 @@ export default function EventDashboard() {
         const place = Array.isArray(opts.court_word) ? opts.court_word : (sportFormat?.place || ['terrain', 'terrains'])
         const chosen = opts.match_format && opts.match_format !== 'none'
         const draft = { match_format: formatDraft.match_format || sportFormat?.defaultFormat || 'melee', team_size: Number(formatDraft.team_size || opts.team_size || sportFormat?.defaultSize || 2), court_count: Number(formatDraft.court_count || opts.court_count || 1) }
+        // Champs saisis : on garde la valeur tapée (même vide) pour pouvoir effacer et retaper.
+        const typed = key => (formatDraft[key] !== undefined ? formatDraft[key] : draft[key])
         const isTeams = (chosen ? opts.match_format : draft.match_format) === 'equipes'
         const teamSize = chosen ? (Number(opts.team_size) || 2) : draft.team_size
         const courts = chosen ? (Number(opts.court_count) || 1) : draft.court_count
@@ -1672,11 +1674,11 @@ export default function EventDashboard() {
                 )}
                 {!sportFormat && (
                   <label className="block text-sm text-stone-700">Joueurs par équipe
-                    <input type="number" min="1" max="15" value={draft.team_size} onChange={e => setFormatDraft(prev => ({ ...prev, team_size: e.target.value }))} className="mt-1 block w-24 px-3 py-2 rounded-xl border border-stone-200 text-sm" />
+                    <input type="number" min="1" max="15" value={typed('team_size')} onChange={e => setFormatDraft(prev => ({ ...prev, team_size: e.target.value }))} className="mt-1 block w-24 px-3 py-2 rounded-xl border border-stone-200 text-sm" />
                   </label>
                 )}
                 <label className="flex items-center gap-3 text-sm text-stone-700">Nombre de {place[1]}
-                  <input type="number" min="1" max="50" value={draft.court_count} onChange={e => setFormatDraft(prev => ({ ...prev, court_count: e.target.value }))} className="w-20 px-3 py-2 rounded-xl border border-stone-200 text-sm" />
+                  <input type="number" min="1" max="50" value={typed('court_count')} onChange={e => setFormatDraft(prev => ({ ...prev, court_count: e.target.value }))} className="w-20 px-3 py-2 rounded-xl border border-stone-200 text-sm" />
                 </label>
                 <div className="space-y-2">
                   {formatChoices(draft.team_size).filter(choice => choice.value !== 'none').map(choice => (

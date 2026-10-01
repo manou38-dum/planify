@@ -148,10 +148,26 @@ const DEFAULT_LISTS = {
 function annivLists(annivType) {
   return annivType === 'enfant' ? ['cadeaux'] : ['menu', 'boissons', 'cadeaux']
 }
-// Un tournoi complet peut aussi partager le repas, les boissons et le matériel.
+// Un tournoi complet propose : le matériel de chacun (à cocher), le matériel commun du jeu,
+// le planning bénévoles, et en option la nourriture et les boissons à partager.
 // Le vote repas reste une option distincte : il sert à compter les choix de chacun.
 function tournoiLists(mode) {
-  return mode === 'complet' ? ['menu', 'boissons', 'materiel', 'planning'] : ['planning']
+  return mode === 'complet' ? ['checklist', 'materiel', 'planning', 'boissons', 'menu'] : ['planning']
+}
+// Cochées d'office : le matériel et le planning. Nourriture et boissons seulement si l'organisateur les coche.
+function tournoiDefaultLists(mode) {
+  return mode === 'complet' ? ['checklist', 'materiel', 'planning'] : ['planning']
+}
+// Libellés propres au tournoi : le « matériel » est celui du jeu, pas la vaisselle.
+const TOURNOI_LIST_LABELS = {
+  checklist: '🎒 Matériel de chacun (raquette, chaussures… chacun coche)',
+  materiel: '🏷️ Matériel commun du jeu (ballons, balles, chasubles…)',
+  menu: '🍽 Nourriture à partager',
+  boissons: '🥤 Boissons à partager',
+  planning: '📋 Planning des bénévoles',
+}
+function listLabel(choice, type) {
+  return (type === 'Match/Tournoi' && TOURNOI_LIST_LABELS[choice.key]) || choice.label
 }
 function availableListsFor(type, options) {
   if (type === 'Anniversaire') return options?.anniv_type ? annivLists(options.anniv_type) : []
@@ -160,7 +176,7 @@ function availableListsFor(type, options) {
 }
 function defaultListsFor(type, options) {
   if (type === 'Anniversaire') return options?.anniv_type ? annivLists(options.anniv_type) : []
-  if (type === 'Match/Tournoi') return options?.tournoi_mode ? tournoiLists(options.tournoi_mode) : []
+  if (type === 'Match/Tournoi') return options?.tournoi_mode ? tournoiDefaultLists(options.tournoi_mode) : []
   return DEFAULT_LISTS[type] || ['menu']
 }
 
@@ -830,7 +846,7 @@ export default function CreateEvent() {
   // Sélecteur de format du tournoi (complet / bénévoles) : fixe le format et recale la pré-sélection
   function chooseTournoiMode(tournoiMode) {
     setEventOptions(prev => ({ ...prev, tournoi_mode: tournoiMode, aide_installation: prev.aide_installation ?? true }))
-    setSelectedLists(Object.fromEntries(tournoiLists(tournoiMode).map(k => [k, true])))
+    setSelectedLists(Object.fromEntries(tournoiDefaultLists(tournoiMode).map(k => [k, true])))
   }
 
   // Vote repas (tournoi complet) : l'organisateur saisit les choix proposés (tableau de chaînes)
@@ -1279,7 +1295,7 @@ export default function CreateEvent() {
                                   ? 'bg-orange-500 border-orange-500 text-white'
                                   : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
                               } ${listesQcmDone ? 'opacity-60 cursor-not-allowed' : ''}`}>
-                              {active ? '✓ ' : ''}{choice.label}
+                              {active ? '✓ ' : ''}{listLabel(choice, form.event_type)}
                             </button>
                           )
                         })}
@@ -1670,7 +1686,7 @@ export default function CreateEvent() {
                         <input type="checkbox" checked={!!eventOptions[c.key]}
                           onChange={(e) => updateOption(c.key, e.target.checked)}
                           className="w-4 h-4 accent-blue-500" />
-                        <span className="text-xs text-slate-700">{c.label}</span>
+                        <span className="text-xs text-slate-700">{listLabel(c, form.event_type)}</span>
                       </label>
                     ))}
                   </div>
@@ -1750,7 +1766,7 @@ export default function CreateEvent() {
                       <input type="checkbox" checked={!!selectedLists[c.key]}
                         onChange={() => toggleList(c.key)}
                         className="w-4 h-4 accent-blue-500" />
-                      <span className="text-xs text-slate-700">{c.label}</span>
+                      <span className="text-xs text-slate-700">{listLabel(c, form.event_type)}</span>
                     </label>
                   ))}
                 </div>

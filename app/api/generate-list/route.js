@@ -1,5 +1,6 @@
 import { generateText } from '@/lib/ai'
 import { freeLists, useFreeMode } from '@/lib/free-mode.mjs'
+import { personalGearList } from '@/lib/sport-gear.mjs'
 import { activityPlanning, matchSportActivity } from '@/lib/activity-planning.mjs'
 import { SAFETY_CHECKLISTS, matchActivity } from '@/lib/safety-checklists'
 
@@ -160,11 +161,16 @@ export async function POST(request) {
     const heureDebut = typeof date === 'string' && date.length >= 16 ? date.slice(11, 16) : null
 
     const askedKeys = Object.keys(selected_lists || {}).filter(k => selected_lists[k])
-    if (askedKeys.length === 0) askedKeys.push('menu')
+    // Menu par défaut seulement si aucune sélection n'a été envoyée (ancien parcours) ; une sélection vide reste vide.
+    if (askedKeys.length === 0 && !selected_lists) askedKeys.push('menu')
 
     // Checklists de sortie déterministes pour garder des repères disponibles en mode gratuit.
     // Les conseils liés à la plongée restent explicitement soumis au contrôle du club/encadrant.
     let fixedChecklist = null
+    if (event_type === 'Match/Tournoi' && askedKeys.includes('checklist')) {
+      fixedChecklist = personalGearList(event_options?.sport)
+      if (!fixedChecklist) askedKeys.splice(askedKeys.indexOf('checklist'), 1)
+    }
     if (event_type === 'Randonnée' && askedKeys.includes('checklist')) {
       const key = matchActivity(event_options?.activite)
       const entry = SAFETY_CHECKLISTS[key] || SAFETY_CHECKLISTS['sortie-generique']
@@ -179,7 +185,7 @@ export async function POST(request) {
     }
 
     // Listes réellement confiées à l'IA (la checklist fixe est retirée si prise en charge en dur)
-    const aiAskedKeys = fixedChecklist ? askedKeys.filter(k => k !== 'checklist') : askedKeys
+    const aiAskedKeys = (fixedChecklist || event_type === 'Match/Tournoi') ? askedKeys.filter(k => k !== 'checklist') : askedKeys
 
     let data = {}
     if (useFreeMode()) {
