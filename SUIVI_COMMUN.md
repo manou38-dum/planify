@@ -2,13 +2,14 @@
 
 ## Grilles de rencontres — 1er octobre 2026
 
-Responsable logique : Codex. PR ouverte : [#30](https://github.com/manou38-dum/planify/pull/30), branche `codex/tournament-schedules`. Ne pas considérer cette fonction comme publiée tant que la PR n'est pas fusionnée.
+Base : PR #30 de Codex (parcours de création, listes partagées, grille dans `event_options`, sans migration). Reprise par Claude à la demande de l'utilisateur, branche `claude/tournoi-grilles`, qui remplace la PR #30.
 
-- Parcours : pour un tournoi complet, l'organisateur peut partager les listes repas, boissons et matériel, choisir « à la mêlée » ou « équipes fixes », puis renseigner terrains/pistes et joueurs par équipe.
-- Après les confirmations, le tableau organisateur construit la grille avec les prénoms des joueurs confirmés, accompagnants inclus, et la conserve dans `event_options` ; aucune migration Supabase n'est requise.
-- Calculs couverts : 12 joueurs de padel sur 3 terrains en 4 rotations, et 12 joueurs de pétanque en 4 triplettes. Validation locale : 39 tests et build Next.js de production réussis.
-- Vercel marque le déploiement de prévisualisation de la PR « Ready », mais les deux URL publiques retournent actuellement une réinitialisation de connexion. La production `https://planify.manoulabs.com/` répond 200. Aucun événement réel n'a été créé et la fonction n'a pas été testée sur téléphone.
-- Décision à prendre avant le 5 octobre : fusionner et tester cette PR avant le début de la bêta, ou la reporter après le 25 octobre conformément au gel fonctionnel. Claude peut prendre le relais pour documenter ce choix et diagnostiquer l'accès aux prévisualisations Vercel.
+- Mêlée : tirage déterministe qui limite d'abord les partenaires répétés, puis les adversaires répétés (400 essais par rotation) ; le repos tourne équitablement quand le nombre de joueurs ne tombe pas juste. Mesure sur 12 joueurs, 4 rotations : partenaires répétés 12 → 0 en doublettes et 16 → 2 en triplettes ; chaque joueur croise 8 personnes sur 11 au lieu de 6.
+- Équipes fixes : championnat complet (chaque équipe rencontre toutes les autres) rangé en créneaux qui remplissent tous les terrains. 8 équipes sur 2 terrains = 28 matchs en 14 créneaux (avant : 14 matchs sur 28 perdus). Équipes en nombre impair et remplaçants gérés.
+- Accompagnants sans prénom comptés (« Ana (2) »), prénoms en double distingués.
+- Carte « Grille des rencontres » au style v3 : résumé (joueurs, matchs, rotations), liste des équipes, terrains, repos, boutons « Envoyer sur WhatsApp » et « Copier la grille », message d'erreur dans la page au lieu d'une alerte.
+- Validation : tests unitaires (10 sur les grilles) et build réussis ; test navigateur 390 px avec base fictive, 13 joueurs, mêlée 3 terrains et équipes fixes 2 terrains. Aucun événement réel créé.
+- À tester par l'utilisateur en production avec un événement « TEST tournoi » avant le 5 octobre ; ensuite gel jusqu'au 25 octobre.
 
 ## Bêta et sécurité — 30 septembre 2026
 

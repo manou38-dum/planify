@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react'
 import { useSharedItems } from '@/lib/use-shared-items'
 import { getSupabase } from '@/lib/supabase'
 import { organizerTokenFor } from '@/lib/event-access'
-import { buildTournamentSchedule, playerNames } from '@/lib/tournament-schedules.mjs'
+import { buildTournamentSchedule, playerNames, scheduleText } from '@/lib/tournament-schedules.mjs'
 import { useParams, useRouter } from 'next/navigation'
 import { QRCodeSVG } from 'qrcode.react'
 
@@ -61,6 +61,8 @@ export default function EventDashboard() {
   const [draftSlots, setDraftSlots] = useState(null) // null = pas encore généré ; [] = en cours d'édition
   const [savingPlanning, setSavingPlanning] = useState(false)
   const [matchSchedule, setMatchSchedule] = useState(null)
+  const [scheduleError, setScheduleError] = useState('')
+  const [scheduleCopied, setScheduleCopied] = useState(false)
 
   // Recalcul des quantités après modification manuelle de la liste
   const [recalculating, setRecalculating] = useState(false)
@@ -127,18 +129,25 @@ export default function EventDashboard() {
 
   async function prepareMatchSchedule() {
     const options = event?.event_options || {}
+    setScheduleError('')
     const schedule = buildTournamentSchedule({
       players: playerNames(participants),
       format: options.match_format,
       courts: options.court_count,
       teamSize: options.team_size,
     })
-    if (schedule.reason) { alert(schedule.reason); return }
+    if (schedule.reason) { setScheduleError(schedule.reason); return }
     const nextOptions = { ...options, match_schedule: schedule }
     const { error } = await getSupabase().from('events').update({ event_options: nextOptions }).eq('id', event.id)
-    if (error) { alert(`Impossible d’enregistrer la grille : ${error.message}`); return }
+    if (error) { setScheduleError(`La grille n’a pas pu être enregistrée : ${error.message}`); return }
     setEvent(prev => ({ ...prev, event_options: nextOptions }))
     setMatchSchedule(schedule)
+  }
+
+  function shareSchedule(channel) {
+    const text = scheduleText(matchSchedule, event?.event_name)
+    if (channel === 'whatsapp') { window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank'); return }
+    navigator.clipboard?.writeText(text).then(() => { setScheduleCopied(true); setTimeout(() => setScheduleCopied(false), 2000) }).catch(() => {})
   }
 
   // ── Temps 2 du tournoi : préparer le planning bénévole ──
@@ -1630,24 +1639,65 @@ export default function EventDashboard() {
       )}
 
       {/* === TEMPS 2 TOURNOI : créer la grille avec les personnes confirmées === */}
-      {event.event_type === 'Match/Tournoi' && event.event_options?.match_format && event.event_options.match_format !== 'none' && (
-        <div className="bg-white rounded-3xl shadow-sm ring-1 ring-stone-900/5 overflow-hidden mt-4">
-          <div className="px-5 py-3 border-b border-slate-100">
-            <h3 className="text-sm font-bold text-slate-800">Grille des rencontres</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Préparée avec les joueurs confirmés, accompagnants compris. Tu peux la refaire si les réponses changent.</p>
-          </div>
-          {!matchSchedule ? <div className="p-5"><button onClick={prepareMatchSchedule} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-colors text-sm">Préparer les rencontres ({totalPersonnes} joueurs confirmés)</button></div> : (
-            <div className="p-4 space-y-3">
-              {matchSchedule.rounds.map((round, index) => <div key={index} className="rounded-xl bg-slate-50 p-3">
-                <p className="text-sm font-bold text-slate-800">{round.label}</p>
-                <div className="mt-2 space-y-1.5">{round.matches.map(match => <p key={match.court} className="text-sm text-slate-700"><span className="font-medium text-blue-700">Terrain {match.court}</span> · {match.equipes[0].join(' · ')} <span className="text-slate-400">contre</span> {match.equipes[1].join(' · ')}</p>)}</div>
-                {round.waiting?.length > 0 && <p className="mt-2 text-xs text-amber-700">Repos : {round.waiting.join(', ')}</p>}
-              </div>)}
-              <button onClick={prepareMatchSchedule} className="w-full py-2 text-sm font-medium text-blue-600 hover:text-blue-700">Recalculer avec les réponses actuelles</button>
+      {event.event_type === 'Match/Tournoi' && event.event_options?.match_format && event.event_options.match_format !== 'none' && (() => {
+        const opts = event.event_options
+        const isTeams = opts.match_format === 'equipes'
+        const teamSize = Number(opts.team_size) || 2
+        const courts = Number(opts.court_count) || 1
+        const formatLabel = `${isTeams ? 'Équipes fixes' : 'À la mêlée'} · ${teamSize} par équipe · ${courts} terrain${courts > 1 ? 's' : ''}`
+        return (
+          <section aria-labelledby="grille" className="bg-white rounded-3xl shadow-sm ring-1 ring-stone-900/5 overflow-hidden mt-4">
+            <div className="px-5 pt-5 pb-3 bg-gradient-to-br from-blue-50 to-blue-100">
+              <h3 id="grille" className="text-lg font-bold text-stone-900">🏆 Grille des rencontres</h3>
+              <p className="text-sm text-stone-700 mt-0.5">{formatLabel}</p>
+              {matchSchedule && <p className="text-sm text-stone-700">{matchSchedule.players} joueurs · {matchSchedule.matchCount} matchs · {matchSchedule.rounds.length} {isTeams ? 'créneaux' : 'rotations'}</p>}
             </div>
-          )}
-        </div>
-      )}
+            {!matchSchedule ? (
+              <div className="p-5">
+                <p className="text-sm text-stone-700">La grille se fait avec les joueurs qui ont confirmé, accompagnants compris. {isTeams ? 'Chaque équipe rencontre toutes les autres.' : 'Les équipes changent à chaque rotation, avec le moins possible de partenaires répétés.'}</p>
+                <button onClick={prepareMatchSchedule} className="mt-4 w-full min-h-[52px] bg-blue-700 hover:bg-blue-800 text-white font-bold rounded-2xl transition-colors">
+                  Préparer les rencontres ({totalPersonnes} joueur{totalPersonnes > 1 ? 's' : ''} confirmé{totalPersonnes > 1 ? 's' : ''})
+                </button>
+                {scheduleError && <p role="alert" className="mt-3 text-sm font-semibold text-amber-900 bg-amber-50 rounded-xl px-3 py-2">{scheduleError}</p>}
+              </div>
+            ) : (
+              <div className="p-4 space-y-3">
+                {isTeams && matchSchedule.teams?.length > 0 && (
+                  <details className="rounded-2xl bg-stone-50 p-3">
+                    <summary className="text-sm font-bold text-stone-900 cursor-pointer min-h-[28px]">Les {matchSchedule.teams.length} équipes</summary>
+                    <ul className="mt-2 space-y-1 text-sm text-stone-700">
+                      {matchSchedule.teams.map(t => <li key={t.nom}><span className="font-semibold text-blue-800">{t.nom}</span> : {t.joueurs.join(', ')}</li>)}
+                      {matchSchedule.substitutes?.length > 0 && <li className="text-amber-900">Remplaçants : {matchSchedule.substitutes.join(', ')}</li>}
+                    </ul>
+                  </details>
+                )}
+                {matchSchedule.rounds.map((round, index) => (
+                  <div key={index} className="rounded-2xl ring-1 ring-stone-900/5 p-3">
+                    <p className="text-sm font-bold text-stone-900">{round.label}</p>
+                    <ul className="mt-2 space-y-2">
+                      {round.matches.map(match => (
+                        <li key={match.court} className="flex gap-3 items-start">
+                          <span className="shrink-0 mt-0.5 text-xs font-bold text-white bg-blue-700 rounded-lg px-2 py-1">T{match.court}</span>
+                          <span className="text-sm text-stone-800 leading-snug">
+                            {(match.noms || [match.equipes[0].join(' + ')])[0]} <span className="text-stone-500">contre</span> {(match.noms || [null, match.equipes[1].join(' + ')])[1]}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                    {round.waiting?.length > 0 && <p className="mt-2 text-xs font-semibold text-amber-900">Au repos : {round.waiting.join(', ')}</p>}
+                  </div>
+                ))}
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button onClick={() => shareSchedule('whatsapp')} className="min-h-[48px] rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-sm">Envoyer sur WhatsApp</button>
+                  <button onClick={() => shareSchedule('copy')} className="min-h-[48px] rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-900 font-bold text-sm">{scheduleCopied ? 'Copié !' : 'Copier la grille'}</button>
+                </div>
+                <button onClick={prepareMatchSchedule} className="w-full min-h-[44px] text-sm font-semibold text-blue-800 hover:text-blue-900">Refaire la grille avec les réponses actuelles</button>
+                {scheduleError && <p role="alert" className="text-sm font-semibold text-amber-900 bg-amber-50 rounded-xl px-3 py-2">{scheduleError}</p>}
+              </div>
+            )}
+          </section>
+        )
+      })()}
 
       {/* === TEMPS 2 TOURNOI : préparer le planning bénévole === */}
       {event.event_type === 'Match/Tournoi' && slots.length === 0 && (
