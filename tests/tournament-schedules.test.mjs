@@ -91,3 +91,17 @@ test('texte de partage lisible', () => {
   assert.match(text, /Équipe 1 : J1, J2/)
   assert.match(text, /Terrain 1 : Équipe \d contre Équipe \d/)
 })
+
+test('les rencontres d’un joueur : partenaires, adversaires et repos', async () => {
+  const { playerMatches } = await import('../lib/tournament-schedules.mjs')
+  const s = buildTournamentSchedule({ players: joueurs(13), format: 'melee', courts: 3, teamSize: 2, rounds: 4 })
+  const mine = playerMatches(s, 'j5')
+  assert.equal(mine.length, 4)
+  const played = mine.filter(m => !m.rest)
+  played.forEach(m => { assert.equal(m.partners.length, 1); assert.equal(m.opponents.length, 2) })
+  assert.ok(mine.filter(m => m.rest).length <= 1)
+  const teams = buildTournamentSchedule({ players: joueurs(8), format: 'equipes', courts: 2, teamSize: 2 })
+  const t = playerMatches(teams, 'J1').filter(m => !m.rest)
+  assert.equal(t.length, 3, 'en 4 équipes, chaque équipe joue 3 matchs')
+  assert.match(t[0].opponents[0], /^Équipe \d \(J\d+, J\d+\)$/)
+})
