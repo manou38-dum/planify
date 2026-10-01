@@ -3,8 +3,8 @@ import PwaRegister from './components/PwaRegister'
 
 export const metadata = {
   metadataBase: new URL('https://planify.manoulabs.com'),
-  title: 'Planify — Organise tes événements sans tracas',
-  description: 'Crée un événement, invite tes amis, chacun choisit ce qu\'il apporte. Zéro doublon, zéro stress.',
+  title: 'Planify — Qui vient ? Qui apporte quoi ? Organise ton événement',
+  description: 'Barbecue, anniversaire, sortie ou tournoi : crée l’invitation en 2 minutes, partage-la sur WhatsApp, chacun répond et réserve ce qu’il apporte. Gratuit, sans compte.',
   applicationName: 'Planify',
   appleWebApp: { capable: true, title: 'Planify', statusBarStyle: 'default' },
   formatDetection: { telephone: false },
