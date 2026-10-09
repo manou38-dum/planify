@@ -3,6 +3,7 @@ import { LegalLayout, Section, Contact } from '../components/LegalLayout'
 export const metadata = {
   title: 'Confidentialité — Planify',
   description: 'Quelles données Planify enregistre, pourquoi, combien de temps et comment exercer vos droits.',
+  alternates: { canonical: '/confidentialite' },
 }
 
 const Li = ({ children }) => <li>{children}</li>
