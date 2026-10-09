@@ -3,6 +3,7 @@ import { LegalLayout, Section, AFaire, Contact } from '../components/LegalLayout
 export const metadata = {
   title: 'Mentions légales — Planify',
   description: 'Éditeur, hébergement et contact du service Planify.',
+  alternates: { canonical: '/mentions-legales' },
 }
 
 export default function MentionsLegales() {
