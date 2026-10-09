@@ -11,10 +11,11 @@ export const GUIDES = [
   },
   {
     slug: 'boissons-vaisselle-fete',
-    title: 'Boissons et vaisselle pour une fête : les bonnes quantités',
+    title: 'Boissons et vaisselle pour une fête : quantités de 10 à 50 personnes',
     short: 'Boissons et vaisselle pour une fête',
-    description: 'Combien de bouteilles d’eau, de jus, d’assiettes, de verres et de serviettes prévoir pour une fête ou une soirée. Calculateur gratuit selon le nombre d’invités.',
+    description: 'Combien de bouteilles d’eau et de jus, d’assiettes, de verres et de serviettes pour une fête ou un anniversaire de 10, 20, 30 ou 50 personnes. Calculateur gratuit.',
     icon: '🥤',
+    updated: '2026-10-09',
   },
   {
     slug: 'anniversaire-enfant',
